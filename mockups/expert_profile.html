@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Профиль эксперта</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <header class="header">
+        <a href="index.html" class="header__back-button">←</a>
+        <h1 class="header__title">Профиль эксперта</h1>
+    </header>
+
+    <main class="main-content">
+        <div class="profile-header">
+            <img src="https://via.placeholder.com/100" alt="Аватар эксперта" class="profile-header__avatar">
+            <h2 class="profile-header__name">Иван Иванов</h2>
+
+            <div class="profile-stats">
+                <div class="stat-item">
+                    <div class="stat-item__value">86</div>
+                    <div class="stat-item__label">Экспертность</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-item__value">50</div>
+                    <div class="stat-item__label">Народный</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-item__value">4</div>
+                    <div class="stat-item__label">Мероприятия</div>
+                </div>
+            </div>
+
+            <p class="profile-header__regalia">
+                Ведущий Python-разработчик в VK. Спикер HighLoad++. Специализация на асинхронных фреймворках и базах данных.
+            </p>
+            <div class="profile-header__meta">
+                <span>📍 Регион: Московская область</span>
+                <span>🌐 <a href="#">ivanov.vk.com</a></span>
+            </div>
+        </div>
+
+        <!-- КНОПКА ВЫЗОВА МОДАЛЬНОГО ОКНА -->
+        <button class="form-button" id="openVoteModalBtn">Проголосовать</button>
+
+    </main>
+
+    <!-- СТРУКТУРА МОДАЛЬНОГО ОКНА (изначально скрыто) -->
+    <div class="modal" id="voteModal">
+        <div class="modal-overlay" id="modalOverlay"></div>
+        <div class="modal-content">
+            <button class="modal-close" id="closeVoteModalBtn">&times;</button>
+            <div class="card">
+                <h3 class="card__title">Народное голосование</h3>
+                <p class="card__subtitle">Ваш голос и отзыв помогут другим пользователям.</p>
+                <div class="vote-actions">
+                    <button class="vote-button vote-button--trust">👍 Доверяю</button>
+                    <button class="vote-button vote-button--distrust">👎 Не доверяю</button>
+                </div>
+                <div class="feedback-form">
+                    <textarea class="form-input" placeholder="Что понравилось? (анонимно)"></textarea>
+                    <textarea class="form-input" placeholder="Что можно улучшить? (анонимно)"></textarea>
+                    <button class="form-button">Отправить отзыв</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- /СТРУКТУРА МОДАЛЬНОГО ОКНА -->
+
+    <!-- Подключаем простой скрипт для управления модальным окном -->
+    <script>
+        const openBtn = document.getElementById('openVoteModalBtn');
+        const closeBtn = document.getElementById('closeVoteModalBtn');
+        const overlay = document.getElementById('modalOverlay');
+        const modal = document.getElementById('voteModal');
+
+        const openModal = () => modal.classList.add('modal--open');
+        const closeModal = () => modal.classList.remove('modal--open');
+
+        openBtn.addEventListener('click', openModal);
+        closeBtn.addEventListener('click', closeModal);
+        overlay.addEventListener('click', closeModal);
+    </script>
+
+</body>
+</html>

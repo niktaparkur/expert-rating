@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Голосование</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <header class="header">
+        <h1 class="header__title">Голосование</h1>
+    </header>
+
+    <main class="main-content">
+        <div class="event-info">
+            Вы голосуете на мероприятии:<br><strong>Конференция "Python Conf 2025"</strong>
+        </div>
+
+        <div class="profile-header">
+            <img src="https://via.placeholder.com/100" alt="Аватар эксперта" class="profile-header__avatar">
+            <h2 class="profile-header__name">Иван Иванов</h2>
+        </div>
+
+        <div class="card">
+            <h3 class="card__title">Вы доверяете эксперту?</h3>
+            <form class="form">
+                <div class="form-group">
+                    <label class="form-label">Промо-слово</label>
+                    <input type="text" class="form-input" value="PYTHONCONF" disabled>
+                </div>
+
+                <div class="vote-actions">
+                    <button type="button" class="vote-button vote-button--trust">👍 Доверяю</button>
+                    <button type="button" class="vote-button vote-button--distrust">👎 Не доверяю</button>
+                </div>
+
+                <div class="feedback-form">
+                    <textarea class="form-input" placeholder="Что понравилось? (анонимно)"></textarea>
+                    <textarea class="form-input" placeholder="Что можно улучшить? (анонимно)"></textarea>
+                </div>
+
+                <button type="submit" class="form-button">Проголосовать</button>
+            </form>
+        </div>
+
+    </main>
+
+</body>
+</html>
