@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Стать экспертом</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <header class="header">
+        <a href="index.html" class="header__back-button">←</a>
+        <h1 class="header__title">Стать экспертом</h1>
+    </header>
+
+    <main class="main-content">
+        <div class="card">
+            <h3 class="card__title">Заполните анкету</h3>
+            <form class="form">
+                <div class="form-group">
+                    <label class="form-label">Темы экспертизы (выберите до 3)</label>
+                    <div class="topic-selector">
+                        <details class="topic-group">
+                            <summary class="topic-group__title">IT-сфера</summary>
+                            <div class="topic-group__items">
+                                <label class="topic-item"><input type="checkbox"> Администрирование</label>
+                                <label class="topic-item"><input type="checkbox"> Анализ и обработка данных</label>
+                                <label class="topic-item"><input type="checkbox"> Вебмастер</label>
+                                <label class="topic-item"><input type="checkbox"> Программист</label>
+                            </div>
+                        </details>
+                        <details class="topic-group">
+                            <summary class="topic-group__title">Здоровье</summary>
+                            <div class="topic-group__items">
+                                <label class="topic-item"><input type="checkbox"> Диетолог</label>
+                                <label class="topic-item"><input type="checkbox"> Психолог</label>
+                                <label class="topic-item"><input type="checkbox"> Тренер/инструктор</label>
+                            </div>
+                        </details>
+                        <details class="topic-group">
+                            <summary class="topic-group__title">Искусство и развлечения</summary>
+                            <div class="topic-group__items">
+                                <label class="topic-item"><input type="checkbox"> Артист, актер</label>
+                                <label class="topic-item"><input type="checkbox"> Ведущий, тамада</label>
+                                <label class="topic-item"><input type="checkbox"> Музыкант</label>
+                            </div>
+                        </details>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Домашний регион</label>
+                    <select class="form-input">
+                        <option>Московская область</option>
+                        <option>Ленинградская область</option>
+                        <option>Свердловская область</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Ссылка на соц. сеть (VK, Telegram и т.д.)</label>
+                    <input type="url" class="form-input" placeholder="https://vk.com/durov">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Регалии (до 200 символов)</label>
+                    <textarea class="form-input" placeholder="Кратко опишите ваши ключевые достижения" maxlength="200"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Ссылка на пример выступления (YouTube, статья и т.д.)</label>
+                    <p class="form-hint">Эта ссылка будет видна только администраторам.</p>
+                    <input type="url" class="form-input" placeholder="https://youtube.com/...">
+                </div>
+
+                <button type="submit" class="form-button">Отправить на модерацию</button>
+            </form>
+        </div>
+    </main>
+
+</body>
+</html>
