@@ -13,6 +13,7 @@ from sqlalchemy.sql import func
 from .base import Base
 from sqlalchemy.orm import relationship
 
+
 class User(Base):
     __tablename__ = "Users"
     vk_id = Column(BigInteger, primary_key=True)
@@ -40,7 +41,9 @@ class ExpertProfile(Base):
     tariff_expiry_date = Column(TIMESTAMP)
     show_contacts_default = Column(Boolean, default=True)
     created_at = Column(TIMESTAMP, server_default=func.now())
-    topics = relationship("ExpertTopic", back_populates="expert", cascade="all, delete-orphan")
+    topics = relationship(
+        "ExpertTopic", back_populates="expert", cascade="all, delete-orphan"
+    )
 
 
 class ExpertTopic(Base):

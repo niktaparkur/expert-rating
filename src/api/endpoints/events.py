@@ -14,6 +14,7 @@ router = APIRouter(prefix="/events", tags=["Events & Voting"])
 class RejectionBody(BaseModel):
     reason: str
 
+
 @router.post("/create", response_model=event_schemas.EventRead)
 async def create_event(
     event_data: event_schemas.EventCreate,
@@ -42,10 +43,10 @@ async def get_my_events(
     response_events = []
     for event, votes_count, trust_count, distrust_count in results:
         event_data = event.__dict__
-        event_data['name'] = event.event_name
-        event_data['votes_count'] = votes_count or 0
-        event_data['trust_count'] = trust_count or 0
-        event_data['distrust_count'] = distrust_count or 0
+        event_data["name"] = event.event_name
+        event_data["votes_count"] = votes_count or 0
+        event_data["trust_count"] = trust_count or 0
+        event_data["distrust_count"] = distrust_count or 0
         response_events.append(event_data)
 
     return response_events
@@ -100,12 +101,14 @@ async def approve_event(
 
 @router.post("/admin/{event_id}/reject")
 async def reject_event(
-        event_id: int,
-        body: RejectionBody,
-        db: AsyncSession = Depends(get_db),
-        notifier: Notifier = Depends(get_notifier)
+    event_id: int,
+    body: RejectionBody,
+    db: AsyncSession = Depends(get_db),
+    notifier: Notifier = Depends(get_notifier),
 ):
-    event = await event_crud.set_event_status(db=db, event_id=event_id, status='rejected')
+    event = await event_crud.set_event_status(
+        db=db, event_id=event_id, status="rejected"
+    )
     if not event:
         raise HTTPException(status_code=404, detail="Event not found.")
 

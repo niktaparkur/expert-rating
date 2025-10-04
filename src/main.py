@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.endpoints import experts
-from src.api.endpoints import experts, events
+from src.api.endpoints import events
 
 app = FastAPI(title="Рейтинг Экспертов")
 

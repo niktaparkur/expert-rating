@@ -27,7 +27,7 @@ async def create_event(
         duration_minutes=event_data.duration_minutes,
         event_date=event_data.event_date,
         start_date=datetime.now(timezone.utc),
-        status='pending'
+        status="pending",
     )
     db.add(db_event)
     await db.commit()
@@ -40,9 +40,13 @@ async def get_my_events(db: AsyncSession, expert_id: int):
     query = (
         select(
             Event,
-            func.count(Vote.id).label('votes_count'),
-            func.sum(case((Vote.vote_type == 'trust', 1), else_=0)).label('trust_count'),
-            func.sum(case((Vote.vote_type == 'distrust', 1), else_=0)).label('distrust_count')
+            func.count(Vote.id).label("votes_count"),
+            func.sum(case((Vote.vote_type == "trust", 1), else_=0)).label(
+                "trust_count"
+            ),
+            func.sum(case((Vote.vote_type == "distrust", 1), else_=0)).label(
+                "distrust_count"
+            ),
         )
         .outerjoin(Vote, Event.id == Vote.event_id)
         .where(Event.expert_id == expert_id)

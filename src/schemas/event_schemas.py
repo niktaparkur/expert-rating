@@ -9,8 +9,10 @@ class EventBase(BaseModel):
     duration_minutes: int
     event_date: datetime
 
+
 class EventCreate(EventBase):
     name: str
+
 
 class EventRead(EventBase):
     id: int
@@ -24,10 +26,10 @@ class EventRead(EventBase):
     class Config:
         from_attributes = True
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
     def get_name_from_event_name(cls, data: Any) -> Any:
-        if hasattr(data, 'event_name'):
+        if hasattr(data, "event_name"):
             data.name = data.event_name
         return data
 
@@ -36,6 +38,7 @@ class VoteBase(BaseModel):
     vote_type: str
     comment_positive: Optional[str] = None
     comment_negative: Optional[str] = None
+
 
 class VoteCreate(VoteBase):
     promo_word: str

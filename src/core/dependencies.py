@@ -11,15 +11,9 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 VK_BOT_TOKEN = os.environ.get("VK_BOT_TOKEN")
 
 engine = create_async_engine(
-    DATABASE_URL, echo=True,
-    pool_pre_ping=True,
-    pool_recycle=3600
+    DATABASE_URL, echo=True, pool_pre_ping=True, pool_recycle=3600
 )
-AsyncSessionLocal = sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False
-)
+AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 # Инициализируем Notifier один раз при старте
 notifier = Notifier(token=VK_BOT_TOKEN)

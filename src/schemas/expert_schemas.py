@@ -48,10 +48,11 @@ class ExpertRequestRead(BaseModel):
             True  # Позволяет Pydantic читать данные из объектов SQLAlchemy
         )
 
+
 class UserAdminRead(UserBase):
     registration_date: datetime
     is_expert: bool
-    status: Optional[str] = None # Статус из профиля, если он есть
+    status: Optional[str] = None  # Статус из профиля, если он есть
 
     class Config:
         from_attributes = True
