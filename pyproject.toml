@@ -5,7 +5,7 @@ description = ""
 authors = [
     {name = "niktaparkur",email = "153425457+niktaparkur@users.noreply.github.com"}
 ]
-packages = [{include = "app"}]
+packages = [{include = "src"}]
 license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.11, <4"
