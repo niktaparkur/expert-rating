@@ -3,6 +3,8 @@ from datetime import datetime
 from pydantic import BaseModel, model_validator
 from typing import Optional, Any
 
+from src.schemas.expert_schemas import UserBase
+
 
 class EventBase(BaseModel):
     promo_word: str
@@ -43,3 +45,19 @@ class VoteBase(BaseModel):
 class VoteCreate(VoteBase):
     promo_word: str
     voter_vk_id: int
+
+
+class Stats(BaseModel):
+    expert: int = 0
+    narodny: int = 0
+    meropriyatiy: int = 0  # Мероприятий
+
+
+class UserAdminRead(UserBase):
+    registration_date: datetime
+    is_expert: bool
+    status: Optional[str] = None
+    stats: Stats = Stats()
+
+    class Config:
+        from_attributes = True

@@ -78,9 +78,9 @@ export const Voting = ({ id }) => {
                     title="Голосование на мероприятии"
                     subtitle="Ваш голос будет засчитан в экспертный рейтинг."
                     onSubmit={handleEventVoteSubmit}
-                    disabled={popout !== null} // Блокируем, пока идет отправка
-                    voted={voted} // Передаем состояние "уже проголосовал"
-                    voteType="expert" // Указываем тип для текста
+                    disabled={popout !== null}
+                    voted={voted}
+                    voteType="expert"
                 />
             </>
         );

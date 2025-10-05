@@ -9,11 +9,11 @@ export default {
 };
 
 const exampleExpert = {
-    id: 1, name: 'Иван Иванов', photo: 'https://via.placeholder.com/96',
+    id: 1, name: 'Иван Иванов', photo: 'https://avatar.iran.liara.run/public',
     regalia: 'Ведущий Python-разработчик в VK. Спикер HighLoad++. Специализация на асинхронных фреймворках и базах данных.',
     region: 'Московская область',
     social_link: 'https://vk.com/durov',
-    stats: { expert: 86, народный: 50, мероприятий: 4 }
+    stats: { expert: 86, narodny: 50, meropriyatiy: 4 }
 };
 
 export const Default = {

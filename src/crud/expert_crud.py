@@ -1,8 +1,9 @@
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from src.models.all_models import User, ExpertProfile, ExpertTopic
+from src.models.all_models import User, ExpertProfile, ExpertTopic, Event, Vote
 from src.schemas.expert_schemas import ExpertCreate
 
 
@@ -120,11 +121,43 @@ async def get_experts_by_status(db: AsyncSession, status: str):
 
 
 async def get_user_with_profile_by_vk_id(db: AsyncSession, vk_id: int):
-    """Получает одного конкретного пользователя с его профилем."""
+    """Получает одного пользователя с профилем и ПОДСЧИТЫВАЕТ СТАТИСТИКУ."""
     query = (
         select(User, ExpertProfile)
         .outerjoin(ExpertProfile, User.vk_id == ExpertProfile.user_vk_id)
         .filter(User.vk_id == vk_id)
     )
     result = await db.execute(query)
-    return result.first()
+    user_profile_tuple = result.first()
+    if not user_profile_tuple:
+        return None
+
+    narodny_query = select(func.count(Vote.id)).where(
+        Vote.expert_vk_id == vk_id,
+        Vote.is_expert_vote.is_(False),
+        Vote.vote_type == "trust",
+    )
+    narodny_res = await db.execute(narodny_query)
+    narodny_count = narodny_res.scalar_one_or_none() or 0
+
+    expert_query = select(func.count(Vote.id)).where(
+        Vote.expert_vk_id == vk_id,
+        Vote.is_expert_vote.is_(True),
+        Vote.vote_type == "trust",
+    )
+    expert_res = await db.execute(expert_query)
+    expert_count = expert_res.scalar_one_or_none() or 0
+
+    events_query = select(func.count(Event.id)).where(
+        Event.expert_id == vk_id, Event.status == "approved"
+    )
+    events_res = await db.execute(events_query)
+    events_count = events_res.scalar_one_or_none() or 0
+
+    stats = {
+        "narodny": narodny_count,
+        "expert": expert_count,
+        "meropriyatiy": events_count,
+    }
+
+    return tuple(user_profile_tuple) + (stats,)

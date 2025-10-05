@@ -40,16 +40,17 @@ async def get_top_experts(db: AsyncSession = Depends(get_db)):
 
 @router.get("/{vk_id}", response_model=expert_schemas.UserAdminRead)
 async def get_expert_profile(vk_id: int, db: AsyncSession = Depends(get_db)):
-    user_with_profile = await expert_crud.get_user_with_profile_by_vk_id(
-        db=db, vk_id=vk_id
-    )
-    if not user_with_profile:
+    result = await expert_crud.get_user_with_profile_by_vk_id(db=db, vk_id=vk_id)
+    if not result:
         raise HTTPException(status_code=404, detail="Expert not found")
 
-    user, profile = user_with_profile
+    user, profile, stats = result
+
     user_data = user.__dict__
-    user_data["status"] = profile.status if profile else None
-    # TODO: Добавить статистику (рейтинги, кол-во мероприятий)
+    if profile:
+        user_data["status"] = profile.status
+    user_data["stats"] = stats
+
     return user_data
 
 
