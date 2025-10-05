@@ -1,0 +1,44 @@
+.onboarding-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: var(--vkui--color_background_content);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.onboarding-slide {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px 40px;
+    gap: 16px;
+}
+
+.onboarding-slide .Title {
+    margin: 0;
+}
+
+.onboarding-slide .Text {
+    color: var(--vkui--color_text_secondary);
+    line-height: 1.5;
+}
+
+.onboarding-icon {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 60px;
+    color: white;
+    font-weight: bold;
+    margin-bottom: 20px;
+}

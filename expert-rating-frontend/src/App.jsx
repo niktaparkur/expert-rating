@@ -1,8 +1,8 @@
-// src/App.jsx
-import React, { useState } from 'react';
-import { Epic, Tabbar, TabbarItem, SplitLayout, SplitCol, View, AppRoot, ModalRoot, ModalCard, FormItem, FormField, Input, Button } from '@vkontakte/vkui';
+import React, { useState, useEffect } from 'react';
+import { Epic, Tabbar, TabbarItem, SplitLayout, SplitCol, View, AppRoot, ModalRoot, ModalCard, FormItem, FormField, Input, Button, Panel, PanelHeader } from '@vkontakte/vkui';
 import { useActiveVkuiLocation, useRouteNavigator } from '@vkontakte/vk-mini-apps-router';
 import { Icon28ArticleOutline, Icon28CalendarOutline, Icon28MoneyCircleOutline, Icon28UserCircleOutline, Icon24CheckCircleFilledBlue } from '@vkontakte/icons';
+import { Onboarding } from './components/Onboarding.jsx';
 
 import { Home, Registration, Admin, ExpertDashboard, CreateEvent, Voting, ExpertProfile, Tariffs, Profile } from './panels';
 import {
@@ -18,6 +18,12 @@ export const App = () => {
     const [popout, setPopout] = useState(null);
     const [activeModal, setActiveModal] = useState(null);
     const [promoWord, setPromoWord] = useState('');
+    const [showOnboarding, setShowOnboarding] = useState(!localStorage.getItem('onboardingFinished'));
+
+    const finishOnboarding = () => {
+        localStorage.setItem('onboardingFinished', 'true');
+        setShowOnboarding(false);
+    };
 
     const onStoryChange = (e) => {
         const story = e.currentTarget.dataset.story;
@@ -45,6 +51,10 @@ export const App = () => {
         </ModalRoot>
     );
 
+    if (showOnboarding) {
+        return <Onboarding onFinish={finishOnboarding} />;
+    }
+
     return (
         <AppRoot>
             <SplitLayout popout={popout} modal={modal}>
@@ -57,10 +67,10 @@ export const App = () => {
                                 <TabbarItem onClick={onStoryChange} selected={activeView === VIEW_DASHBOARD} data-story={VIEW_DASHBOARD} label="Мероприятия"><Icon28CalendarOutline /></TabbarItem>
                                 <TabbarItem
                                     onClick={() => setActiveModal('promo-vote-modal')}
-                                    style={{ background: 'var(--vkui--color_background_accent)', borderRadius: '12px', marginBottom: "4px", color: 'white' }}
+                                    style={{ background: 'var(--vkui--color_background_accent)', borderRadius: '12px', color: 'white' }}
                                     label="Голосовать"
                                 >
-                                    <Icon24CheckCircleFilledBlue/>
+                                    <Icon24CheckCircleFilledBlue />
                                 </TabbarItem>
                                 <TabbarItem onClick={onStoryChange} selected={activeView === VIEW_TARIFFS} data-story={VIEW_TARIFFS} label="Тарифы"><Icon28MoneyCircleOutline /></TabbarItem>
                                 <TabbarItem onClick={onStoryChange} selected={activeView === VIEW_PROFILE} data-story={VIEW_PROFILE} label="Аккаунт"><Icon28UserCircleOutline /></TabbarItem>
