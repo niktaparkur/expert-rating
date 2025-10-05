@@ -46,10 +46,12 @@ class VoteCreate(VoteBase):
     promo_word: str
     voter_vk_id: int
 
+
 class Stats(BaseModel):
     expert: int = 0
     narodny: int = 0
-    meropriyatiy: int = 0 # Мероприятий
+    meropriyatiy: int = 0  # Мероприятий
+
 
 class UserAdminRead(UserBase):
     registration_date: datetime

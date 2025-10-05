@@ -132,24 +132,32 @@ async def get_user_with_profile_by_vk_id(db: AsyncSession, vk_id: int):
     if not user_profile_tuple:
         return None
 
-    narodny_query = select(func.count(Vote.id)).where(Vote.expert_vk_id == vk_id, Vote.is_expert_vote == False,
-                                                      Vote.vote_type == 'trust')
+    narodny_query = select(func.count(Vote.id)).where(
+        Vote.expert_vk_id == vk_id,
+        Vote.is_expert_vote.is_(False),
+        Vote.vote_type == "trust",
+    )
     narodny_res = await db.execute(narodny_query)
     narodny_count = narodny_res.scalar_one_or_none() or 0
 
-    expert_query = select(func.count(Vote.id)).where(Vote.expert_vk_id == vk_id, Vote.is_expert_vote == True,
-                                                     Vote.vote_type == 'trust')
+    expert_query = select(func.count(Vote.id)).where(
+        Vote.expert_vk_id == vk_id,
+        Vote.is_expert_vote.is_(True),
+        Vote.vote_type == "trust",
+    )
     expert_res = await db.execute(expert_query)
     expert_count = expert_res.scalar_one_or_none() or 0
 
-    events_query = select(func.count(Event.id)).where(Event.expert_id == vk_id, Event.status == 'approved')
+    events_query = select(func.count(Event.id)).where(
+        Event.expert_id == vk_id, Event.status == "approved"
+    )
     events_res = await db.execute(events_query)
     events_count = events_res.scalar_one_or_none() or 0
 
     stats = {
         "narodny": narodny_count,
         "expert": expert_count,
-        "meropriyatiy": events_count
+        "meropriyatiy": events_count,
     }
 
     return tuple(user_profile_tuple) + (stats,)

@@ -48,8 +48,8 @@ async def get_expert_profile(vk_id: int, db: AsyncSession = Depends(get_db)):
 
     user_data = user.__dict__
     if profile:
-        user_data['status'] = profile.status
-    user_data['stats'] = stats
+        user_data["status"] = profile.status
+    user_data["stats"] = stats
 
     return user_data
 
