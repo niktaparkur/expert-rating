@@ -1,13 +1,16 @@
+// src/panels/Home.jsx
 import React, { useState, useEffect } from 'react';
 import {
-    Panel, PanelHeader, Button, Group, Header, Div, CardGrid, Card,
-    Avatar, ContentBadge, Title, Text, Spinner
+    Panel, PanelHeader, Button, Group, Header, Div, CardGrid, Spinner, Text,
+    PanelHeaderContent, Avatar
 } from '@vkontakte/vkui';
 import { useRouteNavigator } from '@vkontakte/vk-mini-apps-router';
+import { ExpertCard } from '../components/ExpertCard.jsx';
+import { Icon24Add } from '@vkontakte/icons';
 
 const API_URL = 'https://testg.potokrechi.ru/api/v1';
 
-export const Home = ({ id }) => {
+export const Home = ({ id, setPopout }) => { // Принимаем setPopout для будущих алертов
     const routeNavigator = useRouteNavigator();
     const [experts, setExperts] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -33,39 +36,28 @@ export const Home = ({ id }) => {
 
     return (
         <Panel id={id}>
-            <PanelHeader>Рейтинг экспертов</PanelHeader>
-            <Group>
-                <Header
-                    aside={<Button onClick={() => routeNavigator.push('/registration')}>Стать экспертом</Button>}
-                >
-                    Топ экспертов
-                </Header>
+            <PanelHeader>
+                <PanelHeaderContent
+                    before={<Header mode="primary">Рейтинг Экспертов</Header>}
+                    after={<Button onClick={() => routeNavigator.push('/registration')}>Стать экспертом</Button>}
+                />
+            </PanelHeader>
+
+            <Group header={<Header>Топ экспертов</Header>}>
                 {loading && <Spinner />}
                 {error && <Div><Text style={{ color: 'red' }}>{error}</Text></Div>}
                 {!loading && !error && (
                     <CardGrid size="l">
                         {experts.length === 0 ? <Div><Text>Пока нет одобренных экспертов.</Text></Div> :
                          experts.map(expert => (
-                            <Card
+                            <ExpertCard
                                 key={expert.vk_id}
-                                mode="shadow"
-                                hoverMode="shadow"
+                                expert={{
+                                    ...expert,
+                                    rating: expert.stats?.expert || 0 // Берем реальный рейтинг или 0
+                                }}
                                 onClick={() => routeNavigator.push(`/expert/${expert.vk_id}`)}
-                            >
-                                <Div style={{ display: 'flex', alignItems: 'center' }}>
-                                    <Avatar size={48} src={expert.photo_url} />
-                                    <div style={{ marginLeft: '12px' }}>
-                                        <Title level="3" style={{ marginBottom: '4px' }}>{expert.first_name} {expert.last_name}</Title>
-                                        {/* TODO: Добавить реальный рейтинг */}
-                                        <Text style={{ color: 'var(--vkui--color_text_secondary)' }}>Рейтинг: 100</Text>
-                                    </div>
-                                </Div>
-                                {/* TODO: Добавить реальные темы */}
-                                <Div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', paddingTop: 0 }}>
-                                    <ContentBadge mode="secondary">Тема 1</ContentBadge>
-                                    <ContentBadge mode="secondary">Тема 2</ContentBadge>
-                                </Div>
-                            </Card>
+                            />
                         ))}
                     </CardGrid>
                 )}

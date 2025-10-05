@@ -1,4 +1,3 @@
-// src/components/ExpertCard.jsx
 import React from 'react';
 import { Card, Avatar, ContentBadge, Title, Text, Div } from '@vkontakte/vkui';
 

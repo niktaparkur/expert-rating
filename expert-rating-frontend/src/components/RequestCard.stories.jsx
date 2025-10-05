@@ -13,7 +13,7 @@ const expertRequestData = {
     vk_id: 1,
     first_name: 'Иван',
     last_name: 'Иванов',
-    photo_url: 'https://via.placeholder.com/40',
+    photo_url: 'https://avatar.iran.liara.run/public',
     regalia: 'Ведущий разработчик, спикер конференций, автор статей на Хабре и просто хороший человек.'
 };
 

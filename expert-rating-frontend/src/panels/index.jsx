@@ -5,3 +5,5 @@ export { ExpertDashboard } from './ExpertDashboard.jsx';
 export { CreateEvent } from './CreateEvent.jsx';
 export { Voting } from './Voting.jsx';
 export { ExpertProfile } from './ExpertProfile.jsx';
+export { Profile } from './Profile.jsx';
+export { Tariffs } from './Tariffs.jsx';

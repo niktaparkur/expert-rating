@@ -10,7 +10,7 @@ import { RequestCard } from '../components/RequestCard';
 
 const API_URL = 'https://testg.potokrechi.ru/api/v1';
 
-export const Admin = ({ id, setPopout }) => { // Принимаем setPopout как prop
+export const Admin = ({ id, setPopout }) => {
     const params = useParams();
 
     const [activeModal, setActiveModal] = useState(null);
