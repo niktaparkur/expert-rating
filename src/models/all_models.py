@@ -64,7 +64,7 @@ class Event(Base):
     )
     promo_word = Column(String(100), unique=True)
     event_name = Column(String(255))
-    event_link = Column(Text, nullable=True) # <-- ДОБАВЛЕНО
+    event_link = Column(Text, nullable=True)  # <-- ДОБАВЛЕНО
     start_date = Column(TIMESTAMP)
     duration_minutes = Column(Integer)
     event_date = Column(TIMESTAMP, nullable=False)

@@ -124,7 +124,9 @@ async def get_user_with_profile_by_vk_id(db: AsyncSession, vk_id: int):
         select(User, ExpertProfile)
         .outerjoin(ExpertProfile, User.vk_id == ExpertProfile.user_vk_id)
         .filter(User.vk_id == vk_id)
-        .options(selectinload(ExpertProfile.topics)) # <-- ИСПРАВЛЕНИЕ: Добавляем загрузку тем
+        .options(
+            selectinload(ExpertProfile.topics)
+        )  # <-- ИСПРАВЛЕНИЕ: Добавляем загрузку тем
     )
     result = await db.execute(query)
     user_profile_tuple = result.first()
@@ -185,6 +187,7 @@ async def update_expert_tariff(db: AsyncSession, vk_id: int, tariff_name: str) -
     await db.commit()
     return True
 
+
 async def create_user(db: AsyncSession, user_data: UserCreate) -> User:
     """Создает нового пользователя в базе данных."""
     result = await db.execute(select(User).filter(User.vk_id == user_data.vk_id))
@@ -201,7 +204,9 @@ async def create_user(db: AsyncSession, user_data: UserCreate) -> User:
 async def create_narod_vote(db: AsyncSession, vk_id: int, vote_data: NarodVoteCreate):
     """Создает 'народный' голос за эксперта."""
     expert_profile_res = await db.execute(
-        select(ExpertProfile).filter(ExpertProfile.user_vk_id == vk_id, ExpertProfile.status == 'approved')
+        select(ExpertProfile).filter(
+            ExpertProfile.user_vk_id == vk_id, ExpertProfile.status == "approved"
+        )
     )
     if not expert_profile_res.scalars().first():
         raise ValueError("Expert not found or not approved.")

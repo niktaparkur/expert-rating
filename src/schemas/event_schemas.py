@@ -23,7 +23,7 @@ class EventRead(EventBase):
     expert_id: int
     status: str
     name: str
-    event_link: Optional[HttpUrl] = None # <-- ДОБАВЛЕНО
+    event_link: Optional[HttpUrl] = None  # <-- ДОБАВЛЕНО
     is_private: bool
     votes_count: int = 0
     trust_count: int = 0
@@ -65,6 +65,7 @@ class UserAdminRead(UserBase):
 
     class Config:
         from_attributes = True
+
 
 class ExpertEventsResponse(BaseModel):
     current: List[EventRead]

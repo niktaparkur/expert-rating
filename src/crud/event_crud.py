@@ -7,9 +7,8 @@ from src.models.all_models import Event, Vote
 from src.schemas import event_schemas
 
 
-
 async def create_event(
-        db: AsyncSession, event_data: event_schemas.EventCreate, expert_id: int
+    db: AsyncSession, event_data: event_schemas.EventCreate, expert_id: int
 ):
     promo_normalized = event_data.promo_word.upper().strip()
     existing_event = await get_event_by_promo(db, promo_normalized)
@@ -38,8 +37,12 @@ async def get_my_events(db: AsyncSession, expert_id: int):
         select(
             Event,
             func.count(Vote.id).label("votes_count"),
-            func.sum(case((Vote.vote_type == "trust", 1), else_=0)).label("trust_count"),
-            func.sum(case((Vote.vote_type == "distrust", 1), else_=0)).label("distrust_count"),
+            func.sum(case((Vote.vote_type == "trust", 1), else_=0)).label(
+                "trust_count"
+            ),
+            func.sum(case((Vote.vote_type == "distrust", 1), else_=0)).label(
+                "distrust_count"
+            ),
         )
         .outerjoin(Vote, Event.id == Vote.event_id)
         .where(Event.expert_id == expert_id)
@@ -51,12 +54,14 @@ async def get_my_events(db: AsyncSession, expert_id: int):
 
 
 async def get_event_by_promo(db: AsyncSession, promo_word: str):
-    result = await db.execute(select(Event).filter(func.upper(Event.promo_word) == promo_word.upper()))
+    result = await db.execute(
+        select(Event).filter(func.upper(Event.promo_word) == promo_word.upper())
+    )
     return result.scalars().first()
 
 
 async def create_vote(
-        db: AsyncSession, vote_data: event_schemas.VoteCreate, event: Event
+    db: AsyncSession, vote_data: event_schemas.VoteCreate, event: Event
 ):
     existing_vote_result = await db.execute(
         select(Vote).filter(
@@ -86,13 +91,15 @@ async def get_pending_events(db: AsyncSession):
     return result.scalars().all()
 
 
-async def set_event_status(db: AsyncSession, event_id: int, status: str, reason: str = None):
+async def set_event_status(
+    db: AsyncSession, event_id: int, status: str, reason: str = None
+):
     result = await db.execute(select(Event).filter(Event.id == event_id))
     db_event = result.scalars().first()
     if not db_event:
         return None
     db_event.status = status
-    if status == 'rejected' and reason:
+    if status == "rejected" and reason:
         db_event.rejection_reason = reason
     await db.commit()
     await db.refresh(db_event)
@@ -126,8 +133,8 @@ async def get_events_by_expert_id(db: AsyncSession, expert_id: int):
         .where(
             and_(
                 Event.expert_id == expert_id,
-                Event.status == 'approved',
-                Event.event_date >= now
+                Event.status == "approved",
+                Event.event_date >= now,
             )
         )
         .order_by(Event.event_date.asc())
@@ -140,8 +147,8 @@ async def get_events_by_expert_id(db: AsyncSession, expert_id: int):
         .where(
             and_(
                 Event.expert_id == expert_id,
-                Event.status == 'approved',
-                Event.event_date < now
+                Event.status == "approved",
+                Event.event_date < now,
             )
         )
         .order_by(Event.event_date.desc())
@@ -150,5 +157,5 @@ async def get_events_by_expert_id(db: AsyncSession, expert_id: int):
 
     return {
         "current": current_results.scalars().all(),
-        "past": past_results.scalars().all()
+        "past": past_results.scalars().all(),
     }

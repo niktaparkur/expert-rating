@@ -3,7 +3,12 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Dict
 
-from src.core.dependencies import get_db, get_notifier, get_current_user, get_current_admin_user
+from src.core.dependencies import (
+    get_db,
+    get_notifier,
+    get_current_user,
+    get_current_admin_user,
+)
 from src.crud import event_crud
 from src.schemas import event_schemas
 from src.services.notifier import Notifier
@@ -117,7 +122,11 @@ async def get_events_for_expert(expert_id: int, db: AsyncSession = Depends(get_d
 
 
 # --- Роуты для Админки ---
-@router.get("/admin/pending", response_model=List[event_schemas.EventRead], dependencies=[Depends(get_current_admin_user)])
+@router.get(
+    "/admin/pending",
+    response_model=List[event_schemas.EventRead],
+    dependencies=[Depends(get_current_admin_user)],
+)
 async def get_pending_events_for_admin(db: AsyncSession = Depends(get_db)):
     return await event_crud.get_pending_events(db=db)
 

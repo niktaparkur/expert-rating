@@ -5,11 +5,13 @@ import json
 import redis.asyncio as redis
 from typing import Dict
 
+
 class TokenManager:
     """
     Управляет кешированием и блокировками для токенов доступа,
     чтобы предотвратить состояние гонки при одновременных запросах к VK API.
     """
+
     def __init__(self, redis_client: redis.Redis, cache_lifetime: int):
         self._redis = redis_client
         self._cache_lifetime = cache_lifetime
@@ -33,6 +35,6 @@ class TokenManager:
         cache_key = f"token:{token}"
         # Преобразуем datetime в строку перед сохранением
         if user_data.get("registration_date"):
-             user_data["registration_date"] = user_data["registration_date"].isoformat()
+            user_data["registration_date"] = user_data["registration_date"].isoformat()
 
         await self._redis.setex(cache_key, self._cache_lifetime, json.dumps(user_data))

@@ -28,7 +28,7 @@ class UserAdminRead(UserBase):
     is_expert: bool
     status: Optional[str] = None
     stats: Stats = Field(default_factory=Stats)
-    topics: List[str] = [] # <-- ИСПРАВЛЕНИЕ: Добавляем поле для тем
+    topics: List[str] = []  # <-- ИСПРАВЛЕНИЕ: Добавляем поле для тем
 
     class Config:
         from_attributes = True
