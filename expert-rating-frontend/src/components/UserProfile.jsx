@@ -1,4 +1,4 @@
-// src/components/UserProfile.jsx
+
 import React from 'react';
 import { Group, Card, Avatar, Title, Text, Div, SimpleCell, InfoRow } from '@vkontakte/vkui';
 import { Icon28UserStarBadgeOutline, Icon28UserOutline, Icon28DoorArrowRightOutline } from '@vkontakte/icons';

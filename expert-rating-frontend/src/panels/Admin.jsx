@@ -2,16 +2,19 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
     Panel, PanelHeader, Group, Header, Button, ScreenSpinner, Div, Text, Spinner,
     ModalRoot, ModalPage, ModalPageHeader, PanelHeaderButton, Avatar, InfoRow, Tabs, TabsItem,
-    CardGrid, Card, SimpleCell, Alert
+    SimpleCell, Alert, PanelHeaderBack
 } from '@vkontakte/vkui';
 import { Icon24Cancel, Icon24Delete } from '@vkontakte/icons';
-import { useParams } from '@vkontakte/vk-mini-apps-router';
+import { useRouteNavigator, useSearchParams } from '@vkontakte/vk-mini-apps-router';
 import { RequestCard } from '../components/RequestCard';
+import { useApi } from '../hooks/useApi';
 
-const API_URL = 'https://testg.potokrechi.ru/api/v1';
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const Admin = ({ id, setPopout }) => {
-    const params = useParams();
+    const routeNavigator = useRouteNavigator();
+    const [searchParams] = useSearchParams();
+    const { apiGet, apiPost } = useApi();
 
     const [activeModal, setActiveModal] = useState(null);
     const [selectedTab, setSelectedTab] = useState('moderation');
@@ -21,41 +24,53 @@ export const Admin = ({ id, setPopout }) => {
     const [allUsers, setAllUsers] = useState([]);
     const [loading, setLoading] = useState({ experts: true, events: true, users: true });
     const [error, setError] = useState(null);
-    const [requestToOpenId, setRequestToOpenId] = useState(params?.vk_id || null);
 
-    const fetchData = useCallback(() => {
+    const requestToOpenId = searchParams.get('vk_id');
+
+    const fetchData = useCallback(async () => {
         setPopout(<ScreenSpinner state="loading" />);
         setError(null);
         setLoading({ experts: true, events: true, users: true });
-        const fetchExperts = fetch(`${API_URL}/experts/admin/pending`).then(res => res.json());
-        const fetchEvents = fetch(`${API_URL}/events/admin/pending`).then(res => res.json());
-        const fetchUsers = fetch(`${API_URL}/experts/admin/all_users`).then(res => res.json());
 
-        Promise.allSettled([fetchExperts, fetchEvents, fetchUsers])
-            .then(results => {
-                const [expertsResult, eventsResult, usersResult] = results;
-                if (expertsResult.status === 'fulfilled') setExpertRequests(expertsResult.value); else setError(prev => `${prev || ''} Ошибка загрузки заявок экспертов.`);
-                if (eventsResult.status === 'fulfilled') setEventRequests(eventsResult.value); else setError(prev => `${prev || ''} Ошибка загрузки заявок мероприятий.`);
-                if (usersResult.status === 'fulfilled') setAllUsers(usersResult.value); else setError(prev => `${prev || ''} Ошибка загрузки пользователей.`);
-            })
-            .finally(() => {
-                setLoading({ experts: false, events: false, users: false });
-                setPopout(null);
+        try {
+            setLoading(prev => ({ ...prev, experts: true }));
+            const expertsData = await apiGet('/experts/admin/pending');
+            setExpertRequests(expertsData);
+            setLoading(prev => ({ ...prev, experts: false }));
 
-            });
-    }, [setPopout]);
+            await sleep(200);
 
-    useEffect(fetchData, [fetchData]);
+            setLoading(prev => ({ ...prev, events: true }));
+            const eventsData = await apiGet('/events/admin/pending');
+            setEventRequests(eventsData);
+            setLoading(prev => ({ ...prev, events: false }));
+
+            await sleep(200);
+
+            setLoading(prev => ({ ...prev, users: true }));
+            const usersData = await apiGet('/experts/admin/all_users');
+            setAllUsers(usersData);
+            setLoading(prev => ({ ...prev, users: false }));
+
+            if (requestToOpenId) {
+                const requestToOpen = expertsData.find(req => String(req.vk_id) === String(requestToOpenId));
+                if (requestToOpen) {
+                    openExpertRequest(requestToOpen);
+                }
+            }
+
+        } catch (e) {
+            setError(e.message || "Ошибка загрузки данных");
+            console.error(e);
+        } finally {
+            setLoading({ experts: false, events: false, users: false });
+            setPopout(null);
+        }
+    }, [apiGet, setPopout, requestToOpenId]);
 
     useEffect(() => {
-        if (requestToOpenId && expertRequests.length > 0) {
-            const request = expertRequests.find(req => String(req.vk_id) === String(requestToOpenId));
-            if (request) {
-                openExpertRequest(request);
-                setRequestToOpenId(null);
-            }
-        }
-    }, [requestToOpenId, expertRequests]);
+        fetchData();
+    }, [fetchData]);
 
     const openExpertRequest = (request) => { setSelectedRequest(request); setActiveModal('expert-details'); };
     const closeModal = () => { setActiveModal(null); setTimeout(() => setSelectedRequest(null), 200); };
@@ -64,8 +79,7 @@ export const Admin = ({ id, setPopout }) => {
         closeModal();
         setPopout(<ScreenSpinner state="loading" />);
         try {
-            const response = await fetch(`${API_URL}/experts/admin/${vkId}/${action}`, { method: 'POST' });
-            if (!response.ok) throw new Error(`Не удалось выполнить действие: ${action}`);
+            await apiPost(`/experts/admin/${vkId}/${action}`);
             setExpertRequests(prev => prev.filter(req => req.vk_id !== vkId));
         } catch (err) {
             alert(err.message);
@@ -77,8 +91,8 @@ export const Admin = ({ id, setPopout }) => {
     const handleEventAction = async (eventId, action) => {
         setPopout(<ScreenSpinner state="loading" />);
         try {
-            const response = await fetch(`${API_URL}/events/admin/${eventId}/${action}`, { method: 'POST' });
-            if (!response.ok) throw new Error(`Не удалось выполнить действие: ${action}`);
+            const body = action === 'reject' ? { reason: "Нарушение правил" } : {};
+            await apiPost(`/events/admin/${eventId}/${action}`, body);
             setEventRequests(prev => prev.filter(req => req.id !== eventId));
         } catch (err) {
             alert(err.message);
@@ -90,28 +104,10 @@ export const Admin = ({ id, setPopout }) => {
     const handleDeleteUser = (user) => {
         setPopout(
             <Alert
-                actions={[
-                    { title: 'Отмена', mode: 'cancel', action: () => setPopout(null) },
-                    {
-                        title: 'Удалить',
-                        mode: 'destructive',
-                        action: async () => {
-                            setPopout(<ScreenSpinner state="loading" />);
-                            try {
-                                const response = await fetch(`${API_URL}/experts/admin/${user.vk_id}/delete`, { method: 'POST' });
-                                if (!response.ok) throw new Error('Не удалось удалить пользователя');
-                                setAllUsers(prev => prev.filter(u => u.vk_id !== user.vk_id));
-                            } catch (err) {
-                                alert(err.message);
-                            } finally {
-                                setPopout(null);
-                            }
-                        }
-                    },
-                ]}
+                actions={[{ title: 'Отмена', mode: 'cancel', action: () => setPopout(null) }, { title: 'Удалить', mode: 'destructive', action: async () => { setPopout(<ScreenSpinner state="loading" />); try { await apiPost(`/experts/admin/${user.vk_id}/delete`); setAllUsers(prev => prev.filter(u => u.vk_id !== user.vk_id)); } catch (err) { alert(err.message); } finally { setPopout(null); } } }]}
                 onClose={() => setPopout(null)}
-                title="Подтверждение действия"
-                description={`Вы уверены, что хотите удалить пользователя ${user.first_name} ${user.last_name}? Это действие необратимо.`}
+                header="Подтверждение действия"
+                text={`Вы уверены, что хотите удалить пользователя ${user.first_name} ${user.last_name}? Это действие необратимо.`}
             />
         );
     };
@@ -124,8 +120,8 @@ export const Admin = ({ id, setPopout }) => {
                     <SimpleCell multiline><InfoRow header="Регион">{selectedRequest.region}</InfoRow></SimpleCell>
                     <SimpleCell multiline><InfoRow header="Регалии">{selectedRequest.regalia}</InfoRow></SimpleCell>
                     <SimpleCell multiline><InfoRow header="Темы">{selectedRequest.topics.join(', ')}</InfoRow></SimpleCell>
-                    <SimpleCell multiline href={selectedRequest.social_link} target="_blank"><InfoRow header="Соц. сеть">Перейти</InfoRow></SimpleCell>
-                    <SimpleCell multiline href={selectedRequest.performance_link} target="_blank"><InfoRow header="Выступление">Посмотреть</InfoRow></SimpleCell>
+                    <SimpleCell multiline href={selectedRequest.social_link} target="_blank" expandable="true"><InfoRow header="Соц. сеть">Перейти</InfoRow></SimpleCell>
+                    <SimpleCell multiline href={selectedRequest.performance_link} target="_blank" expandable="true"><InfoRow header="Выступление">Посмотреть</InfoRow></SimpleCell>
                     <Div style={{ display: 'flex', gap: '8px' }}>
                         <Button size="l" stretched mode="primary" onClick={() => handleExpertAction(selectedRequest.vk_id, 'approve')}>Одобрить</Button>
                         <Button size="l" stretched mode="destructive" onClick={() => handleExpertAction(selectedRequest.vk_id, 'reject')}>Отклонить</Button>
@@ -138,49 +134,43 @@ export const Admin = ({ id, setPopout }) => {
     return (
         <Panel id={id}>
             {modal}
-            <PanelHeader>Панель Администратора</PanelHeader>
+            <PanelHeader before={<PanelHeaderBack onClick={() => routeNavigator.back()} />}>Панель Администратора</PanelHeader>
             <Tabs>
                  <TabsItem selected={selectedTab === 'moderation'} onClick={() => setSelectedTab('moderation')} id="tab-moderation" aria-controls="content-moderation">Модерация</TabsItem>
                  <TabsItem selected={selectedTab === 'users'} onClick={() => setSelectedTab('users')} id="tab-users" aria-controls="content-users">Пользователи</TabsItem>
             </Tabs>
 
-            <div id="content-moderation" style={{ display: selectedTab === 'moderation' ? 'block' : 'none' }}>
+            <div id="content-moderation" role="tabpanel" aria-labelledby="tab-moderation" style={{ display: selectedTab === 'moderation' ? 'block' : 'none', paddingBottom: 60 }}>
                 {error && <Div><Text style={{ color: 'red' }}>{error}</Text></Div>}
                 <Group header={<Header>Заявки на регистрацию экспертов</Header>}>
                     {loading.experts ? <Spinner /> : (
                         expertRequests.length === 0 ? <Div><Text>Новых заявок нет</Text></Div> :
-                        <CardGrid size="l">
-                            {expertRequests.map(req => (
-                                <RequestCard
-                                    key={req.vk_id}
-                                    request={req}
-                                    type="expert"
-                                    onPrimaryClick={() => openExpertRequest(req)}
-                                />
-                            ))}
-                        </CardGrid>
+                        expertRequests.map(req => (
+                            <RequestCard
+                                key={req.vk_id}
+                                request={req}
+                                type="expert"
+                                onPrimaryClick={() => openExpertRequest(req)}
+                            />
+                        ))
                     )}
                 </Group>
-
                 <Group header={<Header>Заявки на создание мероприятий</Header>}>
                     {loading.events ? <Spinner /> : (
                         eventRequests.length === 0 ? <Div><Text>Новых заявок нет</Text></Div> :
-                        <CardGrid size="l">
-                            {eventRequests.map(req => (
-                                <RequestCard
-                                    key={req.id}
-                                    request={req}
-                                    type="event"
-                                    onPrimaryClick={() => handleEventAction(req, 'approve')}
-                                    onSecondaryClick={() => handleEventAction(req, 'reject')}
-                                />
-                            ))}
-                        </CardGrid>
+                        eventRequests.map(req => (
+                            <RequestCard
+                                key={req.id}
+                                request={req}
+                                type="event"
+                                onPrimaryClick={() => handleEventAction(req.id, 'approve')}
+                                onSecondaryClick={() => handleEventAction(req.id, 'reject')}
+                            />
+                        ))
                     )}
                 </Group>
             </div>
-
-            <div id="content-users" role="tabpanel" aria-labelledby="tab-users" style={{ display: selectedTab === 'users' ? 'block' : 'none' }}>
+            <div id="content-users" role="tabpanel" aria-labelledby="tab-users" style={{ display: selectedTab === 'users' ? 'block' : 'none', paddingBottom: 60 }}>
                 <Group header={<Header>Все пользователи и эксперты</Header>}>
                     {loading.users ? <Spinner/> : (
                         allUsers.map(user => (

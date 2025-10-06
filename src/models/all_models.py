@@ -64,12 +64,14 @@ class Event(Base):
     )
     promo_word = Column(String(100), unique=True)
     event_name = Column(String(255))
+    event_link = Column(Text, nullable=True)  # <-- ДОБАВЛЕНО
     start_date = Column(TIMESTAMP)
     duration_minutes = Column(Integer)
     event_date = Column(TIMESTAMP, nullable=False)
     status = Column(Enum("pending", "approved", "rejected"), default="pending")
     rejection_reason = Column(Text)
     show_contacts = Column(Boolean)
+    is_private = Column(Boolean, default=False, nullable=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
 

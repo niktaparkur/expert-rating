@@ -1,0 +1,63 @@
+/* expert-rating-frontend/src/components/ExpertProfileCard.css */
+
+.expert-profile-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.expert-profile-name {
+    margin-top: 16px;
+}
+
+.expert-profile-regalia {
+    color: var(--vkui--color_text_secondary);
+    margin-top: 8px;
+    padding: 0 16px;
+    max-width: 400px;
+}
+
+.expert-profile-stats {
+    display: flex;
+    justify-content: space-around;
+    gap: 32px;
+    margin-top: 20px;
+    padding: 16px;
+    border-top: 1px solid var(--vkui--color_separator_primary);
+    width: 100%;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.stat-value {
+    font-size: 18px;
+    font-weight: 500;
+}
+
+.expert-profile-actions {
+    display: flex;
+    width: 100%;
+    justify-content: space-around;
+    padding: 12px 16px;
+}
+
+.action-item {
+    cursor: pointer;
+    color: var(--vkui--color_icon_accent);
+    padding: 8px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.15s ease-in-out;
+}
+
+.action-item:hover {
+    background-color: var(--vkui--color_background_secondary_alpha);
+}

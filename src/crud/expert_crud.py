@@ -2,14 +2,14 @@ from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
+from datetime import datetime, timedelta, timezone
 
 from src.models.all_models import User, ExpertProfile, ExpertTopic, Event, Vote
-from src.schemas.expert_schemas import ExpertCreate
+from src.schemas.expert_schemas import ExpertCreate, UserCreate, NarodVoteCreate
 
 
 async def create_expert_request(db: AsyncSession, expert_data: ExpertCreate) -> User:
     """Создает пользователя (если его нет) и заявку на становление экспертом."""
-    # 1. Проверяем, есть ли уже такой пользователь. Если нет - создаем.
     user_result = await db.execute(
         select(User).filter(User.vk_id == expert_data.user_data.vk_id)
     )
@@ -20,7 +20,6 @@ async def create_expert_request(db: AsyncSession, expert_data: ExpertCreate) -> 
         db.add(db_user)
         await db.flush()
 
-    # 2. Создаем профиль эксперта. Проверяем, не подавал ли он заявку ранее.
     profile_result = await db.execute(
         select(ExpertProfile).filter(ExpertProfile.user_vk_id == db_user.vk_id)
     )
@@ -34,7 +33,6 @@ async def create_expert_request(db: AsyncSession, expert_data: ExpertCreate) -> 
     )
     db.add(db_profile)
 
-    # 3. Добавляем темы экспертизы
     for topic_name in expert_data.profile_data.topics:
         db_topic = ExpertTopic(expert_id=db_user.vk_id, topic_name=topic_name)
         db.add(db_topic)
@@ -50,20 +48,10 @@ async def get_pending_experts(db: AsyncSession):
         select(User, ExpertProfile)
         .join(ExpertProfile, User.vk_id == ExpertProfile.user_vk_id)
         .filter(ExpertProfile.status == "pending")
-        .options(
-            selectinload(ExpertProfile.topics)
-        )  # Эффективно подгружаем связанные темы
+        .options(selectinload(ExpertProfile.topics))
     )
     results = await db.execute(query)
-
-    expert_requests = []
-    for user, profile in results.all():
-        expert_data = user.__dict__
-        expert_data.update(profile.__dict__)
-        expert_data["topics"] = [topic.topic_name for topic in profile.topics]
-        expert_requests.append(expert_data)
-
-    return expert_requests
+    return results.all()
 
 
 async def set_expert_status(db: AsyncSession, vk_id: int, status: str) -> ExpertProfile:
@@ -76,7 +64,6 @@ async def set_expert_status(db: AsyncSession, vk_id: int, status: str) -> Expert
         return None
 
     db_profile.status = status
-    # Также обновляем флаг is_expert у самого пользователя
     user_result = await db.execute(select(User).filter(User.vk_id == vk_id))
     db_user = user_result.scalars().first()
     if db_user:
@@ -115,9 +102,20 @@ async def get_experts_by_status(db: AsyncSession, status: str):
         select(User, ExpertProfile)
         .join(ExpertProfile, User.vk_id == ExpertProfile.user_vk_id)
         .filter(ExpertProfile.status == status)
+        .options(selectinload(ExpertProfile.topics))
     )
     results = await db.execute(query)
-    return results.all()
+    users_with_profiles = results.all()
+
+    experts_with_stats = []
+    for user, profile in users_with_profiles:
+        full_expert_data = await get_user_with_profile_by_vk_id(db, vk_id=user.vk_id)
+        if full_expert_data:
+            user_obj, profile_obj, stats_dict = full_expert_data
+            topics = [topic.topic_name for topic in profile.topics]
+            experts_with_stats.append((user_obj, profile_obj, stats_dict, topics))
+
+    return experts_with_stats
 
 
 async def get_user_with_profile_by_vk_id(db: AsyncSession, vk_id: int):
@@ -126,12 +124,16 @@ async def get_user_with_profile_by_vk_id(db: AsyncSession, vk_id: int):
         select(User, ExpertProfile)
         .outerjoin(ExpertProfile, User.vk_id == ExpertProfile.user_vk_id)
         .filter(User.vk_id == vk_id)
+        .options(
+            selectinload(ExpertProfile.topics)
+        )  # <-- ИСПРАВЛЕНИЕ: Добавляем загрузку тем
     )
     result = await db.execute(query)
     user_profile_tuple = result.first()
     if not user_profile_tuple:
         return None
 
+    # ... (код подсчета статистики остается без изменений) ...
     narodny_query = select(func.count(Vote.id)).where(
         Vote.expert_vk_id == vk_id,
         Vote.is_expert_vote.is_(False),
@@ -161,3 +163,76 @@ async def get_user_with_profile_by_vk_id(db: AsyncSession, vk_id: int):
     }
 
     return tuple(user_profile_tuple) + (stats,)
+
+
+async def update_expert_tariff(db: AsyncSession, vk_id: int, tariff_name: str) -> bool:
+    """Обновляет тариф эксперта."""
+    result = await db.execute(
+        select(ExpertProfile).filter(ExpertProfile.user_vk_id == vk_id)
+    )
+    db_profile = result.scalars().first()
+
+    if not db_profile:
+        return False
+
+    if tariff_name == "tariff_standard":
+        db_profile.tariff_plan = "Стандарт"
+    elif tariff_name == "tariff_pro":
+        db_profile.tariff_plan = "Профи"
+    else:
+        return False
+
+    db_profile.tariff_expiry_date = datetime.now(timezone.utc) + timedelta(days=30)
+
+    await db.commit()
+    return True
+
+
+async def create_user(db: AsyncSession, user_data: UserCreate) -> User:
+    """Создает нового пользователя в базе данных."""
+    result = await db.execute(select(User).filter(User.vk_id == user_data.vk_id))
+    if result.scalars().first():
+        raise ValueError("User with this VK ID already exists.")
+
+    db_user = User(**user_data.model_dump())
+    db.add(db_user)
+    await db.commit()
+    await db.refresh(db_user)
+    return db_user
+
+
+async def create_narod_vote(db: AsyncSession, vk_id: int, vote_data: NarodVoteCreate):
+    """Создает 'народный' голос за эксперта."""
+    expert_profile_res = await db.execute(
+        select(ExpertProfile).filter(
+            ExpertProfile.user_vk_id == vk_id, ExpertProfile.status == "approved"
+        )
+    )
+    if not expert_profile_res.scalars().first():
+        raise ValueError("Expert not found or not approved.")
+
+    twenty_four_hours_ago = datetime.now(timezone.utc) - timedelta(hours=24)
+    existing_vote_res = await db.execute(
+        select(Vote).filter(
+            Vote.voter_vk_id == vote_data.voter_vk_id,
+            Vote.expert_vk_id == vk_id,
+            Vote.is_expert_vote.is_(False),
+            Vote.created_at >= twenty_four_hours_ago,
+        )
+    )
+    if existing_vote_res.scalars().first():
+        raise ValueError("You can vote for this expert only once every 24 hours.")
+
+    db_vote = Vote(
+        voter_vk_id=vote_data.voter_vk_id,
+        expert_vk_id=vk_id,
+        event_id=None,
+        is_expert_vote=False,
+        vote_type=vote_data.vote_type,
+        comment_positive=vote_data.comment_positive,
+        comment_negative=vote_data.comment_negative,
+    )
+    db.add(db_vote)
+    await db.commit()
+    await db.refresh(db_vote)
+    return db_vote

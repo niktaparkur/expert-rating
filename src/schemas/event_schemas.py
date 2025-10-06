@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from pydantic import BaseModel, model_validator
-from typing import Optional, Any
+from pydantic import BaseModel, model_validator, HttpUrl
+from typing import Optional, Any, List
 
 from src.schemas.expert_schemas import UserBase
 
@@ -14,6 +14,8 @@ class EventBase(BaseModel):
 
 class EventCreate(EventBase):
     name: str
+    event_link: Optional[HttpUrl] = None
+    is_private: bool = False
 
 
 class EventRead(EventBase):
@@ -21,6 +23,8 @@ class EventRead(EventBase):
     expert_id: int
     status: str
     name: str
+    event_link: Optional[HttpUrl] = None  # <-- ДОБАВЛЕНО
+    is_private: bool
     votes_count: int = 0
     trust_count: int = 0
     distrust_count: int = 0
@@ -61,3 +65,8 @@ class UserAdminRead(UserBase):
 
     class Config:
         from_attributes = True
+
+
+class ExpertEventsResponse(BaseModel):
+    current: List[EventRead]
+    past: List[EventRead]
