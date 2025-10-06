@@ -17,8 +17,10 @@
     align-items: center;
     justify-content: center;
     text-align: center;
-    padding: 20px 40px;
+    padding: 0 40px;
     gap: 16px;
+    box-sizing: border-box;
+    width: 100%;
 }
 
 .onboarding-slide .Title {

@@ -1,38 +1,78 @@
 import React from 'react';
-import { Card, Avatar, ContentBadge, Title, Text, Div } from '@vkontakte/vkui';
+import { Card, Avatar, Title, Text, ContentBadge } from '@vkontakte/vkui';
+import './ExpertCard.css';
 
-export const ExpertCard = ({ expert, onClick }) => {
-  // Защита от случая, если expert не передан
+const RatingBlock = ({ expertRating, narodnyRating }) => {
+    const isNarodnyVisible = true;
+
+    if (!isNarodnyVisible) {
+        return (
+            <div className="rating-block single">
+                <div className="rating-value">{expertRating}</div>
+                <div className="rating-label">Экспертный</div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="rating-block double">
+            <div className="rating-segment">
+                <div className="rating-value">{expertRating}</div>
+                <div className="rating-label">Экспертный</div>
+            </div>
+            <div className="rating-separator"></div>
+            <div className="rating-segment">
+                <div className="rating-value">{narodnyRating}</div>
+                <div className="rating-label">Народный</div>
+            </div>
+        </div>
+    );
+};
+
+
+export const ExpertCard = ({ expert, topPosition, onClick }) => {
   if (!expert) {
     return null;
   }
 
-  // Определяем, какие поля использовать (для совместимости с разными источниками данных)
-  const name = expert.first_name || expert.name || '';
+  const name = expert.first_name || '';
   const surname = expert.last_name || '';
-  const photo = expert.photo_url || expert.photo || '';
-  const rating = expert.rating !== undefined ? expert.rating : 'N/A';
-  const topics = expert.topics || [];
+  const photo = expert.photo_url || '';
+  const topics = (expert.topics || []).map(topic => {
+      const parts = topic.split(' > ');
+      return parts[parts.length - 1];
+  });
+
+  const expertRating = expert.stats?.expert || 0;
+  const narodnyRating = expert.stats?.narodny || 0;
 
   return (
     <Card
         mode="shadow"
         onClick={onClick}
+        className="expert-card-container"
     >
-        <Div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-            <Avatar size={48} src={photo} />
-            <div style={{ marginLeft: '12px' }}>
-                <Title level="3" style={{ marginBottom: '4px' }}>{name} {surname}</Title>
-                <Text style={{ color: 'var(--vkui--color_text_secondary)' }}>Рейтинг: {rating}</Text>
+        <div className="expert-card-main">
+            <div className="expert-card-position">
+                <Text className="position-number">{topPosition}</Text>
             </div>
-        </Div>
-        {topics.length > 0 && (
-            <Div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', paddingTop: 0 }}>
-                {topics.map(topic => (
-                    <ContentBadge key={topic} mode="secondary">{topic}</ContentBadge>
-                ))}
-            </Div>
-        )}
+            <Avatar size={48} src={photo} />
+            <div className="expert-card-info">
+                <Title level="3" className="expert-name">{name} {surname}</Title>
+                {/* ИСПОЛЬЗУЕМ ContentBadge */}
+                {topics.length > 0 && (
+                    <div className="expert-topics-container">
+                        {topics.slice(0, 2).map(topic => ( // Ограничиваем до 2 для чистоты
+                            <ContentBadge key={topic} mode="primary">{topic}</ContentBadge>
+                        ))}
+                    </div>
+                )}
+            </div>
+            <RatingBlock
+                expertRating={expertRating}
+                narodnyRating={narodnyRating}
+            />
+        </div>
     </Card>
   );
 };

@@ -2,16 +2,15 @@
 import React, { useState, useEffect } from 'react';
 import {
     Panel, PanelHeader, Button, Group, Header, Div, CardGrid, Spinner, Text,
-    PanelHeaderContent, Avatar
+    PanelHeaderContent
 } from '@vkontakte/vkui';
 import { useRouteNavigator } from '@vkontakte/vk-mini-apps-router';
 import { ExpertCard } from '../components/ExpertCard.jsx';
-import { Icon24Add } from '@vkontakte/icons';
+import { useApi } from '../hooks/useApi.js';
 
-const API_URL = 'https://testg.potokrechi.ru/api/v1';
-
-export const Home = ({ id, setPopout }) => { // Принимаем setPopout для будущих алертов
+export const Home = ({ id, user }) => {
     const routeNavigator = useRouteNavigator();
+    const { apiGet } = useApi();
     const [experts, setExperts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -21,9 +20,7 @@ export const Home = ({ id, setPopout }) => { // Принимаем setPopout д�
             setLoading(true);
             setError(null);
             try {
-                const response = await fetch(`${API_URL}/experts/top`);
-                if (!response.ok) throw new Error('Не удалось загрузить список экспертов');
-                const data = await response.json();
+                const data = await apiGet('/experts/top');
                 setExperts(data);
             } catch (err) {
                 setError(err.message);
@@ -32,30 +29,33 @@ export const Home = ({ id, setPopout }) => { // Принимаем setPopout д�
             }
         }
         fetchTopExperts();
-    }, []);
+    }, [apiGet]);
+
+    // ИСПРАВЛЕНИЕ: Используем тернарный оператор для передачи `undefined` вместо `false`
+    const becomeExpertButton = (user && !user.is_expert && user.status !== 'pending')
+        ? <Button onClick={() => routeNavigator.push('/registration')}>Стать экспертом</Button>
+        : undefined;
 
     return (
         <Panel id={id}>
             <PanelHeader>
                 <PanelHeaderContent
                     before={<Header mode="primary">Рейтинг Экспертов</Header>}
-                    after={<Button onClick={() => routeNavigator.push('/registration')}>Стать экспертом</Button>}
+                    after={becomeExpertButton}
                 />
             </PanelHeader>
 
             <Group header={<Header>Топ экспертов</Header>}>
-                {loading && <Spinner />}
+                {loading && <div style={{ paddingTop: 20, textAlign: 'center' }}><Spinner /></div>}
                 {error && <Div><Text style={{ color: 'red' }}>{error}</Text></Div>}
                 {!loading && !error && (
-                    <CardGrid size="l">
+                    <CardGrid size="l" style={{ padding: 0, margin: '0 8px', paddingBottom: '60px' }}>
                         {experts.length === 0 ? <Div><Text>Пока нет одобренных экспертов.</Text></Div> :
-                         experts.map(expert => (
+                         experts.map((expert, index) => (
                             <ExpertCard
                                 key={expert.vk_id}
-                                expert={{
-                                    ...expert,
-                                    rating: expert.stats?.expert || 0 // Берем реальный рейтинг или 0
-                                }}
+                                expert={expert}
+                                topPosition={index + 1}
                                 onClick={() => routeNavigator.push(`/expert/${expert.vk_id}`)}
                             />
                         ))}

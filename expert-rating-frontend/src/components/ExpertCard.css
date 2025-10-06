@@ -1,0 +1,89 @@
+/* expert-rating-frontend/src/components/ExpertCard.css */
+
+.expert-card-container {
+    padding: 12px;
+}
+
+.expert-card-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+}
+
+.expert-card-position {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+}
+
+.position-number {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--vkui--color_text_secondary);
+}
+
+.expert-card-info {
+    flex-grow: 1;
+    overflow: hidden; /* Чтобы длинные темы не вылезали */
+}
+
+.expert-name {
+    margin-bottom: 4px; /* Увеличили отступ */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* --- ИЗМЕНЕНИЯ ЗДЕСЬ --- */
+.expert-topics-container {
+    display: flex;
+    gap: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+/* --- Стили для блока рейтинга --- */
+
+.rating-block {
+    display: flex;
+    flex-shrink: 0; /* Не сжиматься */
+    border-radius: 8px;
+    overflow: hidden;
+    text-align: center;
+    border: 1px solid var(--vkui--color_separator_primary);
+}
+
+.rating-block.double {
+    min-width: 110px;
+}
+
+.rating-segment {
+    padding: 6px 8px;
+    flex-grow: 1;
+    background-color: var(--vkui--color_background_secondary);
+}
+
+.rating-separator {
+    width: 1px;
+    background-color: var(--vkui--color_separator_primary);
+}
+
+.rating-value {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--vkui--color_text_primary);
+}
+
+.rating-label {
+    font-size: 11px;
+    color: var(--vkui--color_text_secondary);
+    margin-top: -2px;
+}
+
+.rating-block.single {
+    min-width: 60px;
+    padding: 6px 12px;
+    background-color: var(--vkui--color_background_secondary);
+}

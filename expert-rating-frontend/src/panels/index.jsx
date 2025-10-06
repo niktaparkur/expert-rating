@@ -1,7 +1,7 @@
 export { Home } from './Home.jsx';
 export { Registration } from './Registration.jsx';
 export { Admin } from './Admin.jsx';
-export { ExpertDashboard } from './ExpertDashboard.jsx';
+export { Events } from './Events.jsx';
 export { CreateEvent } from './CreateEvent.jsx';
 export { Voting } from './Voting.jsx';
 export { ExpertProfile } from './ExpertProfile.jsx';

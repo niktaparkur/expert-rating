@@ -10,7 +10,12 @@ class Settings:
 
     VK_BOT_TOKEN: str = os.environ.get("VK_BOT_TOKEN")
     ADMIN_ID: int = int(os.environ.get("ADMIN_ID", 0))
-    APP_ID: int = int(os.environ.get("APP_ID", 0))
+
+    VK_APP_SECRET_KEY: str = os.environ.get("VK_APP_SECRET_KEY")
+    VK_SERVICE_KEY: str = os.environ.get("VK_SERVICE_KEY")
+    VK_APP_ID: int = int(os.environ.get("VK_APP_ID", 0))
+
+    REDIS_URL: str = os.environ.get("REDIS_URL")
 
 
 settings = Settings()

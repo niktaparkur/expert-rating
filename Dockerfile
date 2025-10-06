@@ -35,5 +35,4 @@ COPY ./docker-entrypoint-backend.sh /usr/local/bin/docker-entrypoint-backend.sh
 
 RUN chmod +x /usr/local/bin/docker-entrypoint-backend.sh
 
-# CMD будет переопределен в docker-compose
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
