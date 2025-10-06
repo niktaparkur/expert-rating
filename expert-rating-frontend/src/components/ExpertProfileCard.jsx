@@ -7,7 +7,7 @@ import {
     Icon28Profile,
     Icon28Users3Outline,
     Icon28AdvertisingOutline,
-    Icon28DiscussionsCircleFillGreen
+    Icon28CheckCircleFillYellow
 } from '@vkontakte/icons';
 import './ExpertProfileCard.css';
 
@@ -61,7 +61,7 @@ export const ExpertProfileCard = ({ expert, onVoteClick, onFutureFeatureClick })
                     </Tooltip>
                     <Tooltip description="Народный рейтинг (проголосовать)" placement="bottom">
                         <div className="action-item" onClick={onVoteClick}>
-                            <Icon28DiscussionsCircleFillGreen width={36} height={36}/>
+                            <Icon28CheckCircleFillYellow width={36} height={36}/>
                         </div>
                     </Tooltip>
                     <Tooltip description="Пригласить на мероприятие (в разработке)" placement="bottom">
