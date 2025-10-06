@@ -1,7 +1,7 @@
 from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm import selectinload
 from datetime import datetime, timedelta, timezone
 
 from src.models.all_models import User, ExpertProfile, ExpertTopic, Event, Vote

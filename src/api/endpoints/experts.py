@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List, Dict
+from fastapi import APIRouter, Depends, HTTPException
+from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.dependencies import (
