@@ -59,10 +59,9 @@ export const ExpertCard = ({ expert, topPosition, onClick }) => {
             <Avatar size={48} src={photo} />
             <div className="expert-card-info">
                 <Title level="3" className="expert-name">{name} {surname}</Title>
-                {/* ИСПОЛЬЗУЕМ ContentBadge */}
                 {topics.length > 0 && (
                     <div className="expert-topics-container">
-                        {topics.slice(0, 2).map(topic => ( // Ограничиваем до 2 для чистоты
+                        {topics.slice(0, 2).map(topic => (
                             <ContentBadge key={topic} mode="primary">{topic}</ContentBadge>
                         ))}
                     </div>

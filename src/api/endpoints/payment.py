@@ -1,11 +1,14 @@
 import hashlib
 import hmac
 from typing import Dict
-from fastapi import APIRouter, Depends, Request
-from sqlalchemy.ext.asyncio import AsyncSession
-from loguru import logger
 
-from src.core.dependencies import get_db
+import redis.asyncio as redis
+from fastapi import APIRouter, Depends, Request
+from loguru import logger
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.core.config import settings
+from src.core.dependencies import get_db, get_redis
 from src.crud import expert_crud
 from .tariffs import TARIFFS_INFO
 
@@ -26,7 +29,9 @@ def check_vk_signature(params: Dict, secret_key: str) -> bool:
 
 @router.post("")
 async def handle_payment_notification(
-    request: Request, db: AsyncSession = Depends(get_db)
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    cache: redis.Redis = Depends(get_redis),
 ):
     form_data = await request.form()
     params = dict(form_data)
@@ -56,11 +61,17 @@ async def handle_payment_notification(
             logger.info("Status is 'chargeable'. Trying to update tariff...")
             try:
                 vk_id = int(params.get("user_id"))
-                item = params.get("item")
-                logger.info(f"Attempting to update tariff for user {vk_id} to '{item}'")
+                item_id = params.get("item")
+                tariff_name = TARIFFS_INFO.get(item_id, {}).get("title")
+
+                if not tariff_name:
+                    logger.error(f"Cannot find tariff title for item_id: {item_id}")
+                    raise ValueError("Invalid item ID")
+
+                logger.info(f"Attempting to update tariff for user {vk_id} to '{tariff_name}'")
 
                 success = await expert_crud.update_expert_tariff(
-                    db=db, vk_id=vk_id, tariff_name=item
+                    db=db, vk_id=vk_id, tariff_name=tariff_name
                 )
 
                 if not success:
@@ -74,12 +85,16 @@ async def handle_payment_notification(
                         }
                     }
 
+                cache_key = f"user_profile:{vk_id}"
+                await cache.delete(cache_key)
+                logger.success(f"Cache for user {vk_id} has been invalidated.")
+
                 logger.success(
                     f"Successfully updated tariff for user {vk_id}. Sending success response to VK."
                 )
                 response_data = {
                     "order_id": params.get("order_id"),
-                    "app_order_id": params.get("app_order_id"),
+                    "app_order_id": int(params.get("order_id")),
                 }
                 return {"response": response_data}
             except Exception as e:
@@ -97,7 +112,7 @@ async def handle_payment_notification(
         return {
             "response": {
                 "order_id": params.get("order_id"),
-                "app_order_id": params.get("app_order_id"),
+                "app_order_id": int(params.get("order_id")),
             }
         }
 

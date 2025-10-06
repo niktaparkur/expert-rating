@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Panel, PanelHeader, Group, Header, Button, Spinner, Div, Text, ModalRoot, ModalCard,
+    Panel, PanelHeader, Group, Header, Button, Spinner, Div, Text, ModalRoot, ModalPage, ModalPageHeader,
     SimpleCell, InfoRow, Separator, Headline
-} from '@vkontakte/vkui';
+} from '@vkontakte/vkui'
 import { useRouteNavigator } from '@vkontakte/vk-mini-apps-router';
 import QRCode from 'react-qr-code';
 import { useApi } from '../hooks/useApi.js';
@@ -95,15 +95,20 @@ export const Events = ({ id, user }) => {
 
     const modal = (
         <ModalRoot activeModal={activeModal} onClose={closeModal}>
-            <ModalCard id='event-qr-modal' onClose={closeModal} header={`Мероприятие "${selectedEvent?.name}"`}>
-                <Div style={{ textAlign: 'center' }}>
-                    <Text>Промо-слово: <strong>{selectedEvent?.promo_word}</strong></Text>
-                    <div style={{ background: 'white', padding: '16px', margin: '16px auto', display: 'inline-block' }}>
-                        {selectedEvent && <QRCode value={`${APP_URL}#/vote/${selectedEvent.promo_word}`} size={128} />}
-                    </div>
-                    <Text>Покажите этот QR-код участникам для голосования.</Text>
-                </Div>
-            </ModalCard>
+            <ModalPage id='event-qr-modal' onClose={closeModal} header={<ModalPageHeader>QR-код для голосования</ModalPageHeader>}>
+                {selectedEvent && (
+                    <Group>
+                        <Div style={{ textAlign: 'center' }}>
+                            <Header mode="primary">{selectedEvent.name}</Header>
+                            <Text>Промо-слово: <strong>{selectedEvent.promo_word}</strong></Text>
+                            <div style={{ background: 'white', padding: '16px', margin: '16px auto', display: 'inline-block' }}>
+                                <QRCode value={`${APP_URL}#/vote/${selectedEvent.promo_word}`} size={192} />
+                            </div>
+                            <Text>Покажите этот QR-код участникам или продиктуйте промо-слово.</Text>
+                        </Div>
+                    </Group>
+                )}
+            </ModalPage>
         </ModalRoot>
     );
 

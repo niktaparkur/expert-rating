@@ -1,4 +1,5 @@
 // src/panels/CreateEvent.jsx
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Panel, PanelHeader, PanelHeaderBack, Group, FormItem, FormField, Input, Button, ScreenSpinner, Div,
@@ -23,7 +24,7 @@ export const CreateEvent = ({ id, setPopout }) => {
     });
     const [formStatus, setFormStatus] = useState(null);
     const [activeModal, setActiveModal] = useState(null);
-    const [promoStatus, setPromoStatus] = useState({ status: 'default', text: '' }); // 'default', 'checking', 'taken', 'available'
+    const [promoStatus, setPromoStatus] = useState({ status: 'default', text: '' });
 
     // eslint-disable-next-line
     const checkPromo = useCallback(debounce(async (word) => {
@@ -33,7 +34,7 @@ export const CreateEvent = ({ id, setPopout }) => {
         }
         setPromoStatus({ status: 'checking', text: 'Проверка...' });
         try {
-            const { is_taken } = await apiGet(`/events/check-promo/${word}`);
+            const { is_taken } = await apiGet(`/events/check-promo/${word.trim().toUpperCase()}`);
             if (is_taken) {
                 setPromoStatus({ status: 'taken', text: 'Это слово уже занято' });
             } else {
@@ -45,7 +46,9 @@ export const CreateEvent = ({ id, setPopout }) => {
     }, 500), [apiGet]);
 
     useEffect(() => {
-        checkPromo(formData.promo_word);
+        if (formData.promo_word) {
+            checkPromo(formData.promo_word);
+        }
     }, [formData.promo_word, checkPromo]);
 
     const handleChange = (e) => {
@@ -116,7 +119,7 @@ export const CreateEvent = ({ id, setPopout }) => {
     return (
         <Panel id={id}>
             {modal}
-            <PanelHeader before={<PanelHeaderBack onClick={() => setPopout(null) || routeNavigator.back()} />}>
+            <PanelHeader before={<PanelHeaderBack onClick={() => popout === null && routeNavigator.back()} />}>
                 Новое мероприятие
             </PanelHeader>
             <Group>
@@ -135,8 +138,11 @@ export const CreateEvent = ({ id, setPopout }) => {
 
                     <FormItem top="Дата и время начала голосования" required>
                         <Div style={{ display: 'flex', gap: '8px', padding: 0 }}>
-                            <FormField style={{ flexGrow: 2 }}>
-                                <Input type="date" name="event_date_d" value={formData.event_date_d} onChange={handleChange} after={<Icon24CalendarOutline onClick={() => setActiveModal('calendar-modal')} />} />
+                            <FormField
+                                style={{ flexGrow: 2 }}
+                                after={<Icon24CalendarOutline onClick={() => setActiveModal('calendar-modal')} />}
+                            >
+                                <Input type="date" name="event_date_d" value={formData.event_date_d} onChange={handleChange} />
                             </FormField>
                             <FormField style={{ flexGrow: 1 }}>
                                 <Input type="time" name="event_date_t" value={formData.event_date_t} onChange={handleChange} />

@@ -1,8 +1,6 @@
-// src/panels/Home.jsx
 import React, { useState, useEffect } from 'react';
 import {
-    Panel, PanelHeader, Button, Group, Header, Div, CardGrid, Spinner, Text,
-    PanelHeaderContent
+    Panel, PanelHeader, Button, Group, Header, Div, CardGrid, Spinner, Text
 } from '@vkontakte/vkui';
 import { useRouteNavigator } from '@vkontakte/vk-mini-apps-router';
 import { ExpertCard } from '../components/ExpertCard.jsx';
@@ -31,18 +29,18 @@ export const Home = ({ id, user }) => {
         fetchTopExperts();
     }, [apiGet]);
 
-    // ИСПРАВЛЕНИЕ: Используем тернарный оператор для передачи `undefined` вместо `false`
-    const becomeExpertButton = (user && !user.is_expert && user.status !== 'pending')
-        ? <Button onClick={() => routeNavigator.push('/registration')}>Стать экспертом</Button>
-        : undefined;
+    const renderHeaderButtons = () => {
+        if (!user) return null;
+        if (!user.is_expert && user.status !== 'pending') {
+            return <Button onClick={() => routeNavigator.push('/registration')}>Стать экспертом</Button>;
+        }
+        return null;
+    };
 
     return (
         <Panel id={id}>
-            <PanelHeader>
-                <PanelHeaderContent
-                    before={<Header mode="primary">Рейтинг Экспертов</Header>}
-                    after={becomeExpertButton}
-                />
+            <PanelHeader after={renderHeaderButtons()}>
+                Рейтинг Экспертов
             </PanelHeader>
 
             <Group header={<Header>Топ экспертов</Header>}>

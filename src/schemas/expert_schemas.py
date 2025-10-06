@@ -22,13 +22,13 @@ class UserCreate(UserBase):
     pass
 
 
-# --- Финальная схема для отображения пользователя/эксперта ---
 class UserAdminRead(UserBase):
     registration_date: datetime
     is_expert: bool
+    is_admin: bool
     status: Optional[str] = None
     stats: Stats = Field(default_factory=Stats)
-    topics: List[str] = []  # <-- ИСПРАВЛЕНИЕ: Добавляем поле для тем
+    topics: List[str] = []
 
     class Config:
         from_attributes = True

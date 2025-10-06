@@ -1,6 +1,10 @@
+# src/core/dependencies.py
+
+import json
 from typing import Optional, Dict
 
 import httpx
+import redis.asyncio as redis
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, Header, status
 from loguru import logger
@@ -30,8 +34,19 @@ def get_notifier() -> Notifier:
     return notifier
 
 
+# Создаем пул соединений с Redis
+redis_pool = redis.from_url(settings.REDIS_URL, decode_responses=True)
+
+
+async def get_redis() -> redis.Redis:
+    """Возвращает клиент Redis из пула."""
+    return redis_pool
+
+
 async def get_current_user(
-    authorization: Optional[str] = Header(None), db: AsyncSession = Depends(get_db)
+        authorization: Optional[str] = Header(None),
+        db: AsyncSession = Depends(get_db),
+        cache: redis.Redis = Depends(get_redis),
 ) -> Dict:
     if authorization is None:
         raise HTTPException(
@@ -75,7 +90,7 @@ async def get_current_user(
         error_info = data["error"]
         logger.warning(f"Invalid token from VK API: {error_info.get('error_msg')}")
         if error_info.get("error_code") == 10 and "limit reached" in error_info.get(
-            "error_reason", ""
+                "error_reason", ""
         ):
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -87,6 +102,15 @@ async def get_current_user(
         )
 
     vk_user_id = data["response"]["user_id"]
+
+    cache_key = f"user_profile:{vk_user_id}"
+    cached_user_str = await cache.get(cache_key)
+    if cached_user_str:
+        logger.success(f"User {vk_user_id} found in cache.")
+        return json.loads(cached_user_str)
+
+    logger.debug(f"User {vk_user_id} not in cache. Fetching from DB.")
+
     user_with_profile_and_stats = await expert_crud.get_user_with_profile_by_vk_id(
         db, vk_id=vk_user_id
     )
@@ -111,12 +135,20 @@ async def get_current_user(
         "status": None,
         "tariff_plan": "Начальный",
         "stats": stats_dict,
+        "topics": [],
     }
 
     if profile:
         current_user["is_expert"] = profile.status == "approved"
         current_user["status"] = profile.status
         current_user["tariff_plan"] = profile.tariff_plan
+        if profile.topics:
+            current_user["topics"] = [topic.topic_name for topic in profile.topics]
+
+    if current_user.get("registration_date"):
+        current_user["registration_date"] = current_user["registration_date"].isoformat()
+    await cache.set(cache_key, json.dumps(current_user), ex=3600)
+    logger.info(f"User {vk_user_id} data has been cached.")
 
     return current_user
 

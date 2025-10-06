@@ -1,15 +1,9 @@
-import os
 from typing import Optional
 from aionvk import Bot, Button, KeyboardBuilder
-from dotenv import load_dotenv
 
+from src.core.config import settings
 from src.schemas import event_schemas
 
-# Загружаем переменные окружения, чтобы получить ID админа и приложения
-load_dotenv()
-
-ADMIN_ID = int(os.environ.get("ADMIN_ID", 0))
-APP_ID = int(os.environ.get("APP_ID", 0))
 
 
 class Notifier:
@@ -39,9 +33,9 @@ class Notifier:
             f"👤 Пользователь: {first_name} {last_name} (vk.com/id{vk_id})"
         )
         kb = KeyboardBuilder(inline=True)
-        deep_link = f"https://vk.com/app{APP_ID}#/admin?vk_id={vk_id}"
+        deep_link = f"https://vk.com/app{settings.VK_APP_ID}#/admin?vk_id={vk_id}"
         kb.add(Button.open_link("Рассмотреть заявку", link=deep_link))
-        await self._send_message(ADMIN_ID, message, kb.build())
+        await self._send_message(settings.ADMIN_ID, message, kb.build())
 
     async def send_new_event_to_admin(self, event_name: str, expert_name: str):
         message = (
@@ -50,9 +44,9 @@ class Notifier:
             f"От эксперта: {expert_name}"
         )
         kb = KeyboardBuilder(inline=True)
-        deep_link = f"https://vk.com/app{APP_ID}#/admin"
+        deep_link = f"https://vk.com/app{settings.VK_APP_ID}#/admin"
         kb.add(Button.open_link("В админ-панель", link=deep_link))
-        await self._send_message(ADMIN_ID, message, kb.build())
+        await self._send_message(settings.ADMIN_ID, message, kb.build())
 
     async def send_moderation_result(
         self, vk_id: int, approved: bool, reason: Optional[str] = None

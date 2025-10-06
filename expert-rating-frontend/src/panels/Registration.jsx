@@ -1,13 +1,14 @@
 // src/panels/Registration.jsx
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     Panel, PanelHeader, PanelHeaderBack, Button, FormItem, FormField, Input,
-    Textarea, Select, ScreenSpinner, Group, Checkbox, Accordion, FormStatus
+    Textarea, Select, ScreenSpinner, Group, Checkbox, FormStatus,
+    ModalRoot, ModalPage, ModalPageHeader, Search, Div, ContentBadge, Header
 } from '@vkontakte/vkui';
 import bridge from '@vkontakte/vk-bridge';
 import { useRouteNavigator } from '@vkontakte/vk-mini-apps-router';
-
-const API_URL = 'https://p.potokrechi.ru/api/v1';
+import { useApi } from '../hooks/useApi'; // Используем useApi
 
 const TOPIC_GROUPS = [
     { name: 'IT-сфера', items: ['Администрирование', 'Анализ и обработка данных', 'Вебмастер', 'Программист'] },
@@ -18,6 +19,7 @@ const REGIONS = ["Амурская область", "Архангельская 
 
 export const Registration = ({ id }) => {
     const routeNavigator = useRouteNavigator();
+    const { apiPost } = useApi(); // Получаем метод apiPost из хука
     const [popout, setPopout] = useState(null);
     const [formStatus, setFormStatus] = useState(null);
     const [userData, setUserData] = useState(null);
@@ -29,6 +31,18 @@ export const Registration = ({ id }) => {
         performance_link: '',
         referrer: ''
     });
+
+    const [activeModal, setActiveModal] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const filteredTopics = useMemo(() => {
+        if (!searchQuery) return TOPIC_GROUPS;
+        const lowerQuery = searchQuery.toLowerCase();
+        return TOPIC_GROUPS.map(group => ({
+            ...group,
+            items: group.items.filter(item => item.toLowerCase().includes(lowerQuery))
+        })).filter(group => group.items.length > 0);
+    }, [searchQuery]);
 
     useEffect(() => {
         setPopout(<ScreenSpinner state="loading" />);
@@ -78,16 +92,9 @@ export const Registration = ({ id }) => {
             profile_data: { ...formData, topics: selectedTopics, referrer: formData.referrer }
         };
         try {
-            const response = await fetch(`${API_URL}/experts/register`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(finalData)
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.detail || 'Произошла ошибка при отправке заявки');
-            }
+            await apiPost('/experts/register', finalData);
             setFormStatus({ mode: 'success', header: 'Успешно', children: 'Ваша заявка отправлена на модерацию!' });
+            setTimeout(() => routeNavigator.back(), 1500); // Возвращаемся назад после успеха
         } catch (error) {
             console.error('Registration failed', error);
             setFormStatus({ mode: 'error', header: 'Ошибка', children: error.message });
@@ -96,8 +103,40 @@ export const Registration = ({ id }) => {
         }
     };
 
+    const topicsModal = (
+        <ModalRoot activeModal={activeModal} onClose={() => setActiveModal(null)}>
+            <ModalPage
+                id="topics-modal"
+                onClose={() => setActiveModal(null)}
+                header={<ModalPageHeader>Выберите темы ({selectedTopics.length}/3)</ModalPageHeader>}
+            >
+                <Search value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                <Group>
+                    {filteredTopics.map(group => (
+                        <div key={group.name}>
+                            <Header>{group.name}</Header>
+                            {group.items.map(item => (
+                                <Checkbox
+                                    key={item}
+                                    value={`${group.name} > ${item}`}
+                                    checked={selectedTopics.includes(`${group.name} > ${item}`)}
+                                    onChange={handleTopicChange}
+                                    disabled={selectedTopics.length >= 3 && !selectedTopics.includes(`${group.name} > ${item}`)}
+                                >
+                                    {item}
+                                </Checkbox>
+                            ))}
+                        </div>
+                    ))}
+                    {filteredTopics.length === 0 && <Div>Ничего не найдено</Div>}
+                </Group>
+            </ModalPage>
+        </ModalRoot>
+    );
+
     return (
         <Panel id={id} popout={popout}>
+            {topicsModal}
             <PanelHeader before={<PanelHeaderBack onClick={() => popout === null && routeNavigator.back()} />}>
                 Стать экспертом
             </PanelHeader>
@@ -105,31 +144,21 @@ export const Registration = ({ id }) => {
                 <form onSubmit={handleSubmit}>
                     {formStatus && <FormItem><FormStatus mode={formStatus.mode} header={formStatus.header}>{formStatus.children}</FormStatus></FormItem>}
 
-                    <FormItem top="Темы экспертизы" bottom={`Выбрано ${selectedTopics.length} из 3`}>
-                        {TOPIC_GROUPS.map(group => (
-                            <Accordion key={group.name}>
-                                <Accordion.Summary>{group.name}</Accordion.Summary>
-                                <Accordion.Content>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '10px 15px' }}>
-                                        {group.items.map(item => (
-                                            <Checkbox
-                                                key={item}
-                                                value={`${group.name} > ${item}`}
-                                                checked={selectedTopics.includes(`${group.name} > ${item}`)}
-                                                onChange={handleTopicChange}
-                                                disabled={selectedTopics.length >= 3 && !selectedTopics.includes(`${group.name} > ${item}`)}
-                                            >
-                                                {item}
-                                            </Checkbox>
-                                        ))}
-                                    </div>
-                                </Accordion.Content>
-                            </Accordion>
-                        ))}
+                    <FormItem top="Темы экспертизы" bottom="Выберите от 1 до 3 тем">
+                        <Button mode="secondary" size="l" stretched onClick={() => setActiveModal('topics-modal')}>
+                           Выбрать темы
+                        </Button>
+                        {selectedTopics.length > 0 && (
+                            <Div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingTop: 10 }}>
+                                {selectedTopics.map(topic => (
+                                    <ContentBadge key={topic} mode="primary" >{topic.split(' > ')[1]}</ContentBadge>
+                                ))}
+                            </Div>
+                        )}
                     </FormItem>
 
                     <FormItem top="Домашний регион">
-                        <FormField><Select name="region" value={formData.region} onChange={handleChange} options={REGIONS.map(region => ({ label: region, value: region }))} required /></FormField>
+                        <FormField><Select name="region" value={formData.region} onChange={handleChange} options={REGIONS.map(region => ({ label: region, value: region }))} required searchable/></FormField>
                     </FormItem>
                     <FormItem top="Ссылка на соц. сеть">
                         <FormField><Input type="url" name="social_link" value={formData.social_link} onChange={handleChange} placeholder="https://vk.com/durov" required /></FormField>
@@ -145,7 +174,7 @@ export const Registration = ({ id }) => {
                     </FormItem>
 
                     <FormItem>
-                        <Button size="l" stretched type="submit" disabled={popout !== null}>
+                        <Button size="l" stretched type="submit" disabled={popout !== null || !isTopicSelectionValid}>
                             Отправить на модерацию
                         </Button>
                     </FormItem>
