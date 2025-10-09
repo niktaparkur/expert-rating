@@ -1,21 +1,20 @@
-from pydantic import BaseModel, HttpUrl, Field
-from typing import List, Optional
 from datetime import datetime
+from typing import List, Optional
+
+from pydantic import BaseModel, Field, HttpUrl
 
 
-# --- Вложенная схема для Статистики ---
 class Stats(BaseModel):
     expert: int = 0
-    narodny: int = 0
-    meropriyatiy: int = 0
+    community: int = 0
+    events_count: int = 0
 
 
-# --- Схемы для Пользователей ---
 class UserBase(BaseModel):
     vk_id: int = Field(..., gt=0)
     first_name: str
     last_name: str
-    photo_url: HttpUrl
+    photo_url: str
 
 
 class UserCreate(UserBase):
@@ -29,14 +28,17 @@ class UserAdminRead(UserBase):
     status: Optional[str] = None
     stats: Stats = Field(default_factory=Stats)
     topics: List[str] = []
+    show_community_rating: bool = True
+
+    regalia: Optional[str] = None
+    social_link: Optional[str] = None
 
     class Config:
         from_attributes = True
 
 
-# --- Схемы для Профиля Эксперта ---
 class ExpertProfileBase(BaseModel):
-    topics: List[str]
+    theme_ids: List[int] = Field(..., min_length=1, max_length=3)
     region: str
     social_link: HttpUrl
     regalia: str
@@ -49,15 +51,11 @@ class ExpertCreate(BaseModel):
     profile_data: ExpertProfileBase
 
 
-# Схема для отображения заявки в админке
 class ExpertRequestRead(BaseModel):
-    # Данные из User
     vk_id: int
     first_name: str
     last_name: str
     photo_url: HttpUrl
-
-    # Данные из ExpertProfile
     regalia: str
     social_link: HttpUrl
     performance_link: HttpUrl
@@ -68,9 +66,12 @@ class ExpertRequestRead(BaseModel):
         from_attributes = True
 
 
-# --- Схемы для Голосования ---
-class NarodVoteCreate(BaseModel):
+class CommunityVoteCreate(BaseModel):
     voter_vk_id: int
-    vote_type: str  # 'trust' or 'distrust'
+    vote_type: str
     comment_positive: Optional[str] = None
     comment_negative: Optional[str] = None
+
+
+class UserSettingsUpdate(BaseModel):
+    show_community_rating: Optional[bool] = None

@@ -1,8 +1,11 @@
+// src/App.jsx
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Epic, Tabbar, TabbarItem, SplitLayout, SplitCol, View, AppRoot,
-    ModalRoot, ModalCard, FormItem, FormField, Input, Button, ScreenSpinner, Tooltip, Spinner, Snackbar
+    ModalRoot, ModalCard, FormItem, FormField, Input, Button, ScreenSpinner, Tooltip, Spinner, Snackbar, Avatar
 } from '@vkontakte/vkui';
+import { useActiveVkuiLocation, useRouteNavigator } from '@vkontakte/vk-mini-apps-router';
 import {
     Icon28ArticleOutline, Icon28CalendarOutline, Icon28MoneyCircleOutline,
     Icon28UserCircleOutline, Icon24CheckCircleFilledBlue, Icon28CheckShieldOutline, Icon16Done
@@ -11,6 +14,7 @@ import bridge from '@vkontakte/vk-bridge';
 import debounce from 'lodash.debounce';
 import { Onboarding } from './components/Onboarding.jsx';
 import { useApi } from "./hooks/useApi.js";
+
 import { Home, Registration, Admin, Events, CreateEvent, Voting, ExpertProfile, Tariffs, Profile } from './panels';
 import {
     VIEW_MAIN, VIEW_EVENTS, VIEW_TARIFFS, VIEW_PROFILE,
@@ -29,10 +33,9 @@ export const App = () => {
     const [activeModal, setActiveModal] = useState(null);
     const [promoWord, setPromoWord] = useState('');
     const [showOnboarding, setShowOnboarding] = useState(!localStorage.getItem('onboardingFinished'));
-
-    const [promoStatus, setPromoStatus] = useState({ status: 'default', text: '' }); // default, checking, taken, available
     const [snackbar, setSnackbar] = useState(null);
 
+    const [promoStatus, setPromoStatus] = useState({ status: 'default', text: '' });
 
     // eslint-disable-next-line
     const checkPromo = useCallback(debounce(async (word) => {
@@ -77,6 +80,15 @@ export const App = () => {
     const [currentUser, setCurrentUser] = useState(null);
     const [isLoadingApp, setIsLoadingApp] = useState(true);
 
+    const refetchUser = useCallback(async () => {
+        try {
+            const userData = await apiGet('/users/me');
+            setCurrentUser(userData);
+        } catch (error) {
+            console.error("Failed to refetch user:", error);
+        }
+    }, [apiGet]);
+
     useEffect(() => {
         const initApp = async () => {
             setIsLoadingApp(true);
@@ -112,7 +124,7 @@ export const App = () => {
         } else {
             setIsLoadingApp(false);
         }
-    }, [apiGet, apiPost, showOnboarding]);
+    }, [apiGet, apiPost, showOnboarding, refetchUser]);
 
     const finishOnboarding = () => {
         localStorage.setItem('onboardingFinished', 'true');
@@ -183,11 +195,9 @@ export const App = () => {
                 <TabbarItem onClick={onStoryChange} selected={activeView === VIEW_TARIFFS} data-story={VIEW_TARIFFS} label="Тарифы"><Icon28MoneyCircleOutline /></TabbarItem>
                 <TabbarItem onClick={onStoryChange} selected={activeView === VIEW_PROFILE} data-story={VIEW_PROFILE} label="Аккаунт"><Icon28UserCircleOutline /></TabbarItem>
                 {currentUser?.is_admin && (
-                     <Tooltip description="Панель администратора" placement="top">
-                        <TabbarItem onClick={() => routeNavigator.push('/admin')} selected={activePanel === PANEL_ADMIN}>
-                            <Icon28CheckShieldOutline />
-                        </TabbarItem>
-                    </Tooltip>
+                    <TabbarItem onClick={() => routeNavigator.push('/admin')} selected={activePanel === PANEL_ADMIN} label="Панель администратора">
+                        <Icon28CheckShieldOutline />
+                    </TabbarItem>
                 )}
             </Tabbar>
         );
@@ -214,10 +224,10 @@ export const App = () => {
                             <CreateEvent id={PANEL_CREATE_EVENT} setPopout={setPopout} />
                         </View>
                         <View id={VIEW_TARIFFS} activePanel={activePanel}>
-                            <Tariffs id={PANEL_TARIFFS} user={currentUser} setPopout={setPopout} setSnackbar={setSnackbar}/>
+                            <Tariffs id={PANEL_TARIFFS} user={currentUser} setPopout={setPopout} setSnackbar={setSnackbar} refetchUser={refetchUser} />
                         </View>
                         <View id={VIEW_PROFILE} activePanel={activePanel}>
-                            <Profile id={PANEL_PROFILE} user={currentUser}/>
+                            <Profile id={PANEL_PROFILE} user={currentUser} setCurrentUser={setCurrentUser}/>
                         </View>
                     </Epic>
                 </SplitCol>

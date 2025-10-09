@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, Request
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.config import settings
 from src.core.dependencies import get_db, get_redis
 from src.crud import expert_crud
 from .tariffs import TARIFFS_INFO
@@ -68,7 +67,9 @@ async def handle_payment_notification(
                     logger.error(f"Cannot find tariff title for item_id: {item_id}")
                     raise ValueError("Invalid item ID")
 
-                logger.info(f"Attempting to update tariff for user {vk_id} to '{tariff_name}'")
+                logger.info(
+                    f"Attempting to update tariff for user {vk_id} to '{tariff_name}'"
+                )
 
                 success = await expert_crud.update_expert_tariff(
                     db=db, vk_id=vk_id, tariff_name=tariff_name

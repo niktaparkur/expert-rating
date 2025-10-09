@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Card, Panel, PanelHeader, PanelHeaderBack, Group, Spinner, Div, Text, ModalRoot, ModalCard, Tabs, TabsItem, Placeholder
+    Card, Panel, PanelHeader, PanelHeaderBack, Group, Spinner, Div, Text, ModalRoot, ModalCard, Tabs, TabsItem, Placeholder,     SegmentedControl
+
 } from '@vkontakte/vkui';
 import { useRouteNavigator, useParams } from '@vkontakte/vk-mini-apps-router';
 import bridge from '@vkontakte/vk-bridge';
@@ -36,6 +37,7 @@ export const ExpertProfile = ({ id, setPopout }) => {
     const [activeModal, setActiveModal] = useState(null);
     const [voterId, setVoterId] = useState(null);
     const [activeTab, setActiveTab] = useState('current');
+
 
     useEffect(() => {
         bridge.send('VKWebAppGetUserInfo').then(user => user && setVoterId(user.id));
@@ -117,10 +119,14 @@ export const ExpertProfile = ({ id, setPopout }) => {
                     </Group>
 
                     <Group>
-                        <Tabs>
-                            <TabsItem selected={activeTab === 'current'} onClick={() => setActiveTab('current')}>Текущие</TabsItem>
-                            <TabsItem selected={activeTab === 'past'} onClick={() => setActiveTab('past')}>Завершенные</TabsItem>
-                        </Tabs>
+                        <SegmentedControl
+                            value={activeTab}
+                            onChange={(value) => setActiveTab(String(value))}
+                            options={[
+                                { label: 'Текущие', value: 'current' },
+                                { label: 'Завершенные', value: 'past' },
+                            ]}
+                        />
                         <Div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                             {loading.events && <Spinner />}
 

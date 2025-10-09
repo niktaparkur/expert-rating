@@ -99,12 +99,16 @@ export const Events = ({ id, user }) => {
                 {selectedEvent && (
                     <Group>
                         <Div style={{ textAlign: 'center' }}>
-                            <Header mode="primary">{selectedEvent.name}</Header>
-                            <Text>Промо-слово: <strong>{selectedEvent.promo_word}</strong></Text>
+                            <Header mode="secondary">Название мероприятия</Header>
+                            <Text weight="1" style={{ marginBottom: '8px' }}>{selectedEvent.name}</Text>
+
+                            <Header mode="secondary" style={{ marginTop: '16px' }}>Промо-слово</Header>
+                            <Text weight="1" style={{ marginBottom: '16px' }}><strong>{selectedEvent.promo_word}</strong></Text>
+
                             <div style={{ background: 'white', padding: '16px', margin: '16px auto', display: 'inline-block' }}>
                                 <QRCode value={`${APP_URL}#/vote/${selectedEvent.promo_word}`} size={192} />
                             </div>
-                            <Text>Покажите этот QR-код участникам или продиктуйте промо-слово.</Text>
+                            <Text>Покажите этот QR-код участникам для голосования.</Text>
                         </Div>
                     </Group>
                 )}

@@ -34,12 +34,10 @@ def get_notifier() -> Notifier:
     return notifier
 
 
-# Создаем пул соединений с Redis
 redis_pool = redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 
 async def get_redis() -> redis.Redis:
-    """Возвращает клиент Redis из пула."""
     return redis_pool
 
 
@@ -128,7 +126,7 @@ async def get_current_user(
         "vk_id": user.vk_id,
         "first_name": user.first_name,
         "last_name": user.last_name,
-        "photo_url": user.photo_url,
+        "photo_url": str(user.photo_url),
         "registration_date": user.registration_date,
         "is_admin": is_admin_flag,
         "is_expert": False,
@@ -136,17 +134,24 @@ async def get_current_user(
         "tariff_plan": "Начальный",
         "stats": stats_dict,
         "topics": [],
+        "show_community_rating": True,
     }
 
     if profile:
         current_user["is_expert"] = profile.status == "approved"
         current_user["status"] = profile.status
         current_user["tariff_plan"] = profile.tariff_plan
-        if profile.topics:
-            current_user["topics"] = [topic.topic_name for topic in profile.topics]
+        current_user["show_community_rating"] = profile.show_community_rating
+
+        if profile.selected_themes:
+            current_user["topics"] = [
+                f"{theme.category.name} > {theme.name}"
+                for theme in profile.selected_themes
+            ]
 
     if current_user.get("registration_date"):
         current_user["registration_date"] = current_user["registration_date"].isoformat()
+
     await cache.set(cache_key, json.dumps(current_user), ex=3600)
     logger.info(f"User {vk_user_id} data has been cached.")
 

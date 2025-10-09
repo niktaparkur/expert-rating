@@ -106,8 +106,8 @@ export const Admin = ({ id, setPopout }) => {
             <Alert
                 actions={[{ title: 'Отмена', mode: 'cancel', action: () => setPopout(null) }, { title: 'Удалить', mode: 'destructive', action: async () => { setPopout(<ScreenSpinner state="loading" />); try { await apiPost(`/experts/admin/${user.vk_id}/delete`); setAllUsers(prev => prev.filter(u => u.vk_id !== user.vk_id)); } catch (err) { alert(err.message); } finally { setPopout(null); } } }]}
                 onClose={() => setPopout(null)}
-                header="Подтверждение действия"
-                text={`Вы уверены, что хотите удалить пользователя ${user.first_name} ${user.last_name}? Это действие необратимо.`}
+                title="Подтверждение действия"
+                description={`Вы уверены, что хотите удалить пользователя ${user.first_name} ${user.last_name}? Это действие необратимо.`}
             />
         );
     };

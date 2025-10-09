@@ -9,8 +9,10 @@ import {
     Text,
     Div,
     Tooltip,
-    ContentBadge,
-    IconButton
+    IconButton,
+    Header,
+    SimpleCell,
+    Button
 } from '@vkontakte/vkui';
 import {
     Icon20FavoriteCircleFillYellow,
@@ -18,87 +20,87 @@ import {
     Icon24ListBulletSquareOutline,
     Icon28SettingsOutline
 } from '@vkontakte/icons';
+import { useRouteNavigator } from '@vkontakte/vk-mini-apps-router';
 
 export const UserProfile = ({ user, onSettingsClick }) => {
     if (!user) return null;
+    const routeNavigator = useRouteNavigator();
 
     const getRoleText = () => {
-        if (user.is_admin) return 'Администратор';
-        if (user.is_expert) return 'Эксперт';
-        return 'Пользователь';
+        const roles = [];
+        if (user.is_admin) roles.push('Администратор');
+        if (user.is_expert) roles.push('Эксперт');
+        if (roles.length === 0) return 'Пользователь';
+        return roles.join(' | ');
     };
 
-    const getShortTopicName = (topic) => {
-        const parts = topic.split(' > ');
-        return parts[parts.length - 1];
-    };
+    const showExpertData = user.is_expert || user.status === 'pending';
 
     return (
         <Group>
             <Card mode="shadow" style={{ position: 'relative' }}>
-                {/* --- ИЗМЕНЕНИЕ: Иконка настроек --- */}
-                {user.is_expert && (
-                    <IconButton
-                        onClick={onSettingsClick}
-                        style={{ position: 'absolute', top: 8, right: 8 }}
-                    >
-                        <Icon28SettingsOutline />
-                    </IconButton>
-                )}
+                <SimpleCell
+                    before={<Avatar size={96} src={user.photo_url} />}
+                    after={showExpertData && (
+                        <IconButton onClick={onSettingsClick}>
+                            <Icon28SettingsOutline />
+                        </IconButton>
+                    )}
+                    subtitle={<Text style={{ color: 'var(--vkui--color_text_secondary)' }}>{getRoleText()}</Text>}
+                    disabled
+                >
+                    <Title level="2">{user.first_name} {user.last_name}</Title>
+                </SimpleCell>
 
-                {/* --- ИЗМЕНЕНИЕ: Центрированная компоновка --- */}
-                <Div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-                    <Avatar size={96} src={user.photo_url} />
-                    <Title level="2" style={{ marginTop: '16px' }}>{user.first_name} {user.last_name}</Title>
-                    <Text style={{ marginTop: '4px', color: 'var(--vkui--color_text_secondary)' }}>{getRoleText()}</Text>
+                <Div style={{ textAlign: 'center', color: 'var(--vkui--color_text_secondary)', paddingTop: 0 }}>
+                    <Text>Тариф: {user.tariff_plan || 'Начальный'}</Text>
                 </Div>
 
-                {/* --- ИЗМЕНЕНИЕ: Блок направлений добавлен --- */}
-                {user.is_expert && user.topics && user.topics.length > 0 && (
-                     <Div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', paddingTop: 0 }}>
+                {showExpertData && user.topics && user.topics.length > 0 && (
+                    <Div>
+                        <Header mode="tertiary">Направления</Header>
                         {user.topics.map(topic => (
-                            <ContentBadge key={topic} mode="primary">{getShortTopicName(topic)}</ContentBadge>
+                            <SimpleCell key={topic} disabled multiline>{topic}</SimpleCell>
                         ))}
                     </Div>
                 )}
 
-                {user.is_expert && (
-                    <Div style={{ textAlign: 'center', color: 'var(--vkui--color_text_secondary)', paddingTop: 0 }}>
-                        <Text>Тариф: {user.tariff_plan || 'Начальный'}</Text>
-                    </Div>
-                )}
-
-                {/* Рейтинги и активность (только если эксперт) */}
-                {user.is_expert && (
+                {showExpertData && (
                     <Div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
-                        <Tooltip text="Народный рейтинг">
-                            <div style={{ textAlign: 'center' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <Icon20FavoriteCircleFillYellow />
-                                    <Title level="3">{user.stats?.narodny || 0}</Title>
-                                </div>
+
+                        <Tooltip description="Экспертный рейтинг">
+                            <div className="stat-item">
+                                <Icon20CheckCircleFillGreen />
+                                <Title level="3">{user.stats?.expert || 0}</Title>
                             </div>
                         </Tooltip>
-                        <Tooltip text="Экспертный рейтинг">
-                            <div style={{ textAlign: 'center' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <Icon20CheckCircleFillGreen />
-                                    <Title level="3">{user.stats?.expert || 0}</Title>
-                                </div>
+                        <Tooltip description="Народный рейтинг">
+                            <div className="stat-item">
+                                <Icon20FavoriteCircleFillYellow />
+                                <Title level="3">{user.stats?.community || 0}</Title>
                             </div>
                         </Tooltip>
-                        <Tooltip text="Проведено мероприятий">
-                            <div style={{ textAlign: 'center' }}>
-                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <Icon24ListBulletSquareOutline width={20} height={20} />
-                                    <Title level="3">{user.stats?.meropriyatiy || 0}</Title>
-                                </div>
+                        <Tooltip description="Проведено мероприятий">
+                            <div className="stat-item">
+                                <Icon24ListBulletSquareOutline width={20} height={20} />
+                                <Title level="3">{user.stats?.events_count || 0}</Title>
                             </div>
                         </Tooltip>
                     </Div>
                 )}
 
-
+                {!user.is_expert && user.status !== 'pending' && (
+                    <Div>
+                        <Button
+                            stretched
+                            size="l"
+                            mode="secondary"
+                            onClick={() => routeNavigator.push('/registration')}
+                        >
+                            Стать экспертом
+                        </Button>
+                    </Div>
+                )}
             </Card>
         </Group>
     );

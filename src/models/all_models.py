@@ -9,9 +9,10 @@ from sqlalchemy import (
     BigInteger,
     Enum,
 )
-from sqlalchemy.sql import func
-from .base import Base
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
+from .base import Base
 
 
 class User(Base):
@@ -25,37 +26,6 @@ class User(Base):
     is_admin = Column(Boolean, default=False)
 
 
-class ExpertProfile(Base):
-    __tablename__ = "ExpertProfiles"
-    user_vk_id = Column(
-        BigInteger, ForeignKey("Users.vk_id", ondelete="CASCADE"), primary_key=True
-    )
-    status = Column(Enum("pending", "approved", "rejected"), default="pending")
-    rejection_reason = Column(Text)
-    region = Column(String(255))
-    social_link = Column(Text)
-    regalia = Column(Text)
-    performance_link = Column(Text)
-    referrer_info = Column(Text)
-    tariff_plan = Column(String(50), default="Начальный")
-    tariff_expiry_date = Column(TIMESTAMP)
-    show_contacts_default = Column(Boolean, default=True)
-    created_at = Column(TIMESTAMP, server_default=func.now())
-    topics = relationship(
-        "ExpertTopic", back_populates="expert", cascade="all, delete-orphan"
-    )
-
-
-class ExpertTopic(Base):
-    __tablename__ = "ExpertTopics"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    expert_id = Column(
-        BigInteger, ForeignKey("ExpertProfiles.user_vk_id", ondelete="CASCADE")
-    )
-    topic_name = Column(String(255))
-    expert = relationship("ExpertProfile", back_populates="topics")
-
-
 class Event(Base):
     __tablename__ = "Events"
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -64,7 +34,7 @@ class Event(Base):
     )
     promo_word = Column(String(100), unique=True)
     event_name = Column(String(255))
-    event_link = Column(Text, nullable=True)  # <-- ДОБАВЛЕНО
+    event_link = Column(Text, nullable=True)
     start_date = Column(TIMESTAMP)
     duration_minutes = Column(Integer)
     event_date = Column(TIMESTAMP, nullable=False)
@@ -90,3 +60,67 @@ class Vote(Base):
     comment_negative = Column(Text)
     is_expert_vote = Column(Boolean)
     created_at = Column(TIMESTAMP, server_default=func.now())
+
+
+class Category(Base):
+    __tablename__ = "Categories"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), nullable=False, unique=True)
+    themes = relationship(
+        "Theme", back_populates="category", cascade="all, delete-orphan"
+    )
+
+
+class Theme(Base):
+    __tablename__ = "Themes"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=False)
+    category_id = Column(Integer, ForeignKey("Categories.id"), nullable=False)
+    category = relationship("Category", back_populates="themes")
+
+
+class Region(Base):
+    __tablename__ = "Regions"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=False, unique=True)
+
+
+class ExpertSelectedThemes(Base):
+    __tablename__ = "ExpertSelectedThemes"
+    expert_vk_id = Column(
+        BigInteger,
+        ForeignKey("ExpertProfiles.user_vk_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    theme_id = Column(
+        Integer, ForeignKey("Themes.id", ondelete="CASCADE"), primary_key=True
+    )
+
+
+class ExpertProfile(Base):
+    __tablename__ = "ExpertProfiles"
+    user_vk_id = Column(
+        BigInteger, ForeignKey("Users.vk_id", ondelete="CASCADE"), primary_key=True
+    )
+    status = Column(Enum("pending", "approved", "rejected"), default="pending")
+    rejection_reason = Column(Text)
+    region = Column(String(255))
+    social_link = Column(Text)
+    regalia = Column(Text)
+    performance_link = Column(Text)
+    referrer_info = Column(Text)
+    tariff_plan = Column(String(50), default="Начальный")
+    tariff_expiry_date = Column(TIMESTAMP)
+    show_contacts_default = Column(Boolean, default=True)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    show_community_rating = Column(Boolean, nullable=False, server_default="1")
+
+    selected_themes = relationship(
+        "Theme", secondary="ExpertSelectedThemes", back_populates="experts"
+    )
+
+
+Theme.experts = relationship(
+    "ExpertProfile", secondary="ExpertSelectedThemes", back_populates="selected_themes"
+)

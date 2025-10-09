@@ -1,20 +1,71 @@
-import { useState, useEffect } from 'react';
+import React from 'react';
 import {
-    Panel, PanelHeader, Group, CardScroll, Div, Text, ScreenSpinner, Button, Header,
-    Title, SimpleCell, Card, Spinner, useAdaptivity, ViewWidth, CardGrid, Snackbar, Avatar
+    Panel,
+    PanelHeader,
+    Group,
+    CardScroll,
+    Div,
+    Text,
+    Button,
+    Header,
+    Title,
+    SimpleCell,
+    Card,
+    useAdaptivity,
+    ViewWidth,
+    CardGrid,
+    Tooltip,
+    Avatar,
+    ScreenSpinner,
+    Snackbar
 } from '@vkontakte/vkui';
-import {Icon16Cancel, Icon16Done, Icon24CheckCircleOn} from '@vkontakte/icons';
-import bridge from '@vkontakte/vk-bridge';
-import { useApi } from '../hooks/useApi';
+import { Icon24CheckCircleOn, Icon16HelpOutline, Icon16Done, Icon16Cancel } from '@vkontakte/icons';
 import { useRouteNavigator } from '@vkontakte/vk-mini-apps-router';
+import bridge from '@vkontakte/vk-bridge';
+
+const TARIFF_LEVELS = {
+    'Начальный': 0,
+    'Стандарт': 1,
+    'Профи': 2,
+};
 
 const tariffsData = [
-    { id: 'tariff_start', name: 'Начальный', price_str: 'Бесплатно', price_votes: 0, features: [ { text: 'До 3 мероприятий в месяц' }, { text: 'До 100 голосов' } ] },
-    { id: 'tariff_standard', name: 'Эксперт', price_str: '299 голосов', price_votes: 299, features: [ { text: 'До 10 мероприятий в месяц' }, { text: 'До 200 голосов' }, { text: '2 рассылки в месяц' } ] },
-    { id: 'tariff_pro', name: 'Профи', price_str: '729 голосов', price_votes: 729, features: [ { text: 'До 30 мероприятий в месяц' }, { text: 'До 1000 голосов' }, { text: '4 рассылки в месяц' } ] }
+    {
+        id: 'tariff_start', name: 'Начальный', price_str: 'Бесплатно', price_votes: 0,
+        features: [
+            { text: 'До 3 мероприятий в месяц' },
+            { text: 'До 100 голосов на мероприятии', tooltip: 'Максимальное количество уникальных голосов, которое можно получить за одно мероприятие. Пользователи, голосовавшие за вас ранее, не учитываются в этом лимите.' },
+            { text: 'До 1 часа длительность голосования' },
+            // { text: '1 бесплатная рассылка в месяц', tooltip: 'Возможность отправить сообщение всем пользователям, которые голосовали за вас. Сообщение проходит предварительную модерацию.' },
+            // { text: '10 откликов на неоплачиваемые мероприятия' },
+            // { text: '2 отклика на оплачиваемые мероприятия' },
+        ]
+    },
+    {
+        id: 'tariff_standard', name: 'Стандарт', price_str: '299 голосов', price_votes: 299,
+        features: [
+            { text: 'До 10 мероприятий в месяц' },
+            { text: 'До 200 голосов на мероприятии', tooltip: 'Максимальное количество уникальных голосов, которое можно получить за одно мероприятие. Пользователи, голосовавшие за вас ранее, не учитываются в этом лимите.' },
+            { text: 'До 12 часов длительность голосования' },
+            // { text: '2 бесплатные рассылки в месяц', tooltip: 'Возможность отправить сообщение всем пользователям, которые голосовали за вас. Сообщение проходит предварительную модерацию.' },
+            // { text: '20 откликов на неоплачиваемые мероприятия' },
+            // { text: '7 откликов на оплачиваемые мероприятия' },
+        ]
+    },
+    {
+        id: 'tariff_pro', name: 'Профи', price_str: '729 голосов', price_votes: 729,
+        features: [
+            { text: 'До 30 мероприятий в месяц' },
+            { text: 'До 1000 голосов на мероприятии', tooltip: 'Максимальное количество уникальных голосов, которое можно получить за одно мероприятие. Пользователи, голосовавшие за вас ранее, не учитываются в этом лимите.' },
+            { text: 'До 24 часов длительность голосования' },
+            // { text: '4 бесплатные рассылки в месяц', tooltip: 'Возможность отправить сообщение всем пользователям, которые голосовали за вас. Сообщение проходит предварительную модерацию.' },
+            // { text: '40 откликов на неоплачиваемые мероприятия' },
+            // { text: '15 откликов на оплачиваемые мероприятия' },
+        ]
+    }
 ];
 
-const TariffCardComponent = ({ tariff, isCurrent, isExpert, onSelect, onRegister }) => (
+const TariffCardComponent = ({ tariff, isCurrent, isExpert, onSelect, onRegister, isSelectable }) => (
     <Card mode="outline" style={{ borderColor: isCurrent ? 'var(--vkui--color_background_accent)' : undefined }}>
         <Header>{tariff.name}</Header>
         <Div>
@@ -23,7 +74,18 @@ const TariffCardComponent = ({ tariff, isCurrent, isExpert, onSelect, onRegister
         </Div>
         <Group mode="plain">
             {tariff.features.map(feature => (
-                <SimpleCell key={feature.text} before={<Icon24CheckCircleOn fill="var(--vkui--color_icon_positive)" />} disabled>{feature.text}</SimpleCell>
+                <SimpleCell
+                    key={feature.text}
+                    before={<Icon24CheckCircleOn fill="var(--vkui--color_icon_positive)" />}
+                    disabled
+                    after={feature.tooltip && (
+                        <Tooltip description={feature.tooltip} placement="top">
+                            <Icon16HelpOutline style={{ color: 'var(--vkui--color_icon_secondary)' }} />
+                        </Tooltip>
+                    )}
+                >
+                    {feature.text}
+                </SimpleCell>
             ))}
         </Group>
         <Div>
@@ -32,7 +94,13 @@ const TariffCardComponent = ({ tariff, isCurrent, isExpert, onSelect, onRegister
             ) : isCurrent ? (
                 <Button size="l" stretched disabled>Ваш тариф</Button>
             ) : (
-                <Button size="l" stretched mode={tariff.price_votes > 0 ? "primary" : "secondary"} onClick={() => onSelect(tariff)}>
+                <Button
+                    size="l"
+                    stretched
+                    mode="primary"
+                    onClick={() => onSelect(tariff)}
+                    disabled={!isSelectable}
+                >
                     Выбрать
                 </Button>
             )}
@@ -40,58 +108,34 @@ const TariffCardComponent = ({ tariff, isCurrent, isExpert, onSelect, onRegister
     </Card>
 );
 
-export const Tariffs = ({ id, user, setPopout, setSnackbar }) => {
+export const Tariffs = ({ id, user, setPopout, setSnackbar, refetchUser }) => {
     const routeNavigator = useRouteNavigator();
     const { viewWidth } = useAdaptivity();
     const isDesktop = viewWidth >= ViewWidth.TABLET;
-    const [loading, setLoading] = useState(!user);
-
-    useEffect(() => {
-        if (user) setLoading(false);
-    }, [user]);
+    const loading = !user;
 
     const handleSelectTariff = async (tariff) => {
         if (tariff.price_votes === 0) return;
-
         setPopout(<ScreenSpinner state="loading" />);
         try {
-            const result = await bridge.send('VKWebAppShowOrderBox', {
-                type: 'item',
-                item: tariff.id
-            });
+            await bridge.send('VKWebAppShowOrderBox', { type: 'item', item: tariff.id });
+            setSnackbar(
+                <Snackbar
+                    onClose={() => setSnackbar(null)}
+                    before={<Avatar size={24} style={{ background: 'var(--vkui--color_background_accent)' }}><Icon16Done fill="#fff" width={14} height={14} /></Avatar>}
+                >
+                    После успешной оплаты ваш тариф будет обновлен.
+                </Snackbar>
+            );
+            setTimeout(() => {
+                refetchUser();
+            }, 3000);
 
-            // Вместо alert() показываем Snackbar
-            if (result.success) {
-                setSnackbar(
-                    <Snackbar
-                        onClose={() => setSnackbar(null)}
-                        before={<Avatar size={24} style={{ background: 'var(--vkui--color_background_positive)' }}><Icon16Done fill="#fff" width={14} height={14} /></Avatar>}
-                    >
-                        Окно покупки открыто. Ваш тариф будет обновлен после оплаты.
-                    </Snackbar>
-                );
-            }
         } catch (error) {
-            // Обрабатываем отмену покупки
-            if (error.error_data && error.error_data.error_code === 4) {
-                 setSnackbar(
-                    <Snackbar
-                        onClose={() => setSnackbar(null)}
-                        before={<Avatar size={24} style={{ background: 'var(--vkui--color_background_negative)' }}><Icon16Cancel fill="#fff" width={14} height={14} /></Avatar>}
-                    >
-                        Покупка была отменена.
-                    </Snackbar>
-                );
+            if (error.error_data?.error_code === 4) {
+                 setSnackbar( <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>Покупка была отменена.</Snackbar> );
             } else {
-                console.error('VK Order Box error', error);
-                 setSnackbar(
-                    <Snackbar
-                        onClose={() => setSnackbar(null)}
-                        before={<Avatar size={24} style={{ background: 'var(--vkui--color_background_negative)' }}><Icon16Cancel fill="#fff" width={14} height={14} /></Avatar>}
-                    >
-                       Произошла ошибка при вызове окна покупки.
-                    </Snackbar>
-                );
+                 setSnackbar( <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>Ошибка окна покупки.</Snackbar> );
             }
         } finally {
             setPopout(null);
@@ -103,18 +147,25 @@ export const Tariffs = ({ id, user, setPopout, setSnackbar }) => {
     const isExpert = user?.is_expert;
 
     const renderContent = () => {
-        if (loading) return <Spinner />;
+        if (loading) return <ScreenSpinner />;
 
-        const tariffCards = tariffsData.map(tariff => (
-            <TariffCardComponent
-                key={tariff.id}
-                tariff={tariff}
-                isCurrent={tariff.name === getCurrentTariffName()}
-                isExpert={isExpert}
-                onSelect={handleSelectTariff}
-                onRegister={handleRegister}
-            />
-        ));
+        const currentTariffName = getCurrentTariffName();
+        const currentUserLevel = TARIFF_LEVELS[currentTariffName] ?? 0;
+
+        const tariffCards = tariffsData.map(tariff => {
+            const tariffLevel = TARIFF_LEVELS[tariff.name];
+            return (
+                <TariffCardComponent
+                    key={tariff.id}
+                    tariff={tariff}
+                    isCurrent={tariff.name === currentTariffName}
+                    isExpert={isExpert}
+                    onSelect={handleSelectTariff}
+                    onRegister={handleRegister}
+                    isSelectable={tariffLevel > currentUserLevel}
+                />
+            );
+        });
 
         if (isDesktop) {
             return <CardScroll size="s">{tariffCards}</CardScroll>;

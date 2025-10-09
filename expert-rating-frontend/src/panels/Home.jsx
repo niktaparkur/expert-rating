@@ -1,7 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-    Panel, PanelHeader, Button, Group, Header, Div, CardGrid, Spinner, Text
+    Panel,
+    PanelHeader,
+    Button,
+    Group,
+    Header,
+    Div,
+    CardGrid,
+    Spinner,
+    Text,
+    Search,
+    Placeholder
 } from '@vkontakte/vkui';
+import { Icon56UsersOutline } from '@vkontakte/icons';
 import { useRouteNavigator } from '@vkontakte/vk-mini-apps-router';
 import { ExpertCard } from '../components/ExpertCard.jsx';
 import { useApi } from '../hooks/useApi.js';
@@ -12,6 +23,7 @@ export const Home = ({ id, user }) => {
     const [experts, setExperts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         async function fetchTopExperts() {
@@ -19,7 +31,11 @@ export const Home = ({ id, user }) => {
             setError(null);
             try {
                 const data = await apiGet('/experts/top');
-                setExperts(data);
+                const expertsWithPosition = data.map((expert, index) => ({
+                    ...expert,
+                    topPosition: index + 1,
+                }));
+                setExperts(expertsWithPosition);
             } catch (err) {
                 setError(err.message);
             } finally {
@@ -29,35 +45,63 @@ export const Home = ({ id, user }) => {
         fetchTopExperts();
     }, [apiGet]);
 
-    const renderHeaderButtons = () => {
-        if (!user) return null;
-        if (!user.is_expert && user.status !== 'pending') {
-            return <Button onClick={() => routeNavigator.push('/registration')}>Стать экспертом</Button>;
-        }
-        return null;
+    const handleSearchChange = (e) => {
+        setSearchQuery(e.target.value);
     };
+
+    const filteredExperts = useMemo(() => {
+        const query = searchQuery.toLowerCase().trim();
+        if (!query) {
+            return experts;
+        }
+        return experts.filter(expert => {
+            const fullName = `${expert.first_name} ${expert.last_name}`.toLowerCase();
+            const topicsMatch = expert.topics.some(topic => topic.toLowerCase().includes(query));
+            return fullName.includes(query) || topicsMatch;
+        });
+    }, [searchQuery, experts]);
+
+
 
     return (
         <Panel id={id}>
-            <PanelHeader after={renderHeaderButtons()}>
+            <PanelHeader>
                 Рейтинг Экспертов
             </PanelHeader>
 
+            <Group>
+                <Search
+                    value={searchQuery}
+                    onChange={handleSearchChange}
+                    placeholder="Поиск по имени или направлению"
+                />
+            </Group>
+
             <Group header={<Header>Топ экспертов</Header>}>
-                {loading && <div style={{ paddingTop: 20, textAlign: 'center' }}><Spinner /></div>}
+                {loading && <Spinner />}
                 {error && <Div><Text style={{ color: 'red' }}>{error}</Text></Div>}
                 {!loading && !error && (
-                    <CardGrid size="l" style={{ padding: 0, margin: '0 8px', paddingBottom: '60px' }}>
-                        {experts.length === 0 ? <Div><Text>Пока нет одобренных экспертов.</Text></Div> :
-                         experts.map((expert, index) => (
-                            <ExpertCard
-                                key={expert.vk_id}
-                                expert={expert}
-                                topPosition={index + 1}
-                                onClick={() => routeNavigator.push(`/expert/${expert.vk_id}`)}
-                            />
-                        ))}
-                    </CardGrid>
+                    <>
+                        {filteredExperts.length > 0 ? (
+                            <CardGrid size="l" style={{ padding: 0, margin: '0 8px', paddingBottom: '60px' }}>
+                                {filteredExperts.map((expert) => (
+                                    <ExpertCard
+                                        key={expert.vk_id}
+                                        expert={expert}
+                                        topPosition={expert.topPosition}
+                                        onClick={() => routeNavigator.push(`/expert/${expert.vk_id}`)}
+                                    />
+                                ))}
+                            </CardGrid>
+                        ) : (
+                             <Placeholder
+                                icon={<Icon56UsersOutline />}
+                                header="Эксперты не найдены"
+                             >
+                                Попробуйте изменить запрос или сбросить фильтр.
+                            </Placeholder>
+                        )}
+                    </>
                 )}
             </Group>
         </Panel>

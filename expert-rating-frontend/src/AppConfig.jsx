@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import vkBridge, { parseURLSearchParamsForGetLaunchParams } from '@vkontakte/vk-bridge';
 import { useAdaptivity, useInsets } from '@vkontakte/vk-bridge-react';
 import { AdaptivityProvider, ConfigProvider, AppRoot } from '@vkontakte/vkui';
@@ -11,49 +11,53 @@ import { router } from './routes.jsx';
 import { App } from './App.jsx';
 
 export const AppConfig = () => {
-  const [appearance, setAppearance] = useState('light');
-  const vkBridgeInsets = useInsets() || undefined;
-  const adaptivity = transformVKBridgeAdaptivity(useAdaptivity());
-  const { vk_platform } = parseURLSearchParamsForGetLaunchParams(window.location.search);
+    const [appearance, setAppearance] = useState('light');
 
-  useEffect(() => {
-    const handleThemeChange = (event) => {
-      if (event.detail && event.detail.type === 'VKWebAppUpdateConfig') {
-        const scheme = event.detail.data.scheme;
-        if (scheme === 'space_gray' || scheme === 'vkcom_dark') {
-          setAppearance('dark');
-        } else {
-          setAppearance('light');
+    const vkBridgeInsets = useInsets() || undefined;
+    const adaptivity = transformVKBridgeAdaptivity(useAdaptivity());
+    const { vk_platform } = parseURLSearchParamsForGetLaunchParams(window.location.search);
+
+    useEffect(() => {
+        const handleUpdateConfig = (e) => {
+            const { type, data } = e.detail;
+            if (type === 'VKWebAppUpdateConfig') {
+                setAppearance(data.appearance);
+            }
+        };
+
+        vkBridge.subscribe(handleUpdateConfig);
+
+        async function fetchAppearance() {
+            try {
+                const config = await vkBridge.send('VKWebAppGetConfig');
+                if (config && config.appearance) {
+                    setAppearance(config.appearance);
+                }
+            } catch (error) {
+                console.error('Could not fetch VK Bridge config', error);
+            }
         }
-      }
-    };
 
-    vkBridge.subscribe(handleThemeChange);
+        fetchAppearance();
 
-    vkBridge.send('VKWebAppGetConfig').then(config => {
-        if (config.appearance === 'dark') {
-            setAppearance('dark');
-        }
-    });
+        return () => {
+            vkBridge.unsubscribe(handleUpdateConfig);
+        };
+    }, []);
 
-    return () => {
-      vkBridge.unsubscribe(handleThemeChange);
-    };
-  }, []);
-
-  return (
-    <ConfigProvider
-      appearance={appearance}
-      platform={vk_platform === 'desktop_web' ? 'vkcom' : undefined}
-      isWebView={vkBridge.isWebView()}
-    >
-      <AdaptivityProvider {...adaptivity}>
-        <AppRoot mode="full" safeAreaInsets={vkBridgeInsets}>
-          <RouterProvider router={router}>
-            <App />
-          </RouterProvider>
-        </AppRoot>
-      </AdaptivityProvider>
-    </ConfigProvider>
-  );
+    return (
+        <ConfigProvider
+            appearance={appearance}
+            platform={vk_platform === 'desktop_web' ? 'vkcom' : undefined}
+            isWebView={vkBridge.isWebView()}
+        >
+            <AdaptivityProvider {...adaptivity}>
+                <AppRoot mode="full" safeAreaInsets={vkBridgeInsets}>
+                    <RouterProvider router={router}>
+                        <App />
+                    </RouterProvider>
+                </AppRoot>
+            </AdaptivityProvider>
+        </ConfigProvider>
+    );
 };

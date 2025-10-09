@@ -5,7 +5,6 @@ from src.core.config import settings
 from src.schemas import event_schemas
 
 
-
 class Notifier:
     def __init__(self, token: str):
         if not token:
