@@ -12,3 +12,17 @@ services:
       - ./src:/app/src
       - ./migrations:/app/migrations
       - ./alembic.ini:/app/alembic.ini
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    container_name: expert_rating_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  redis_data:

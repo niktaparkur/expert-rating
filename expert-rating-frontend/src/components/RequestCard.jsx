@@ -1,30 +1,24 @@
-// src/components/RequestCard.jsx
 import React from 'react';
-import { Card, Header, Div, Text, Button, Avatar, InfoRow } from '@vkontakte/vkui';
+import { Card, Header, Div, Text, Button, Avatar, InfoRow, SimpleCell } from '@vkontakte/vkui';
+import { Icon28ChevronRightOutline } from '@vkontakte/icons';
 
 export const RequestCard = ({ request, type, onPrimaryClick, onSecondaryClick }) => {
     if (!request) return null;
 
-    // Карточка для заявки на эксперта
     if (type === 'expert') {
         return (
-            <Card mode="shadow">
-                <Header
-                    before={<Avatar size={40} src={request.photo_url} />}
-                    aside={<Button size="s" onClick={onPrimaryClick}>Смотреть</Button>}
-                >
-                    {request.first_name} {request.last_name}
-                </Header>
-                <Div>
-                    <Text style={{ color: 'var(--vkui--color_text_secondary)' }}>
-                        {request.regalia.slice(0, 80)}...
-                    </Text>
-                </Div>
-            </Card>
+            <SimpleCell
+                before={<Avatar size={48} src={request.photo_url} />}
+                subtitle={<Text style={{ color: 'var(--vkui--color_text_secondary)' }}>{request.regalia.slice(0, 80)}...</Text>}
+                after={<Icon28ChevronRightOutline />}
+                onClick={onPrimaryClick}
+                multiline
+            >
+                {request.first_name} {request.last_name}
+            </SimpleCell>
         );
     }
 
-    // Карточка для заявки на мероприятие
     if (type === 'event') {
         return (
             <Card mode="shadow">

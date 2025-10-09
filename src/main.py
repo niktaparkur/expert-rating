@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.endpoints import experts, events, payment, tariffs, users
+from src.api.endpoints import experts, events, payment, tariffs, users, meta
 
 app = FastAPI(title="Рейтинг Экспертов")
 
@@ -29,6 +29,7 @@ app.include_router(events.router, prefix="/api/v1")
 app.include_router(payment.router, prefix="/api/v1")
 app.include_router(tariffs.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
+app.include_router(meta.router, prefix="/api/v1")
 
 
 @app.get("/")

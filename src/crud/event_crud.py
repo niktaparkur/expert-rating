@@ -1,10 +1,26 @@
-from sqlalchemy import func, case, and_
+# src/crud/event_crud.py
+
+from datetime import datetime, timezone, timedelta
+
+from sqlalchemy import and_, case, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from datetime import datetime, timezone
+from sqlalchemy.orm import selectinload
 
-from src.models.all_models import Event, Vote
+from src.models.all_models import Event, ExpertProfile, Vote
 from src.schemas import event_schemas
+
+
+async def check_if_user_voted_on_event(
+    db: AsyncSession, event_id: int, voter_vk_id: int
+) -> bool:
+    if not voter_vk_id:
+        return False
+    query = select(Vote).where(
+        and_(Vote.event_id == event_id, Vote.voter_vk_id == voter_vk_id)
+    )
+    result = await db.execute(query)
+    return result.scalars().first() is not None
 
 
 async def create_event(
@@ -54,9 +70,12 @@ async def get_my_events(db: AsyncSession, expert_id: int):
 
 
 async def get_event_by_promo(db: AsyncSession, promo_word: str):
-    result = await db.execute(
-        select(Event).filter(func.upper(Event.promo_word) == promo_word.upper())
+    query = (
+        select(Event)
+        .filter(func.upper(Event.promo_word) == promo_word.upper())
+        .options(selectinload(Event.expert).selectinload(ExpertProfile.user))
     )
+    result = await db.execute(query)
     return result.scalars().first()
 
 
@@ -107,55 +126,61 @@ async def set_event_status(
 
 
 async def get_public_upcoming_events(db: AsyncSession):
+    now = datetime.now(timezone.utc)
+
     query = (
         select(Event)
         .where(
             and_(
                 Event.status == "approved",
                 Event.is_private.is_(False),
-                Event.event_date >= datetime.now(timezone.utc),
             )
         )
         .order_by(Event.event_date.asc())
-        .limit(20)
     )
     results = await db.execute(query)
-    return results.scalars().all()
+    all_approved_public_events = results.scalars().all()
+
+    upcoming_events = []
+    for event in all_approved_public_events:
+        start_time_aware = event.event_date.replace(tzinfo=timezone.utc)
+        end_time = start_time_aware + timedelta(minutes=event.duration_minutes)
+        if end_time >= now:
+            upcoming_events.append(event)
+
+    return upcoming_events[:20]  # Ограничиваем до 20, как и раньше
 
 
 async def get_events_by_expert_id(db: AsyncSession, expert_id: int):
-    """Получает все одобренные мероприятия конкретного эксперта."""
     now = datetime.now(timezone.utc)
-
-    # Запрос для текущих/будущих мероприятий
-    current_query = (
+    query = (
         select(Event)
         .where(
             and_(
                 Event.expert_id == expert_id,
                 Event.status == "approved",
-                Event.event_date >= now,
-            )
-        )
-        .order_by(Event.event_date.asc())
-    )
-    current_results = await db.execute(current_query)
-
-    # Запрос для прошедших мероприятий
-    past_query = (
-        select(Event)
-        .where(
-            and_(
-                Event.expert_id == expert_id,
-                Event.status == "approved",
-                Event.event_date < now,
             )
         )
         .order_by(Event.event_date.desc())
     )
-    past_results = await db.execute(past_query)
+    result = await db.execute(query)
+    all_events = result.scalars().all()
+
+    current_events = []
+    past_events = []
+
+    for event in all_events:
+        start_time_aware = event.event_date.replace(tzinfo=timezone.utc)
+        end_time = start_time_aware + timedelta(minutes=event.duration_minutes)
+
+        if end_time < now:
+            past_events.append(event)
+        else:
+            current_events.append(event)
+
+    current_events.sort(key=lambda e: e.event_date)
 
     return {
-        "current": current_results.scalars().all(),
-        "past": past_results.scalars().all(),
+        "current": current_events,
+        "past": past_events,
     }

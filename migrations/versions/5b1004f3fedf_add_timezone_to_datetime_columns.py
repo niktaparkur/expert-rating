@@ -1,8 +1,8 @@
-"""Add server_default to Event.event_date
+"""add_timezone_to_datetime_columns
 
-Revision ID: e37cad1715c2
-Revises: 13e4342c131f
-Create Date: 2025-10-04 11:11:08.027585
+Revision ID: 5b1004f3fedf
+Revises: 1ac59f76c6dd
+Create Date: 2025-10-09 15:20:03.229786
 
 """
 
@@ -10,8 +10,8 @@ from typing import Sequence, Union
 
 
 # revision identifiers, used by Alembic.
-revision: str = "e37cad1715c2"
-down_revision: Union[str, Sequence[str], None] = "13e4342c131f"
+revision: str = "5b1004f3fedf"
+down_revision: Union[str, Sequence[str], None] = "1ac59f76c6dd"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
