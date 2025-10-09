@@ -21,9 +21,15 @@ class User(Base):
     first_name = Column(String(255))
     last_name = Column(String(255))
     photo_url = Column(Text)
-    registration_date = Column(TIMESTAMP, server_default=func.now())
+    registration_date = Column(TIMESTAMP(timezone=True), server_default=func.now())
     is_expert = Column(Boolean, default=False)
     is_admin = Column(Boolean, default=False)
+    expert_profile = relationship(
+        "ExpertProfile",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
 
 class Event(Base):
@@ -35,14 +41,15 @@ class Event(Base):
     promo_word = Column(String(100), unique=True)
     event_name = Column(String(255))
     event_link = Column(Text, nullable=True)
-    start_date = Column(TIMESTAMP)
+    start_date = Column(TIMESTAMP(timezone=True))
     duration_minutes = Column(Integer)
-    event_date = Column(TIMESTAMP, nullable=False)
+    event_date = Column(TIMESTAMP(timezone=True), nullable=False)
     status = Column(Enum("pending", "approved", "rejected"), default="pending")
     rejection_reason = Column(Text)
     show_contacts = Column(Boolean)
     is_private = Column(Boolean, default=False, nullable=False)
-    created_at = Column(TIMESTAMP, server_default=func.now())
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    expert = relationship("ExpertProfile", back_populates="events")
 
 
 class Vote(Base):
@@ -59,7 +66,7 @@ class Vote(Base):
     comment_positive = Column(Text)
     comment_negative = Column(Text)
     is_expert_vote = Column(Boolean)
-    created_at = Column(TIMESTAMP, server_default=func.now())
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
 
 class Category(Base):
@@ -110,12 +117,14 @@ class ExpertProfile(Base):
     performance_link = Column(Text)
     referrer_info = Column(Text)
     tariff_plan = Column(String(50), default="Начальный")
-    tariff_expiry_date = Column(TIMESTAMP)
+    tariff_expiry_date = Column(TIMESTAMP(timezone=True))
     show_contacts_default = Column(Boolean, default=True)
-    created_at = Column(TIMESTAMP, server_default=func.now())
-
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     show_community_rating = Column(Boolean, nullable=False, server_default="1")
-
+    user = relationship("User", back_populates="expert_profile")
+    events = relationship(
+        "Event", back_populates="expert", cascade="all, delete-orphan"
+    )
     selected_themes = relationship(
         "Theme", secondary="ExpertSelectedThemes", back_populates="experts"
     )

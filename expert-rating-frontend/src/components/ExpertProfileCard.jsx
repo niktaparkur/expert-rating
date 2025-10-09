@@ -39,26 +39,26 @@ export const ExpertProfileCard = ({ expert, onVoteClick, onFutureFeatureClick })
     return (
         <Card mode="shadow">
             <Div className="expert-profile-header">
-                <Avatar size={96} src={photo} />
+                <Avatar size={96} src={expert.photo_url} />
                 <div className="expert-profile-name-container">
                     <Tooltip description="Перейти в профиль эксперта" placement="top">
-                        <IconButton href={social_link} target="_blank">
+                        <IconButton href={expert.social_link} target="_blank" aria-label="Перейти в профиль ВКонтакте">
                             <Icon28Profile />
                         </IconButton>
                     </Tooltip>
-                    <Title level="2" className="expert-profile-name">{name} {surname}</Title>
+                    <Title level="2" className="expert-profile-name">{expert.first_name} {expert.last_name}</Title>
                 </div>
             </Div>
 
             <div className="expert-profile-stats">
-                <Tooltip label="Экспертный рейтинг">
+                <Tooltip description="Экспертный рейтинг">
                     <div className="stat-item">
                         <Icon20CheckCircleFillGreen width={28} height={28} />
                         <Text className="stat-value">{expertRating}</Text>
                     </div>
                 </Tooltip>
                 {expert.show_community_rating && (
-                    <Tooltip label="Народный рейтинг">
+                    <Tooltip description="Народный рейтинг">
                         <div className="stat-item" onClick={onVoteClick}>
                             <Icon20FavoriteCircleFillYellow width={28} height={28} />
                             <Text className="stat-value">{communityRating}</Text>
@@ -66,7 +66,7 @@ export const ExpertProfileCard = ({ expert, onVoteClick, onFutureFeatureClick })
                     </Tooltip>
                 )}
 
-                <Tooltip label="Проведено мероприятий">
+                <Tooltip description="Проведено мероприятий">
                     <div className="stat-item">
                         <Icon24ListBulletSquareOutline width={28} height={28} />
                         <Text className="stat-value">{eventsCount}</Text>
@@ -94,12 +94,12 @@ export const ExpertProfileCard = ({ expert, onVoteClick, onFutureFeatureClick })
 
             <Div className="expert-profile-actions">
                 <Tooltip description="Пригласить на мероприятие (в разработке)" placement="bottom">
-                    <IconButton className="action-item-small" onClick={onFutureFeatureClick}>
+                    <IconButton className="action-item-small" onClick={onFutureFeatureClick} aria-label="Пригласить на мероприятие">
                         <Icon28Users3Outline />
                     </IconButton>
                 </Tooltip>
                 <Tooltip description="Пригласить на продюсирование (в разработке)" placement="bottom">
-                    <IconButton className="action-item-small" onClick={onFutureFeatureClick}>
+                    <IconButton className="action-item-small" onClick={onFutureFeatureClick} aria-label="Пригласить на продюсирование">
                         <Icon28AdvertisingOutline />
                     </IconButton>
                 </Tooltip>

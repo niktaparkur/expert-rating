@@ -1,20 +1,23 @@
+// src/panels/Registration.jsx
+
 import React, { useState, useEffect, useMemo } from 'react';
 import {
     Panel, PanelHeader, PanelHeaderBack, Button, FormItem, FormField, Input,
-    Textarea, Select, ScreenSpinner, Group, Checkbox, FormStatus,
-    ModalRoot, ModalPage, ModalPageHeader, Search, Div, ContentBadge, Header, Spinner
+    Textarea, Select, ScreenSpinner, Group, Checkbox,
+    ModalRoot, ModalPage, ModalPageHeader, Search, Div, ContentBadge, Header, Spinner, ModalCard, Snackbar
 } from '@vkontakte/vkui';
+import { Icon16Cancel, Icon56CheckCircleOutline } from '@vkontakte/icons';
 import bridge from '@vkontakte/vk-bridge';
 import { useRouteNavigator } from '@vkontakte/vk-mini-apps-router';
 import { useApi } from '../hooks/useApi';
+import { PendingRequestCard } from '../components/PendingRequestCard.jsx';
 
-export const Registration = ({ id }) => {
+export const Registration = ({ id, user, refetchUser }) => {
     const routeNavigator = useRouteNavigator();
     const { apiPost, apiGet } = useApi();
     const [popout, setPopout] = useState(null);
-    const [formStatus, setFormStatus] = useState(null);
+    const [snackbar, setSnackbar] = useState(null);
 
-    const [userData, setUserData] = useState(null);
     const [allThemes, setAllThemes] = useState([]);
     const [allRegions, setAllRegions] = useState([]);
     const [isLoadingMeta, setIsLoadingMeta] = useState(true);
@@ -36,41 +39,30 @@ export const Registration = ({ id }) => {
         const fetchData = async () => {
             setIsLoadingMeta(true);
             try {
-                const [vkUser, themesData, regionsData] = await Promise.all([
-                    bridge.send('VKWebAppGetUserInfo'),
+                const [themesData, regionsData] = await Promise.all([
                     apiGet('/meta/themes'),
                     apiGet('/meta/regions')
                 ]);
 
-                if (vkUser && vkUser.id) {
-                    setUserData(vkUser);
-                    // Автозаполнение ссылки, если чекбокс активен
-                    setFormData(prev => ({ ...prev, social_link: `https://vk.com/id${vkUser.id}` }));
+                if (useVkProfile && user?.vk_id) {
+                    setFormData(prev => ({ ...prev, social_link: `https://vk.com/id${user.vk_id}` }));
                 }
                 setAllThemes(themesData);
                 setAllRegions(regionsData);
-                // Устанавливаем регион по умолчанию, если список загружен
-                if (regionsData.length > 0) {
+                if (regionsData.length > 0 && !formData.region) {
                     setFormData(prev => ({ ...prev, region: regionsData[0] }));
                 }
 
             } catch (error) {
                 console.error('Failed to fetch initial data', error);
-                setFormStatus({ mode: 'error', header: 'Ошибка загрузки', children: 'Не удалось загрузить данные для регистрации.' });
+                setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel/>}>Не удалось загрузить данные для регистрации.</Snackbar>);
             } finally {
                 setIsLoadingMeta(false);
             }
         };
 
         fetchData();
-    }, [apiGet]);
-
-    // --- ИЗМЕНЕНИЕ: Логика чекбокса social_link ---
-    useEffect(() => {
-        if (useVkProfile && userData?.id) {
-            setFormData(prev => ({ ...prev, social_link: `https://vk.com/id${userData.id}` }));
-        }
-    }, [useVkProfile, userData]);
+    }, [apiGet, useVkProfile, user]);
 
     const filteredTopics = useMemo(() => {
         if (!searchQuery) return allThemes;
@@ -97,40 +89,59 @@ export const Registration = ({ id }) => {
 
     const isTopicSelectionValid = selectedThemeIds.length >= 1 && selectedThemeIds.length <= 3;
 
+    const handleWithdraw = async () => {
+        setPopout(<ScreenSpinner />);
+        try {
+            await apiPost('/experts/withdraw');
+            await refetchUser();
+        } catch (error) {
+            setSnackbar(<Snackbar onClose={() => setSnackbar(null)}>{error.message}</Snackbar>);
+        } finally {
+            setPopout(null);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!isTopicSelectionValid) {
-            setFormStatus({ mode: 'error', header: 'Проверка формы', children: 'Пожалуйста, выберите от 1 до 3 тем.' });
+            setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel/>}>Пожалуйста, выберите от 1 до 3 тем.</Snackbar>);
             return;
         }
-        if (!userData) {
-            setFormStatus({ mode: 'error', header: 'Ошибка', children: 'Не удалось получить данные профиля VK.' });
+        if (!user) {
+            setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel/>}>Не удалось получить данные профиля VK.</Snackbar>);
             return;
         }
 
         setPopout(<ScreenSpinner state="loading" />);
         const finalData = {
             user_data: {
-                vk_id: userData.id,
-                first_name: userData.first_name,
-                last_name: userData.last_name,
-                photo_url: userData.photo_200,
+                vk_id: user.vk_id,
+                first_name: user.first_name,
+                last_name: user.last_name,
+                photo_url: user.photo_url,
             },
             profile_data: { ...formData, theme_ids: selectedThemeIds, referrer: formData.referrer }
         };
 
         try {
             await apiPost('/experts/register', finalData);
-            setFormStatus({ mode: 'success', header: 'Успешно', children: 'Ваша заявка отправлена на модерацию!' });
-            setTimeout(() => routeNavigator.back(), 2000);
+            await refetchUser();
+            setPopout(
+                <ModalCard
+                    id="success-modal"
+                    onClose={() => setPopout(null)}
+                    icon={<Icon56CheckCircleOutline style={{ color: 'var(--vkui--color_icon_positive)' }}/>}
+                    header="Заявка отправлена на модерацию"
+                    subheader="Если вы ошиблись в данных, вы можете отозвать заявку в разделе 'Аккаунт' и подать ее заново."
+                    actions={<Button size="l" mode="primary" stretched onClick={() => { setPopout(null); routeNavigator.back(); }}>Понятно</Button>}
+                />
+            );
         } catch (error) {
-            setFormStatus({ mode: 'error', header: 'Ошибка', children: error.message });
-        } finally {
+            setSnackbar(<Snackbar onClose={() => setSnackbar(null)}>{error.message}</Snackbar>);
             setPopout(null);
         }
     };
 
-    // --- ИЗМЕНЕНИЕ: Отображение выбранных тем по их ID ---
     const getSelectedThemeNames = () => {
         const names = [];
         for (const category of allThemes) {
@@ -177,6 +188,17 @@ export const Registration = ({ id }) => {
         return <Panel id={id}><ScreenSpinner /></Panel>;
     }
 
+    if (user?.status === 'pending') {
+        return (
+            <Panel id={id}>
+                <PanelHeader before={<PanelHeaderBack onClick={() => routeNavigator.back()} />}>
+                    Статус заявки
+                </PanelHeader>
+                <PendingRequestCard onWithdraw={handleWithdraw} isLoading={popout !== null} />
+            </Panel>
+        );
+    }
+
     return (
         <Panel id={id} popout={popout}>
             {topicsModal}
@@ -185,8 +207,6 @@ export const Registration = ({ id }) => {
             </PanelHeader>
             <Group>
                 <form onSubmit={handleSubmit}>
-                    {formStatus && <FormItem><FormStatus mode={formStatus.mode} header={formStatus.header}>{formStatus.children}</FormStatus></FormItem>}
-
                     <FormItem top="Темы экспертизы" bottom={`Выбрано: ${selectedThemeIds.length} из 3`}>
                         <Button mode="secondary" size="l" stretched onClick={() => setActiveModal('topics-modal')}>
                            Выбрать темы
@@ -199,7 +219,6 @@ export const Registration = ({ id }) => {
                             </Div>
                         )}
                     </FormItem>
-
                     <FormItem top="Домашний регион">
                         <FormField>
                             <Select
@@ -212,8 +231,7 @@ export const Registration = ({ id }) => {
                             />
                         </FormField>
                     </FormItem>
-
-                    <FormItem top="Ссылка на соц. сеть">
+                    <FormItem top="Ссылка на аккаунт или ваше сообщество">
                         <FormField>
                             <Input
                                 type="url"
@@ -225,21 +243,19 @@ export const Registration = ({ id }) => {
                                 disabled={useVkProfile}
                             />
                         </FormField>
-                        <Checkbox checked={useVkProfile} onChange={() => setUseVkProfile(!useVkProfile)}>
+                        <Checkbox checked={useVkProfile} onChange={(e) => setUseVkProfile(e.target.checked)}>
                             Использовать мой профиль VK
                         </Checkbox>
                     </FormItem>
-
                     <FormItem top="Регалии">
                         <FormField><Textarea name="regalia" value={formData.regalia} onChange={handleChange} placeholder="Кратко опишите ваши достижения" maxLength={200} required /></FormField>
                     </FormItem>
-                    <FormItem top="Ссылка на пример выступления">
-                        <FormField><Input type="url" name="performance_link" value={formData.performance_link} onChange={handleChange} placeholder="https://youtube.com/..." required /></FormField>
+                    <FormItem top="Ссылка на пример выступления (показывается только для организаторов мероприятий)">
+                        <FormField><Input type="url" name="performance_link" value={formData.performance_link} onChange={handleChange} placeholder="https://vk.com/..." required /></FormField>
                     </FormItem>
                     <FormItem top="Кто вас пригласил? (необязательно)">
                          <FormField><Input type="text" name="referrer" value={formData.referrer} onChange={handleChange} placeholder="Логин или ID пригласившего" /></FormField>
                     </FormItem>
-
                     <FormItem>
                         <Button size="l" stretched type="submit" disabled={popout !== null || !isTopicSelectionValid}>
                             Отправить на модерацию
@@ -247,6 +263,7 @@ export const Registration = ({ id }) => {
                     </FormItem>
                 </form>
             </Group>
+            {snackbar}
         </Panel>
     );
 };

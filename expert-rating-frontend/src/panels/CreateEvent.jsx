@@ -2,8 +2,24 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    Panel, PanelHeader, PanelHeaderBack, Group, FormItem, FormField, Input, Button, ScreenSpinner, Div,
-    Textarea, Checkbox, FormStatus, ModalRoot, ModalCard, Calendar, Text, Spinner
+    Panel,
+    PanelHeader,
+    PanelHeaderBack,
+    Group,
+    FormItem,
+    FormField,
+    Input,
+    Button,
+    ScreenSpinner,
+    Div,
+    Textarea,
+    Checkbox,
+    FormStatus,
+    ModalRoot,
+    ModalCard,
+    Calendar,
+    Text,
+    Spinner
 } from '@vkontakte/vkui';
 import { useRouteNavigator } from '@vkontakte/vk-mini-apps-router';
 import { useApi } from '../hooks/useApi.js';
@@ -23,25 +39,30 @@ export const CreateEvent = ({ id, setPopout }) => {
         duration_minutes: 60,
     });
     const [formStatus, setFormStatus] = useState(null);
+    const [durationError, setDurationError] = useState(null);
     const [activeModal, setActiveModal] = useState(null);
-    const [promoStatus, setPromoStatus] = useState({ status: 'default', text: '' });
+    const [promoStatus, setPromoStatus] = useState(null);
+    const [isCheckingPromo, setIsCheckingPromo] = useState(false);
 
-    // eslint-disable-next-line
     const checkPromo = useCallback(debounce(async (word) => {
-        if (!word || word.length < 4) {
-            setPromoStatus({ status: 'default', text: '' });
+        const normalizedWord = word.trim().toUpperCase();
+        if (!normalizedWord || normalizedWord.length < 4) {
+            setPromoStatus(null);
+            setIsCheckingPromo(false);
             return;
         }
-        setPromoStatus({ status: 'checking', text: 'Проверка...' });
+        setIsCheckingPromo(true);
         try {
-            const { is_taken } = await apiGet(`/events/check-promo/${word.trim().toUpperCase()}`);
-            if (is_taken) {
-                setPromoStatus({ status: 'taken', text: 'Это слово уже занято' });
+            const response = await apiGet(`/events/status/${normalizedWord}`);
+            if (response.status === 'not_found') {
+                setPromoStatus('available');
             } else {
-                setPromoStatus({ status: 'available', text: 'Слово свободно!' });
+                setPromoStatus('taken');
             }
         } catch (error) {
-            setPromoStatus({ status: 'default', text: 'Ошибка проверки' });
+            setPromoStatus('error');
+        } finally {
+            setIsCheckingPromo(false);
         }
     }, 500), [apiGet]);
 
@@ -53,6 +74,9 @@ export const CreateEvent = ({ id, setPopout }) => {
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
+        if (name === 'duration_minutes') {
+            setDurationError(null);
+        }
         setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
     };
 
@@ -69,7 +93,9 @@ export const CreateEvent = ({ id, setPopout }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setFormStatus(null);
-        if (promoStatus.status === 'taken' || promoStatus.status === 'checking') {
+        setDurationError(null);
+
+        if (promoStatus === 'taken' || isCheckingPromo) {
             setFormStatus({ mode: 'error', header: 'Ошибка', children: 'Пожалуйста, выберите другое промо-слово.' });
             return;
         }
@@ -77,6 +103,7 @@ export const CreateEvent = ({ id, setPopout }) => {
             setFormStatus({ mode: 'error', header: 'Ошибка', children: 'Пожалуйста, укажите дату и время мероприятия.' });
             return;
         }
+
         setPopout(<ScreenSpinner state="loading" />);
         const combinedDateTime = new Date(`${formData.event_date_d}T${formData.event_date_t}`);
         const finalData = {
@@ -87,24 +114,29 @@ export const CreateEvent = ({ id, setPopout }) => {
             duration_minutes: parseInt(formData.duration_minutes),
             event_date: combinedDateTime.toISOString(),
         };
+
         try {
             await apiPost('/events/create', finalData);
             setFormStatus({ mode: 'success', header: 'Успешно', children: 'Мероприятие отправлено на модерацию!' });
             setFormData({ name: '', promo_word: '', event_link: '', is_private: false, event_date_d: '', event_date_t: '', duration_minutes: 60 });
             setTimeout(() => routeNavigator.push('/dashboard'), 1500);
         } catch (error) {
-            setFormStatus({ mode: 'error', header: 'Ошибка', children: error.message });
+            if (error.message.includes("Duration exceeds limit")) {
+                const message = `Длительность превышает лимит для вашего тарифа. Пожалуйста, укажите меньшее значение.`;
+                setDurationError(message);
+            } else {
+                setFormStatus({ mode: 'error', header: 'Ошибка', children: error.message });
+            }
         } finally {
             setPopout(null);
         }
     };
 
     const getPromoBottomText = () => {
-        if (promoStatus.status === 'checking') return <Spinner size='s'/>;
-        if (promoStatus.text) {
-            const color = promoStatus.status === 'taken' ? 'var(--vkui--color_text_negative)' : 'var(--vkui--color_text_positive)';
-            return <Text style={{ color }}>{promoStatus.text}</Text>;
-        }
+        if (isCheckingPromo) return <Spinner size='s'/>;
+        if (promoStatus === 'taken') return <Text style={{ color: 'var(--vkui--color_text_negative)' }}>Это слово уже занято</Text>;
+        if (promoStatus === 'available') return <Text style={{ color: 'var(--vkui--color_text_positive)' }}>Слово свободно!</Text>;
+        if (promoStatus === 'error') return <Text style={{ color: 'var(--vkui--color_text_negative)' }}>Ошибка проверки</Text>;
         return "Уникальное слово для голосования. Только латинские буквы и цифры.";
     };
 
@@ -125,33 +157,23 @@ export const CreateEvent = ({ id, setPopout }) => {
             <Group>
                 <form onSubmit={handleSubmit}>
                     {formStatus && <FormItem><FormStatus mode={formStatus.mode} header={formStatus.header}>{formStatus.children}</FormStatus></FormItem>}
-
                     <FormItem top="Название мероприятия" required><FormField><Input name="name" value={formData.name} onChange={handleChange} /></FormField></FormItem>
-                    <FormItem top="Промо-слово" required bottom={getPromoBottomText()}><FormField><Input name="promo_word" value={formData.promo_word} onChange={handleChange} /></FormField></FormItem>
-
-                    <FormItem top="Ссылка на мероприятие (необязательно)">
-                        <FormField><Input name="event_link" type="url" value={formData.event_link} onChange={handleChange} placeholder="https://vk.com/event123" /></FormField>
-                    </FormItem>
-                    <FormItem>
-                        <Checkbox name="is_private" checked={formData.is_private} onChange={handleChange}>Закрытое мероприятие (не будет в общей афише)</Checkbox>
-                    </FormItem>
-
+                    <FormItem top="Промо-слово" required bottom={getPromoBottomText()} status={promoStatus === 'taken' ? 'error' : 'default'}><FormField><Input name="promo_word" value={formData.promo_word} onChange={handleChange} /></FormField></FormItem>
+                    <FormItem top="Ссылка на мероприятие (необязательно)"><FormField><Input name="event_link" type="url" value={formData.event_link} onChange={handleChange} placeholder="https://vk.com/event123" /></FormField></FormItem>
+                    <FormItem><Checkbox name="is_private" checked={formData.is_private} onChange={handleChange}>Закрытое мероприятие (не будет в общей афише)</Checkbox></FormItem>
                     <FormItem top="Дата и время начала голосования" required>
                         <Div style={{ display: 'flex', gap: '8px', padding: 0 }}>
-                            <FormField
-                                style={{ flexGrow: 2 }}
-                                after={<Icon24CalendarOutline onClick={() => setActiveModal('calendar-modal')} />}
-                            >
-                                <Input type="date" name="event_date_d" value={formData.event_date_d} onChange={handleChange} />
+                            <FormField style={{ flexGrow: 2 }} after={<Icon24CalendarOutline onClick={() => setActiveModal('calendar-modal')} />}>
+                                <Input type="text" name="event_date_d" value={formData.event_date_d} onChange={handleChange} readOnly placeholder="Дата не выбрана" />
                             </FormField>
                             <FormField style={{ flexGrow: 1 }}>
                                 <Input type="time" name="event_date_t" value={formData.event_date_t} onChange={handleChange} />
                             </FormField>
                         </Div>
                     </FormItem>
-
-                    <FormItem top="Длительность голосования (в минутах)" required><FormField><Input type="number" name="duration_minutes" value={formData.duration_minutes} onChange={handleChange} /></FormField></FormItem>
-
+                    <FormItem top="Длительность голосования (в минутах)" required bottom={durationError} status={durationError ? 'error' : 'default'}>
+                        <FormField><Input type="number" name="duration_minutes" value={formData.duration_minutes} onChange={handleChange} /></FormField>
+                    </FormItem>
                     <FormItem><Button size="l" stretched type="submit">Отправить на модерацию</Button></FormItem>
                 </form>
             </Group>

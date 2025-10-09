@@ -1,6 +1,7 @@
+// src/components/VoteCard.jsx
+
 import React, { useState } from 'react';
 import {
-    Card,
     Div,
     Button,
     FormItem,
@@ -8,101 +9,42 @@ import {
     Textarea,
     Title,
     Text,
-    Spacing
+    Spacing,
+    Group
 } from '@vkontakte/vkui';
-import {
-    Icon56CheckCircleOutline,
-    Icon56LockOutline,
-    Icon56UserCircleOutline
-} from '@vkontakte/icons';
+import { Icon56CheckCircleOutline } from '@vkontakte/icons';
 
-export const VoteCard = ({ title, subtitle, onSubmit, disabled, voted = false, voteType }) => {
+export const VoteCard = ({ onSubmit, onCancelVote, hasVoted }) => {
     const [voteData, setVoteData] = useState({
         vote_type: '',
-        comment_positive: '',
-        comment_negative: ''
+        comment: ''
     });
 
+    const isSubmitDisabled = voteData.vote_type === 'distrust' && !voteData.comment.trim();
+
     const handleSubmit = () => {
-        if (!voteData.vote_type) {
-            alert('Выберите, доверяете ли вы эксперту');
-            return;
-        }
         onSubmit(voteData);
     };
 
-    // Универсальный стиль карточки
-    const baseCardStyle = {
-        borderRadius: 16,
-        overflow: 'hidden',
-        paddingBottom: 12
-    };
-
-    const headerStyle = {
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        textAlign: 'center',
-        padding: 24,
-        gap: 8,
-        borderTopLeftRadius: 16,
-        borderTopRightRadius: 16,
-    };
-
-
-    const titleStyle = {
-        marginTop: 4,
-    };
-
-    const subtitleStyle = {
-        fontSize: 15,
-    };
-
-    // --- Завершённое голосование ---
-    if (disabled) {
+    if (hasVoted) {
         return (
-            <Card mode="shadow" style={baseCardStyle}>
-                <Div style={headerStyle}>
-                    <Icon56LockOutline fill="rgba(255,255,255,0.6)" />
-                    <Title level="2" weight="2" style={titleStyle}>
-                        Голосование завершено
-                    </Title>
-                    <Text style={subtitleStyle}>Вы уже не можете проголосовать.</Text>
+            <Group>
+                <Div style={{ textAlign: 'center' }}>
+                    <Icon56CheckCircleOutline style={{ color: 'var(--vkui--color_icon_positive)' }} />
+                    <Title level="2" style={{ marginTop: 16 }}>Спасибо за участие!</Title>
+                    <Text style={{ marginTop: 8, color: 'var(--vkui--color_text_secondary)' }}>Ваш голос уже учтен.</Text>
                 </Div>
-            </Card>
+                <Div>
+                    <Button size="l" stretched mode="destructive" onClick={onCancelVote}>
+                        Отменить голос
+                    </Button>
+                </Div>
+            </Group>
         );
     }
 
-    // --- Уже проголосовал ---
-    if (voted) {
-        return (
-            <Card mode="shadow" style={baseCardStyle}>
-                <Div style={headerStyle}>
-                    <Icon56CheckCircleOutline fill="#62de84" />
-                    <Title level="2" weight="2" style={titleStyle}>
-                        Спасибо за участие!
-                    </Title>
-                    <Text style={subtitleStyle}>
-                        Ваш голос учтён в категории{' '}
-                        <b>{voteType === 'expert' ? 'Экспертное' : 'Народное'}</b> голосование.
-                    </Text>
-                </Div>
-            </Card>
-        );
-    }
-
-    // --- Активная карточка ---
     return (
-        <Card mode="shadow" style={baseCardStyle}>
-            <Div style={headerStyle}>
-                <Icon56UserCircleOutline fill="#7aa2ff" />
-                <Title level="2" weight="2" style={titleStyle}>
-                    {title}
-                </Title>
-                {subtitle && <Text style={subtitleStyle}>{subtitle}</Text>}
-            </Div>
-
+        <Group>
             <Spacing size={8} />
             <Div style={{ display: 'flex', gap: '10px' }}>
                 <Button
@@ -123,35 +65,28 @@ export const VoteCard = ({ title, subtitle, onSubmit, disabled, voted = false, v
                 </Button>
             </Div>
 
-            <FormItem top="Что понравилось? (анонимно)">
+            <FormItem
+                top={voteData.vote_type === 'distrust' ? "Что можно улучшить? (обязательно)" : "Что понравилось? (анонимно, по желанию)"}
+                status={isSubmitDisabled ? 'error' : 'default'}
+            >
                 <FormField>
                     <Textarea
-                        value={voteData.comment_positive}
-                        onChange={(e) =>
-                            setVoteData(prev => ({ ...prev, comment_positive: e.target.value }))
+                        value={voteData.comment}
+                        onChange={(e) => setVoteData(prev => ({ ...prev, comment: e.target.value }))}
+                        placeholder={
+                            voteData.vote_type === 'distrust'
+                            ? "Например: хотелось бы больше конкретики"
+                            : "Например: эксперт дал понятное объяснение"
                         }
-                        placeholder="Например: эксперт дал понятное объяснение"
-                    />
-                </FormField>
-            </FormItem>
-
-            <FormItem top="Что можно улучшить? (анонимно)">
-                <FormField>
-                    <Textarea
-                        value={voteData.comment_negative}
-                        onChange={(e) =>
-                            setVoteData(prev => ({ ...prev, comment_negative: e.target.value }))
-                        }
-                        placeholder="Например: хотелось бы больше конкретики"
                     />
                 </FormField>
             </FormItem>
 
             <Div>
-                <Button size="l" stretched mode="primary" onClick={handleSubmit}>
+                <Button size="l" stretched mode="primary" onClick={handleSubmit} disabled={isSubmitDisabled}>
                     Проголосовать
                 </Button>
             </Div>
-        </Card>
+        </Group>
     );
 };

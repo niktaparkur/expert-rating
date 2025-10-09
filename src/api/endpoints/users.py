@@ -1,10 +1,9 @@
-# src/api/endpoints/users.py
-
 from typing import Dict, Any
 
 import redis.asyncio as redis
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from loguru import logger
 
 from src.core.config import settings
 from src.core.dependencies import get_current_user, get_db, get_redis
@@ -47,18 +46,15 @@ async def update_user_settings(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    # Инвалидация кеша для немедленного обновления
     cache_key = f"user_profile:{vk_id}"
     await cache.delete(cache_key)
 
-    # Запрашиваем обновленные данные для возврата пользователю
     result = await expert_crud.get_user_with_profile_by_vk_id(db, vk_id=vk_id)
     if not result:
         raise HTTPException(status_code=404, detail="User not found after update.")
 
     user, profile, stats_dict = result
 
-    # Сборка объекта ответа, аналогично get_current_user
     response_data_dict: Dict[str, Any] = {
         "vk_id": user.vk_id,
         "first_name": user.first_name,
@@ -82,5 +78,6 @@ async def update_user_settings(
         response_data_dict["topics"] = [
             f"{theme.category.name} > {theme.name}" for theme in profile.selected_themes
         ]
+
 
     return UserAdminRead(**response_data_dict)

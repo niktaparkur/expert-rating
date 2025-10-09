@@ -1,17 +1,19 @@
+// src/panels/Admin.jsx
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Panel, PanelHeader, Group, Header, Button, ScreenSpinner, Div, Text, Spinner,
     ModalRoot, ModalPage, ModalPageHeader, PanelHeaderButton, Avatar, InfoRow, Tabs, TabsItem,
-    SimpleCell, Alert, PanelHeaderBack
+    SimpleCell, Alert, PanelHeaderBack, Snackbar
 } from '@vkontakte/vkui';
-import { Icon24Cancel, Icon24Delete } from '@vkontakte/icons';
+import { Icon16Cancel, Icon24Cancel, Icon24Delete } from '@vkontakte/icons';
 import { useRouteNavigator, useSearchParams } from '@vkontakte/vk-mini-apps-router';
 import { RequestCard } from '../components/RequestCard';
 import { useApi } from '../hooks/useApi';
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-export const Admin = ({ id, setPopout }) => {
+export const Admin = ({ id, setPopout, setSnackbar }) => {
     const routeNavigator = useRouteNavigator();
     const [searchParams] = useSearchParams();
     const { apiGet, apiPost } = useApi();
@@ -75,6 +77,10 @@ export const Admin = ({ id, setPopout }) => {
     const openExpertRequest = (request) => { setSelectedRequest(request); setActiveModal('expert-details'); };
     const closeModal = () => { setActiveModal(null); setTimeout(() => setSelectedRequest(null), 200); };
 
+    const showErrorSnackbar = (message) => {
+        setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel/>}>{message}</Snackbar>);
+    };
+
     const handleExpertAction = async (vkId, action) => {
         closeModal();
         setPopout(<ScreenSpinner state="loading" />);
@@ -82,7 +88,7 @@ export const Admin = ({ id, setPopout }) => {
             await apiPost(`/experts/admin/${vkId}/${action}`);
             setExpertRequests(prev => prev.filter(req => req.vk_id !== vkId));
         } catch (err) {
-            alert(err.message);
+            showErrorSnackbar(err.message);
         } finally {
             setPopout(null);
         }
@@ -95,16 +101,27 @@ export const Admin = ({ id, setPopout }) => {
             await apiPost(`/events/admin/${eventId}/${action}`, body);
             setEventRequests(prev => prev.filter(req => req.id !== eventId));
         } catch (err) {
-            alert(err.message);
+            showErrorSnackbar(err.message);
         } finally {
             setPopout(null);
         }
     };
 
     const handleDeleteUser = (user) => {
+        const performDelete = async () => {
+            setPopout(<ScreenSpinner state="loading" />);
+            try {
+                await apiPost(`/experts/admin/${user.vk_id}/delete`);
+                setAllUsers(prev => prev.filter(u => u.vk_id !== user.vk_id));
+            } catch (err) {
+                showErrorSnackbar(err.message);
+            } finally {
+                setPopout(null);
+            }
+        };
         setPopout(
             <Alert
-                actions={[{ title: 'Отмена', mode: 'cancel', action: () => setPopout(null) }, { title: 'Удалить', mode: 'destructive', action: async () => { setPopout(<ScreenSpinner state="loading" />); try { await apiPost(`/experts/admin/${user.vk_id}/delete`); setAllUsers(prev => prev.filter(u => u.vk_id !== user.vk_id)); } catch (err) { alert(err.message); } finally { setPopout(null); } } }]}
+                actions={[{ title: 'Отмена', mode: 'cancel' }, { title: 'Удалить', mode: 'destructive', action: performDelete }]}
                 onClose={() => setPopout(null)}
                 title="Подтверждение действия"
                 description={`Вы уверены, что хотите удалить пользователя ${user.first_name} ${user.last_name}? Это действие необратимо.`}
@@ -119,7 +136,11 @@ export const Admin = ({ id, setPopout }) => {
                     <SimpleCell multiline before={<Avatar size={72} src={selectedRequest.photo_url} />}><InfoRow header="Имя">{selectedRequest.first_name} {selectedRequest.last_name}</InfoRow></SimpleCell>
                     <SimpleCell multiline><InfoRow header="Регион">{selectedRequest.region}</InfoRow></SimpleCell>
                     <SimpleCell multiline><InfoRow header="Регалии">{selectedRequest.regalia}</InfoRow></SimpleCell>
-                    <SimpleCell multiline><InfoRow header="Темы">{selectedRequest.topics.join(', ')}</InfoRow></SimpleCell>
+                    <Div>
+                        <InfoRow header="Темы">
+                            <Text>{selectedRequest.topics.join(', ')}</Text>
+                        </InfoRow>
+                    </Div>
                     <SimpleCell multiline href={selectedRequest.social_link} target="_blank" expandable="true"><InfoRow header="Соц. сеть">Перейти</InfoRow></SimpleCell>
                     <SimpleCell multiline href={selectedRequest.performance_link} target="_blank" expandable="true"><InfoRow header="Выступление">Посмотреть</InfoRow></SimpleCell>
                     <Div style={{ display: 'flex', gap: '8px' }}>

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import redis.asyncio as redis
 from loguru import logger
-from sqlalchemy import func
+from sqlalchemy import func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -25,7 +25,6 @@ from src.schemas.expert_schemas import (
 
 
 async def create_expert_request(db: AsyncSession, expert_data: ExpertCreate) -> User:
-    """Создает пользователя (если его нет) и заявку на становление экспертом."""
     user_result = await db.execute(
         select(User).filter(User.vk_id == expert_data.user_data.vk_id)
     )
@@ -60,7 +59,6 @@ async def create_expert_request(db: AsyncSession, expert_data: ExpertCreate) -> 
 
 
 async def get_pending_experts(db: AsyncSession):
-    """Получает список заявок на регистрацию для админки."""
     query = (
         select(User, ExpertProfile)
         .join(ExpertProfile, User.vk_id == ExpertProfile.user_vk_id)
@@ -74,7 +72,6 @@ async def get_pending_experts(db: AsyncSession):
 
 
 async def set_expert_status(db: AsyncSession, vk_id: int, status: str) -> ExpertProfile:
-    """Устанавливает статус профиля эксперта (approved/rejected)."""
     result = await db.execute(
         select(ExpertProfile).filter(ExpertProfile.user_vk_id == vk_id)
     )
@@ -94,7 +91,6 @@ async def set_expert_status(db: AsyncSession, vk_id: int, status: str) -> Expert
 
 
 async def get_all_users_with_profiles(db: AsyncSession):
-    """Получает ВСЕХ пользователей с их профилями (если есть) для админки."""
     query = (
         select(User, ExpertProfile)
         .outerjoin(ExpertProfile, User.vk_id == ExpertProfile.user_vk_id)
@@ -107,7 +103,6 @@ async def get_all_users_with_profiles(db: AsyncSession):
 async def delete_user_by_vk_id(
     db: AsyncSession, vk_id: int, cache: redis.Redis
 ) -> bool:
-    """Полностью удаляет пользователя и все связанные с ним данные, а также очищает кеш."""
     result = await db.execute(select(User).filter(User.vk_id == vk_id))
     db_user = result.scalars().first()
     if db_user:
@@ -126,7 +121,6 @@ async def delete_user_by_vk_id(
 
 
 async def get_experts_by_status(db: AsyncSession, status: str):
-    """Получает список экспертов по заданному статусу (например, 'approved')."""
     query = (
         select(User, ExpertProfile)
         .join(ExpertProfile, User.vk_id == ExpertProfile.user_vk_id)
@@ -149,11 +143,14 @@ async def get_experts_by_status(db: AsyncSession, status: str):
             ]
             experts_with_stats.append((user_obj, profile_obj, stats_dict, topics))
 
-    return experts_with_stats
+    sorted_experts = sorted(
+        experts_with_stats, key=lambda data: data[2]["expert"], reverse=True
+    )
+
+    return sorted_experts
 
 
 async def get_user_with_profile_by_vk_id(db: AsyncSession, vk_id: int):
-    """Получает одного пользователя с профилем, темами и статистикой."""
     query = (
         select(User, ExpertProfile)
         .outerjoin(ExpertProfile, User.vk_id == ExpertProfile.user_vk_id)
@@ -199,7 +196,6 @@ async def get_user_with_profile_by_vk_id(db: AsyncSession, vk_id: int):
 
 
 async def update_expert_tariff(db: AsyncSession, vk_id: int, tariff_name: str) -> bool:
-    """Обновляет тариф эксперта."""
     result = await db.execute(
         select(ExpertProfile).filter(ExpertProfile.user_vk_id == vk_id)
     )
@@ -222,7 +218,6 @@ async def update_expert_tariff(db: AsyncSession, vk_id: int, tariff_name: str) -
 
 
 async def create_user(db: AsyncSession, user_data: UserCreate) -> User:
-    """Создает нового пользователя в базе данных."""
     result = await db.execute(select(User).filter(User.vk_id == user_data.vk_id))
     if result.scalars().first():
         raise ValueError("User with this VK ID already exists.")
@@ -237,7 +232,6 @@ async def create_user(db: AsyncSession, user_data: UserCreate) -> User:
 async def create_community_vote(
     db: AsyncSession, vk_id: int, vote_data: CommunityVoteCreate
 ):
-    """Создает 'народный' голос за эксперта."""
     expert_profile_res = await db.execute(
         select(ExpertProfile).filter(
             ExpertProfile.user_vk_id == vk_id, ExpertProfile.status == "approved"
@@ -273,10 +267,46 @@ async def create_community_vote(
     return db_vote
 
 
+async def check_if_user_voted(
+    db: AsyncSession, expert_vk_id: int, voter_vk_id: int
+) -> bool:
+    query = select(Vote).where(
+        and_(
+            Vote.expert_vk_id == expert_vk_id,
+            Vote.voter_vk_id == voter_vk_id,
+            Vote.is_expert_vote.is_(False),
+        )
+    )
+    result = await db.execute(query)
+    return result.scalars().first() is not None
+
+
+async def delete_community_vote(
+    db: AsyncSession, expert_vk_id: int, voter_vk_id: int
+) -> bool:
+    query = select(Vote).where(
+        and_(
+            Vote.expert_vk_id == expert_vk_id,
+            Vote.voter_vk_id == voter_vk_id,
+            Vote.is_expert_vote.is_(False),
+        )
+    )
+    result = await db.execute(query)
+    db_vote = result.scalars().first()
+
+    if db_vote:
+        await db.delete(db_vote)
+        await db.commit()
+        logger.info(
+            f"Vote from {voter_vk_id} for expert {expert_vk_id} has been deleted."
+        )
+        return True
+    return False
+
+
 async def update_user_settings(
     db: AsyncSession, vk_id: int, settings_data: UserSettingsUpdate
 ) -> ExpertProfile:
-    """Обновляет настройки профиля пользователя."""
     result = await db.execute(
         select(ExpertProfile).filter(ExpertProfile.user_vk_id == vk_id)
     )
@@ -291,3 +321,21 @@ async def update_user_settings(
     await db.commit()
     await db.refresh(db_profile)
     return db_profile
+
+
+async def withdraw_expert_request(db: AsyncSession, vk_id: int) -> bool:
+    result = await db.execute(
+        select(ExpertProfile).filter(
+            ExpertProfile.user_vk_id == vk_id, ExpertProfile.status == "pending"
+        )
+    )
+    db_profile = result.scalars().first()
+
+    if db_profile:
+        await db.delete(db_profile)
+        await db.commit()
+        logger.info(f"Expert request for user {vk_id} has been withdrawn.")
+        return True
+
+    logger.warning(f"No pending request found for user {vk_id} to withdraw.")
+    return False

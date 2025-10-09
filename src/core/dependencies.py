@@ -1,5 +1,3 @@
-# src/core/dependencies.py
-
 import json
 from typing import Optional, Dict
 
@@ -63,51 +61,39 @@ async def get_current_user(
         "access_token": settings.VK_SERVICE_KEY,
         "v": "5.199",
     }
-    logger.debug("Checking token for user via VK API...")
 
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(
-                "https://api.vk.com/method/secure.checkToken", params=params
-            )
-            response.raise_for_status()
-            data = response.json()
-        except httpx.RequestError as e:
-            logger.error(f"VK API request error: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Could not connect to VK API",
-            )
-        except Exception:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Token check failed",
-            )
+    token_cache_key = f"token_to_id:{access_token}"
+    cached_id = await cache.get(token_cache_key)
+    if cached_id:
+        vk_user_id = int(cached_id)
+        logger.debug(f"VK User ID {vk_user_id} found in token cache.")
+    else:
+        logger.debug("Checking token for user via VK API...")
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(
+                    "https://api.vk.com/method/secure.checkToken", params=params
+                )
+                response.raise_for_status()
+                data = response.json()
+            except Exception as e:
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                                    detail=f"Could not connect to VK API: {e}")
 
-    if "error" in data:
-        error_info = data["error"]
-        logger.warning(f"Invalid token from VK API: {error_info.get('error_msg')}")
-        if error_info.get("error_code") == 10 and "limit reached" in error_info.get(
-                "error_reason", ""
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Rate limit reached. Please try again later.",
-            )
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid token: {error_info.get('error_msg')}",
-        )
+        if "error" in data:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                                detail=f"Invalid token: {data['error'].get('error_msg')}")
 
-    vk_user_id = data["response"]["user_id"]
+        vk_user_id = data["response"]["user_id"]
+        await cache.set(token_cache_key, vk_user_id, ex=300)
 
     cache_key = f"user_profile:{vk_user_id}"
     cached_user_str = await cache.get(cache_key)
     if cached_user_str:
-        logger.success(f"User {vk_user_id} found in cache.")
+        logger.success(f"User {vk_user_id} found in profile cache.")
         return json.loads(cached_user_str)
 
-    logger.debug(f"User {vk_user_id} not in cache. Fetching from DB.")
+    logger.debug(f"User {vk_user_id} not in profile cache. Fetching from DB.")
 
     user_with_profile_and_stats = await expert_crud.get_user_with_profile_by_vk_id(
         db, vk_id=vk_user_id

@@ -1,5 +1,3 @@
-// src/components/UserProfile.jsx
-
 import React from 'react';
 import {
     Group,
@@ -12,7 +10,8 @@ import {
     IconButton,
     Header,
     SimpleCell,
-    Button
+    Button,
+    RichCell
 } from '@vkontakte/vkui';
 import {
     Icon20FavoriteCircleFillYellow,
@@ -39,20 +38,20 @@ export const UserProfile = ({ user, onSettingsClick }) => {
     return (
         <Group>
             <Card mode="shadow" style={{ position: 'relative' }}>
-                <SimpleCell
+                <RichCell
                     before={<Avatar size={96} src={user.photo_url} />}
                     after={showExpertData && (
-                        <IconButton onClick={onSettingsClick}>
+                        <IconButton onClick={onSettingsClick} aria-label="Настройки профиля">
                             <Icon28SettingsOutline />
                         </IconButton>
                     )}
-                    subtitle={<Text style={{ color: 'var(--vkui--color_text_secondary)' }}>{getRoleText()}</Text>}
+                    caption={<Text style={{ color: 'var(--vkui--color_text_secondary)' }}>{getRoleText()}</Text>}
                     disabled
                 >
                     <Title level="2">{user.first_name} {user.last_name}</Title>
-                </SimpleCell>
+                </RichCell>
 
-                <Div style={{ textAlign: 'center', color: 'var(--vkui--color_text_secondary)', paddingTop: 0 }}>
+                <Div style={{ textAlign: 'center', color: 'var(--vkui--color_text_secondary)', paddingTop: 0, paddingBottom: 0 }}>
                     <Text>Тариф: {user.tariff_plan || 'Начальный'}</Text>
                 </Div>
 
@@ -60,14 +59,13 @@ export const UserProfile = ({ user, onSettingsClick }) => {
                     <Div>
                         <Header mode="tertiary">Направления</Header>
                         {user.topics.map(topic => (
-                            <SimpleCell key={topic} disabled multiline>{topic}</SimpleCell>
+                            <SimpleCell key={topic} multiline>{topic}</SimpleCell>
                         ))}
                     </Div>
                 )}
 
                 {showExpertData && (
                     <Div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
-
                         <Tooltip description="Экспертный рейтинг">
                             <div className="stat-item">
                                 <Icon20CheckCircleFillGreen />

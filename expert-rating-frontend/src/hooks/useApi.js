@@ -31,7 +31,7 @@ export const useApi = () => {
             throw new Error(errorData.detail || `Ошибка сервера: ${response.status}`);
         }
 
-        if (response.status === 204) {
+        if (response.status === 204 || response.status === 200 && method === 'DELETE') {
             return { status: 'ok' };
         }
 
@@ -41,6 +41,7 @@ export const useApi = () => {
     const apiGet = useCallback((endpoint) => apiRequest(endpoint, 'GET'), [apiRequest]);
     const apiPost = useCallback((endpoint, body) => apiRequest(endpoint, 'POST', body), [apiRequest]);
     const apiPut = useCallback((endpoint, body) => apiRequest(endpoint, 'PUT', body), [apiRequest]);
+    const apiDelete = useCallback((endpoint) => apiRequest(endpoint, 'DELETE'), [apiRequest]);
 
-    return { apiGet, apiPost, apiPut };
+    return { apiGet, apiPost, apiPut, apiDelete };
 };

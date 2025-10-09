@@ -36,9 +36,6 @@ const tariffsData = [
             { text: 'До 3 мероприятий в месяц' },
             { text: 'До 100 голосов на мероприятии', tooltip: 'Максимальное количество уникальных голосов, которое можно получить за одно мероприятие. Пользователи, голосовавшие за вас ранее, не учитываются в этом лимите.' },
             { text: 'До 1 часа длительность голосования' },
-            // { text: '1 бесплатная рассылка в месяц', tooltip: 'Возможность отправить сообщение всем пользователям, которые голосовали за вас. Сообщение проходит предварительную модерацию.' },
-            // { text: '10 откликов на неоплачиваемые мероприятия' },
-            // { text: '2 отклика на оплачиваемые мероприятия' },
         ]
     },
     {
@@ -47,9 +44,6 @@ const tariffsData = [
             { text: 'До 10 мероприятий в месяц' },
             { text: 'До 200 голосов на мероприятии', tooltip: 'Максимальное количество уникальных голосов, которое можно получить за одно мероприятие. Пользователи, голосовавшие за вас ранее, не учитываются в этом лимите.' },
             { text: 'До 12 часов длительность голосования' },
-            // { text: '2 бесплатные рассылки в месяц', tooltip: 'Возможность отправить сообщение всем пользователям, которые голосовали за вас. Сообщение проходит предварительную модерацию.' },
-            // { text: '20 откликов на неоплачиваемые мероприятия' },
-            // { text: '7 откликов на оплачиваемые мероприятия' },
         ]
     },
     {
@@ -58,19 +52,32 @@ const tariffsData = [
             { text: 'До 30 мероприятий в месяц' },
             { text: 'До 1000 голосов на мероприятии', tooltip: 'Максимальное количество уникальных голосов, которое можно получить за одно мероприятие. Пользователи, голосовавшие за вас ранее, не учитываются в этом лимите.' },
             { text: 'До 24 часов длительность голосования' },
-            // { text: '4 бесплатные рассылки в месяц', tooltip: 'Возможность отправить сообщение всем пользователям, которые голосовали за вас. Сообщение проходит предварительную модерацию.' },
-            // { text: '40 откликов на неоплачиваемые мероприятия' },
-            // { text: '15 откликов на оплачиваемые мероприятия' },
         ]
     }
 ];
 
+const getExpiryDate = () => {
+    const date = new Date();
+    date.setDate(date.getDate() + 30);
+    return date.toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    });
+};
+
 const TariffCardComponent = ({ tariff, isCurrent, isExpert, onSelect, onRegister, isSelectable }) => (
     <Card mode="outline" style={{ borderColor: isCurrent ? 'var(--vkui--color_background_accent)' : undefined }}>
-        <Header>{tariff.name}</Header>
+        <Div>
+            <Title level="2">{tariff.name}</Title>
+        </Div>
         <Div>
             <Title level="1" style={{ marginBottom: 4 }}>{tariff.price_str}</Title>
-            {tariff.price_votes > 0 && <Text style={{ color: 'var(--vkui--color_text_secondary)' }}>/ 30 дней</Text>}
+            {tariff.price_votes > 0 && (
+                <Text style={{ color: 'var(--vkui--color_text_secondary)' }}>
+                    / 30 дней (будет действовать до {getExpiryDate()})
+                </Text>
+            )}
         </Div>
         <Group mode="plain">
             {tariff.features.map(feature => (
@@ -79,7 +86,7 @@ const TariffCardComponent = ({ tariff, isCurrent, isExpert, onSelect, onRegister
                     before={<Icon24CheckCircleOn fill="var(--vkui--color_icon_positive)" />}
                     disabled
                     after={feature.tooltip && (
-                        <Tooltip description={feature.tooltip} placement="top">
+                        <Tooltip header={feature.tooltip} placement="top">
                             <Icon16HelpOutline style={{ color: 'var(--vkui--color_icon_secondary)' }} />
                         </Tooltip>
                     )}
@@ -127,10 +134,6 @@ export const Tariffs = ({ id, user, setPopout, setSnackbar, refetchUser }) => {
                     После успешной оплаты ваш тариф будет обновлен.
                 </Snackbar>
             );
-            setTimeout(() => {
-                refetchUser();
-            }, 3000);
-
         } catch (error) {
             if (error.error_data?.error_code === 4) {
                  setSnackbar( <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>Покупка была отменена.</Snackbar> );

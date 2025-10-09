@@ -29,9 +29,11 @@ class UserAdminRead(UserBase):
     stats: Stats = Field(default_factory=Stats)
     topics: List[str] = []
     show_community_rating: bool = True
-
     regalia: Optional[str] = None
     social_link: Optional[str] = None
+    tariff_plan: Optional[str] = "Начальный"
+
+    current_user_has_voted: bool = False
 
     class Config:
         from_attributes = True

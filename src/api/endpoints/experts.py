@@ -1,4 +1,6 @@
-from typing import List
+# src/api/endpoints/experts.py
+
+from typing import Dict, List
 
 import redis.asyncio as redis
 from fastapi import APIRouter, Depends, HTTPException
@@ -6,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.dependencies import (
     get_current_admin_user,
+    get_current_user,
     get_db,
     get_notifier,
     get_redis,
@@ -19,10 +22,10 @@ router = APIRouter(prefix="/experts", tags=["Experts"])
 
 @router.post("/register", status_code=201)
 async def register_expert(
-        expert_data: expert_schemas.ExpertCreate,
-        db: AsyncSession = Depends(get_db),
-        notifier: Notifier = Depends(get_notifier),
-        cache: redis.Redis = Depends(get_redis),
+    expert_data: expert_schemas.ExpertCreate,
+    db: AsyncSession = Depends(get_db),
+    notifier: Notifier = Depends(get_notifier),
+    cache: redis.Redis = Depends(get_redis),
 ):
     try:
         vk_id = expert_data.user_data.vk_id
@@ -54,13 +57,17 @@ async def get_top_experts(db: AsyncSession = Depends(get_db)):
         user_data.topics = topics
         user_data.show_community_rating = profile.show_community_rating
         user_data.regalia = profile.regalia
-        user_data.social_link = profile.social_link
+        user_data.social_link = str(profile.social_link)
         response_users.append(user_data)
     return response_users
 
 
 @router.get("/{vk_id}", response_model=expert_schemas.UserAdminRead)
-async def get_expert_profile(vk_id: int, db: AsyncSession = Depends(get_db)):
+async def get_expert_profile(
+    vk_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Dict = Depends(get_current_user),
+):
     result = await expert_crud.get_user_with_profile_by_vk_id(db=db, vk_id=vk_id)
     if not result:
         raise HTTPException(status_code=404, detail="Expert not found")
@@ -71,16 +78,18 @@ async def get_expert_profile(vk_id: int, db: AsyncSession = Depends(get_db)):
     )
     response_data.stats = expert_schemas.Stats(**stats_dict)
 
+    has_voted = await expert_crud.check_if_user_voted(
+        db=db, expert_vk_id=vk_id, voter_vk_id=current_user["vk_id"]
+    )
+    response_data.current_user_has_voted = has_voted
+
     if profile:
         response_data.status = profile.status
         response_data.show_community_rating = profile.show_community_rating
-
-        # --- ИЗМЕНЕНИЕ: Добавляем недостающие поля ---
         response_data.regalia = profile.regalia
-        response_data.social_link = profile.social_link
+        response_data.social_link = str(profile.social_link)
         response_data.topics = [
-            f"{theme.category.name} > {theme.name}"
-            for theme in profile.selected_themes
+            f"{theme.category.name} > {theme.name}" for theme in profile.selected_themes
         ]
 
     return response_data
@@ -88,17 +97,62 @@ async def get_expert_profile(vk_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/{vk_id}/vote", status_code=201)
 async def vote_for_expert_community(
-        vk_id: int,
-        vote_data: expert_schemas.CommunityVoteCreate,
-        db: AsyncSession = Depends(get_db),
+    vk_id: int,
+    vote_data: expert_schemas.CommunityVoteCreate,
+    db: AsyncSession = Depends(get_db),
+    cache: redis.Redis = Depends(get_redis),
 ):
+    if vk_id == vote_data.voter_vk_id:
+        raise HTTPException(status_code=400, detail="You cannot vote for yourself.")
+
     try:
-        await expert_crud.create_community_vote(
-            db=db, vk_id=vk_id, vote_data=vote_data
-        )
+        await expert_crud.create_community_vote(db=db, vk_id=vk_id, vote_data=vote_data)
+        await cache.delete(f"user_profile:{vk_id}")
         return {"status": "ok", "message": "Your vote has been accepted."}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/{vk_id}/vote", status_code=200)
+async def cancel_expert_community_vote(
+    vk_id: int,
+    current_user: Dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    cache: redis.Redis = Depends(get_redis),
+):
+    voter_vk_id = current_user["vk_id"]
+    if vk_id == voter_vk_id:
+        raise HTTPException(
+            status_code=400, detail="Invalid action for your own profile."
+        )
+
+    success = await expert_crud.delete_community_vote(
+        db=db, expert_vk_id=vk_id, voter_vk_id=voter_vk_id
+    )
+    if not success:
+        raise HTTPException(status_code=404, detail="Vote not found to cancel.")
+
+    await cache.delete(f"user_profile:{vk_id}")
+    return {"status": "ok", "message": "Your vote has been cancelled."}
+
+
+@router.post("/withdraw", status_code=200)
+async def withdraw_expert_application(
+    current_user: Dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    cache: redis.Redis = Depends(get_redis),
+):
+    vk_id = current_user["vk_id"]
+    success = await expert_crud.withdraw_expert_request(db=db, vk_id=vk_id)
+    if not success:
+        raise HTTPException(
+            status_code=404, detail="No pending request found to withdraw."
+        )
+
+    cache_key = f"user_profile:{vk_id}"
+    await cache.delete(cache_key)
+
+    return {"status": "ok", "message": "Your expert application has been withdrawn."}
 
 
 @router.get(
@@ -119,7 +173,10 @@ async def get_pending_experts(db: AsyncSession = Depends(get_db)):
             "social_link": str(profile.social_link),
             "performance_link": str(profile.performance_link),
             "region": profile.region,
-            "topics": [f"{theme.category.name} > {theme.name}" for theme in profile.selected_themes],
+            "topics": [
+                f"{theme.category.name} > {theme.name}"
+                for theme in profile.selected_themes
+            ],
         }
         response.append(expert_schemas.ExpertRequestRead.model_validate(data))
     return response
@@ -149,9 +206,9 @@ async def get_all_users(db: AsyncSession = Depends(get_db)):
     dependencies=[Depends(get_current_admin_user)],
 )
 async def approve_expert(
-        vk_id: int,
-        db: AsyncSession = Depends(get_db),
-        notifier: Notifier = Depends(get_notifier),
+    vk_id: int,
+    db: AsyncSession = Depends(get_db),
+    notifier: Notifier = Depends(get_notifier),
 ):
     profile = await expert_crud.set_expert_status(db=db, vk_id=vk_id, status="approved")
     if not profile:
@@ -166,9 +223,9 @@ async def approve_expert(
     dependencies=[Depends(get_current_admin_user)],
 )
 async def reject_expert(
-        vk_id: int,
-        db: AsyncSession = Depends(get_db),
-        notifier: Notifier = Depends(get_notifier),
+    vk_id: int,
+    db: AsyncSession = Depends(get_db),
+    notifier: Notifier = Depends(get_notifier),
 ):
     profile = await expert_crud.set_expert_status(db=db, vk_id=vk_id, status="rejected")
     if not profile:
@@ -185,9 +242,9 @@ async def reject_expert(
     dependencies=[Depends(get_current_admin_user)],
 )
 async def delete_expert_endpoint(
-        vk_id: int,
-        db: AsyncSession = Depends(get_db),
-        cache: redis.Redis = Depends(get_redis),
+    vk_id: int,
+    db: AsyncSession = Depends(get_db),
+    cache: redis.Redis = Depends(get_redis),
 ):
     success = await expert_crud.delete_user_by_vk_id(db=db, vk_id=vk_id, cache=cache)
     if not success:
