@@ -40,9 +40,9 @@ async def get_redis() -> redis.Redis:
 
 
 async def get_current_user(
-        authorization: Optional[str] = Header(None),
-        db: AsyncSession = Depends(get_db),
-        cache: redis.Redis = Depends(get_redis),
+    authorization: Optional[str] = Header(None),
+    db: AsyncSession = Depends(get_db),
+    cache: redis.Redis = Depends(get_redis),
 ) -> Dict:
     if authorization is None:
         raise HTTPException(
@@ -77,12 +77,16 @@ async def get_current_user(
                 response.raise_for_status()
                 data = response.json()
             except Exception as e:
-                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                                    detail=f"Could not connect to VK API: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"Could not connect to VK API: {e}",
+                )
 
         if "error" in data:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                                detail=f"Invalid token: {data['error'].get('error_msg')}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Invalid token: {data['error'].get('error_msg')}",
+            )
 
         vk_user_id = data["response"]["user_id"]
         await cache.set(token_cache_key, vk_user_id, ex=300)
@@ -136,7 +140,9 @@ async def get_current_user(
             ]
 
     if current_user.get("registration_date"):
-        current_user["registration_date"] = current_user["registration_date"].isoformat()
+        current_user["registration_date"] = current_user[
+            "registration_date"
+        ].isoformat()
 
     await cache.set(cache_key, json.dumps(current_user), ex=3600)
     logger.info(f"User {vk_user_id} data has been cached.")

@@ -6,34 +6,25 @@ from sqlalchemy import and_, case, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
-import redis.asyncio as redis
-from loguru import logger
 
-from src.models.all_models import Event, ExpertProfile, User, Vote, Theme
+from src.models.all_models import Event, ExpertProfile, Vote
 from src.schemas import event_schemas
-from src.schemas.expert_schemas import (
-    CommunityVoteCreate,
-    ExpertCreate,
-    UserCreate,
-    UserSettingsUpdate,
-)
 
 
-async def check_if_user_voted_on_event(db: AsyncSession, event_id: int, voter_vk_id: int) -> bool:
+async def check_if_user_voted_on_event(
+    db: AsyncSession, event_id: int, voter_vk_id: int
+) -> bool:
     if not voter_vk_id:
         return False
     query = select(Vote).where(
-        and_(
-            Vote.event_id == event_id,
-            Vote.voter_vk_id == voter_vk_id
-        )
+        and_(Vote.event_id == event_id, Vote.voter_vk_id == voter_vk_id)
     )
     result = await db.execute(query)
     return result.scalars().first() is not None
 
 
 async def create_event(
-        db: AsyncSession, event_data: event_schemas.EventCreate, expert_id: int
+    db: AsyncSession, event_data: event_schemas.EventCreate, expert_id: int
 ):
     promo_normalized = event_data.promo_word.upper().strip()
     existing_event = await get_event_by_promo(db, promo_normalized)
@@ -89,7 +80,7 @@ async def get_event_by_promo(db: AsyncSession, promo_word: str):
 
 
 async def create_vote(
-        db: AsyncSession, vote_data: event_schemas.VoteCreate, event: Event
+    db: AsyncSession, vote_data: event_schemas.VoteCreate, event: Event
 ):
     existing_vote_result = await db.execute(
         select(Vote).filter(
@@ -120,7 +111,7 @@ async def get_pending_events(db: AsyncSession):
 
 
 async def set_event_status(
-        db: AsyncSession, event_id: int, status: str, reason: str = None
+    db: AsyncSession, event_id: int, status: str, reason: str = None
 ):
     result = await db.execute(select(Event).filter(Event.id == event_id))
     db_event = result.scalars().first()

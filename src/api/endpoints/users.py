@@ -3,7 +3,6 @@ from typing import Dict, Any
 import redis.asyncio as redis
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from loguru import logger
 
 from src.core.config import settings
 from src.core.dependencies import get_current_user, get_db, get_redis
@@ -78,6 +77,5 @@ async def update_user_settings(
         response_data_dict["topics"] = [
             f"{theme.category.name} > {theme.name}" for theme in profile.selected_themes
         ]
-
 
     return UserAdminRead(**response_data_dict)
