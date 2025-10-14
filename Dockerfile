@@ -7,11 +7,7 @@ ENV POETRY_NO_INTERACTION=1 \
     POETRY_CACHE_DIR=/tmp/poetry_cache
 
 WORKDIR /app
-
 COPY pyproject.toml poetry.lock ./
-
-# Устанавливаем netcat для healthcheck'ов
-RUN apt-get update && apt-get install -y netcat-openbsd && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --upgrade pip && \
     pip install poetry && \
@@ -21,18 +17,22 @@ RUN pip install --upgrade pip && \
 # === Этап 2: Финальный образ ===
 FROM python:3.11-slim
 
-COPY --from=builder /usr/bin/nc /usr/bin/nc
-
+# Эта переменная добавляет venv/bin в системный PATH
 ENV PATH="/app/.venv/bin:$PATH"
 
 WORKDIR /app
 
+# Копируем готовую venv из образа-сборщика
 COPY --from=builder /app/.venv .venv
-COPY ./src ./src
-COPY ./migrations ./migrations
-COPY ./alembic.ini ./alembic.ini
-COPY ./docker-entrypoint-backend.sh /usr/local/bin/docker-entrypoint-backend.sh
 
-RUN chmod +x /usr/local/bin/docker-entrypoint-backend.sh
+# Копируем только папку с исходным кодом
+COPY ./app ./app
 
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Копируем alembic, если он нужен для миграций из контейнера
+COPY ./alembic ./alembic
+COPY alembic.ini .
+
+EXPOSE 8000
+
+# Команда по умолчанию, которая теперь найдет uvicorn
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
