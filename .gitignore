@@ -209,7 +209,14 @@ __marimo__/
 node_modules/
 t.py
 project_structure.md
+deploy_key
+deploy_key.pub
 
+# Фронтенд-артефакты
+expert-rating-frontend/dist/
+expert-rating-frontend/build/
+expert-rating-frontend/build.zip
+expert-rating-frontend/node_modules/
 
 *storybook.log
 storybook-static
