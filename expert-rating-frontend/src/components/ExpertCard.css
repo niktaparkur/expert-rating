@@ -1,0 +1,110 @@
+/* expert-rating-frontend/src/components/ExpertCard.css */
+
+.expert-card-container {
+    padding: 12px;
+}
+
+/* --- СТИЛИ ПО УМОЛЧАНИЮ (ДЛЯ ПК И ПЛАНШЕТОВ) --- */
+.expert-card-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+}
+
+.expert-card-position {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+}
+
+.position-number {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--vkui--color_text_secondary);
+}
+
+.expert-card-info {
+    flex-grow: 1; /* Занимает все доступное пространство между аватаром и рейтингом */
+    overflow: hidden;
+}
+
+.expert-name {
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.expert-topics-container {
+    display: flex;
+    gap: 6px;
+    /* На ПК темы не переносятся, а обрезаются */
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.rating-block {
+    display: flex;
+    flex-shrink: 0; /* Блок рейтинга не должен сжиматься */
+    border-radius: 8px;
+    overflow: hidden;
+    text-align: center;
+    border: 1px solid var(--vkui--color_separator_primary);
+}
+
+.rating-block.double {
+    min-width: 110px;
+}
+
+.rating-segment {
+    padding: 6px 8px;
+    flex-grow: 1;
+    background-color: var(--vkui--color_background_secondary);
+}
+
+.rating-separator {
+    width: 1px;
+    background-color: var(--vkui--color_separator_primary);
+}
+
+.rating-value {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--vkui--color_text_primary);
+}
+
+.rating-label {
+    font-size: 11px;
+    color: var(--vkui--color_text_secondary);
+    margin-top: -2px;
+}
+
+/* --- АДАПТАЦИЯ ДЛЯ МОБИЛЬНЫХ УСТРОЙСТВ --- */
+@media (max-width: 480px) {
+    .expert-card-info {
+        /* Имя и темы теперь располагаются вертикально */
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .expert-topics-container {
+        /* Разрешаем темам переноситься на новую строку */
+        white-space: normal;
+        flex-wrap: wrap;
+    }
+
+    .rating-block.double {
+        /* Блок рейтинга становится вертикальным */
+        flex-direction: column;
+        min-width: 80px; /* Можно подобрать оптимальную ширину */
+    }
+
+    .rating-separator {
+        /* Разделитель становится горизонтальным */
+        height: 1px;
+        width: 100%;
+    }
+}

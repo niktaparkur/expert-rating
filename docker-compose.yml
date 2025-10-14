@@ -2,28 +2,27 @@ services:
   backend:
     build: .
     container_name: expert_rating_backend
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    volumes:
-      - ./app:/app/app
-      - ./alembic:/app/alembic
-      - ./alembic.ini:/app/alembic.ini
+    restart: always
+    command: ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    entrypoint: /usr/local/bin/docker-entrypoint-backend.sh
+    env_file: .env
     ports:
       - "8000:8000"
-    depends_on:
-      - db
-    env_file:
-      - .env
-
-  db:
-    image: mysql:8.0
-    container_name: expert_rating_db
-    restart: always
     volumes:
-      - mysql_data:/var/lib/mysql
-    env_file:
-      - .env
+      - ./src:/app/src
+      - ./migrations:/app/migrations
+      - ./alembic.ini:/app/alembic.ini
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    container_name: expert_rating_redis
+    restart: always
     ports:
-      - "3307:3306"
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
 
 volumes:
-  mysql_data:
+  redis_data:
