@@ -43,6 +43,7 @@ export const CreateEvent = ({ id, setPopout }) => {
     const [activeModal, setActiveModal] = useState(null);
     const [promoStatus, setPromoStatus] = useState(null);
     const [isCheckingPromo, setIsCheckingPromo] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const checkPromo = useCallback(debounce(async (word) => {
         const normalizedWord = word.trim().toUpperCase();
@@ -104,6 +105,7 @@ export const CreateEvent = ({ id, setPopout }) => {
             return;
         }
 
+        setIsSubmitting(true);
         setPopout(<ScreenSpinner state="loading" />);
         const combinedDateTime = new Date(`${formData.event_date_d}T${formData.event_date_t}`);
         const finalData = {
@@ -129,6 +131,7 @@ export const CreateEvent = ({ id, setPopout }) => {
             }
         } finally {
             setPopout(null);
+            setIsSubmitting(false);
         }
     };
 
@@ -151,7 +154,7 @@ export const CreateEvent = ({ id, setPopout }) => {
     return (
         <Panel id={id}>
             {modal}
-            <PanelHeader before={<PanelHeaderBack onClick={() => popout === null && routeNavigator.back()} />}>
+            <PanelHeader before={<PanelHeaderBack onClick={() => !isSubmitting && routeNavigator.back()} />}>
                 Новое мероприятие
             </PanelHeader>
             <Group>
@@ -174,7 +177,7 @@ export const CreateEvent = ({ id, setPopout }) => {
                     <FormItem top="Длительность голосования (в минутах)" required bottom={durationError} status={durationError ? 'error' : 'default'}>
                         <FormField><Input type="number" name="duration_minutes" value={formData.duration_minutes} onChange={handleChange} /></FormField>
                     </FormItem>
-                    <FormItem><Button size="l" stretched type="submit">Отправить на модерацию</Button></FormItem>
+                    <FormItem><Button size="l" stretched type="submit" disabled={isSubmitting}>Отправить на модерацию</Button></FormItem>
                 </form>
             </Group>
         </Panel>

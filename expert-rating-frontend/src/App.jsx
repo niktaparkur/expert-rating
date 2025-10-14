@@ -1,11 +1,9 @@
-// src/App.jsx
-
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Epic, Tabbar, TabbarItem, SplitLayout, SplitCol, View, AppRoot,
     ModalRoot, ModalCard, FormItem, FormField, Input, Button, ScreenSpinner, Tooltip, Spinner, Snackbar, Avatar
 } from '@vkontakte/vkui';
-import { useActiveVkuiLocation, useRouteNavigator } from '@vkontakte/vk-mini-apps-router';
+import { useActiveVkuiLocation, useRouteNavigator, useSearchParams } from '@vkontakte/vk-mini-apps-router';
 import {
     Icon28ArticleOutline, Icon28CalendarOutline, Icon28MoneyCircleOutline,
     Icon28UserCircleOutline, Icon24CheckCircleFilledBlue, Icon28CheckShieldOutline, Icon16Done, Icon16Cancel
@@ -25,12 +23,18 @@ import {
 export const App = () => {
     const { view: activeView = VIEW_MAIN, panel: activePanel = PANEL_HOME } = useActiveVkuiLocation();
     const routeNavigator = useRouteNavigator();
-    const { apiGet, apiPost, apiPut, apiDelete } = useApi();
+    const { apiGet, apiPost } = useApi();
     const [popout, setPopout] = useState(null);
     const [activeModal, setActiveModal] = useState(null);
     const [promoWord, setPromoWord] = useState('');
-    const [showOnboarding, setShowOnboarding] = useState(!localStorage.getItem('onboardingFinished'));
     const [snackbar, setSnackbar] = useState(null);
+
+    const [searchParams] = useSearchParams();
+    const hasLaunchParams = searchParams.toString().length > 0;
+    const [showOnboarding, setShowOnboarding] = useState(
+        !localStorage.getItem('onboardingFinished') && !hasLaunchParams
+    );
+
     const [promoStatus, setPromoStatus] = useState(null);
     const [isCheckingPromo, setIsCheckingPromo] = useState(false);
 
@@ -69,7 +73,7 @@ export const App = () => {
 
         switch (promoStatus.status) {
             case 'active':
-                return <span style={{ color: 'var(--vkui--color_text_positive)' }}>Мероприятие найдено!</span>;
+                return <span style={{ color: 'var(--vkui--color_text_positive)' }}>Мероприятие найдено и активно!</span>;
             case 'not_started':
                 const startTime = new Date(promoStatus.start_time).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
                 return `Голосование еще не началось. Начало: ${startTime}`;
@@ -139,7 +143,7 @@ export const App = () => {
              }
         };
         initApp();
-    }, [apiGet, apiPost, showOnboarding]);
+    }, [apiGet, apiPost, showOnboarding, refetchUser]);
 
     const finishOnboarding = () => {
         localStorage.setItem('onboardingFinished', 'true');

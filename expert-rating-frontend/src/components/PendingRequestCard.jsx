@@ -15,7 +15,7 @@ export const PendingRequestCard = ({ onWithdraw, isLoading }) => {
                         onClick={onWithdraw}
                         disabled={isLoading}
                     >
-                        {isLoading ? <Spinner size="small" /> : 'Отозвать заявку'}
+                        {isLoading ? <Spinner size="s" /> : 'Отозвать заявку'}
                     </Button>
                 }
             >

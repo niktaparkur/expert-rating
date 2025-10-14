@@ -1,0 +1,22 @@
+services:
+  backend:
+    build: .
+    container_name: expert_rating_backend_prod
+    restart: always
+    command: ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    entrypoint: /usr/local/bin/docker-entrypoint-backend.sh
+    env_file: .env
+    expose:
+      - "8000"
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    container_name: expert_rating_redis_prod
+    restart: always
+    volumes:
+      - redis_data_prod:/data
+
+volumes:
+  redis_data_prod:

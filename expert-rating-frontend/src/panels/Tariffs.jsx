@@ -86,7 +86,7 @@ const TariffCardComponent = ({ tariff, isCurrent, isExpert, onSelect, onRegister
                     before={<Icon24CheckCircleOn fill="var(--vkui--color_icon_positive)" />}
                     disabled
                     after={feature.tooltip && (
-                        <Tooltip header={feature.tooltip} placement="top">
+                        <Tooltip description={feature.tooltip} placement="top">
                             <Icon16HelpOutline style={{ color: 'var(--vkui--color_icon_secondary)' }} />
                         </Tooltip>
                     )}

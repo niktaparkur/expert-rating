@@ -20,7 +20,7 @@ import {
 } from '@vkontakte/vkui';
 import { useRouteNavigator } from '@vkontakte/vk-mini-apps-router';
 import QRCode from 'react-qr-code';
-import * as htmlToImage from 'html-to-image';
+import { toPng } from 'html-to-image';
 import { useApi } from '../hooks/useApi.js';
 import {
     Icon24CheckCircleOutline,
@@ -130,7 +130,14 @@ export const Events = ({ id, user }) => {
     const handleDownloadQr = () => {
         const qrElement = document.getElementById('qr-code-to-download');
         if (qrElement) {
-            htmlToImage.toPng(qrElement)
+            // Фильтр, который исключает элементы отладочной консоли Eruda
+            const filter = (node) => {
+                if (node.dataset && node.dataset.erudaDevtools) return false;
+                if (node.id === 'eruda' || (node.classList && node.classList.contains('eruda-container'))) return false;
+                return true;
+            };
+
+            toPng(qrElement, { backgroundColor: '#FFFFFF', filter })
                 .then((dataUrl) => {
                     const link = document.createElement('a');
                     link.download = `qr-code-${selectedEvent.promo_word}.png`;
@@ -138,14 +145,19 @@ export const Events = ({ id, user }) => {
                     link.click();
                 })
                 .catch((err) => {
-                    console.error('oops, something went wrong!', err);
+                    console.error('Oops, something went wrong!', err);
                 });
         }
     };
 
     const modal = (
         <ModalRoot activeModal={activeModal} onClose={closeModal}>
-            <ModalPage id='event-qr-modal' onClose={closeModal} header={<ModalPageHeader>QR-код для голосования</ModalPageHeader>}>
+            <ModalPage
+                id='event-qr-modal'
+                onClose={closeModal}
+                header={<ModalPageHeader>QR-код для голосования</ModalPageHeader>}
+                settlingHeight={100}
+            >
                 {selectedEvent && (
                     <Group>
                         <Div style={{ textAlign: 'center' }}>

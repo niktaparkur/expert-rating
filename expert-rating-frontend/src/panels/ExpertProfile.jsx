@@ -126,7 +126,7 @@ export const ExpertProfile = ({ id, user, setPopout, setSnackbar }) => {
         }
 
         setActiveModal(null);
-        setPopout(<Spinner size="large" />);
+        setPopout(<Spinner size="l" />);
 
         const finalData = {
             voter_vk_id: user.vk_id,
@@ -148,7 +148,7 @@ export const ExpertProfile = ({ id, user, setPopout, setSnackbar }) => {
 
     const handleCancelVote = async () => {
         setActiveModal(null);
-        setPopout(<Spinner size="large" />);
+        setPopout(<Spinner size="l" />);
         try {
             await apiDelete(`/experts/${expertId}/vote`);
             await refetchExpert();

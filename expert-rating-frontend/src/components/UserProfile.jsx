@@ -1,3 +1,5 @@
+// src/components/UserProfile.jsx
+
 import React from 'react';
 import {
     Group,
@@ -11,13 +13,15 @@ import {
     Header,
     SimpleCell,
     Button,
-    RichCell
+    RichCell,
+    Placeholder
 } from '@vkontakte/vkui';
 import {
     Icon20FavoriteCircleFillYellow,
     Icon20CheckCircleFillGreen,
     Icon24ListBulletSquareOutline,
-    Icon28SettingsOutline
+    Icon28SettingsOutline,
+    Icon56RecentOutline
 } from '@vkontakte/icons';
 import { useRouteNavigator } from '@vkontakte/vk-mini-apps-router';
 
@@ -33,38 +37,48 @@ export const UserProfile = ({ user, onSettingsClick }) => {
         return roles.join(' | ');
     };
 
-    const showExpertData = user.is_expert || user.status === 'pending';
+    const isPending = user.status === 'pending';
+    const isApprovedExpert = user.is_expert && user.status === 'approved';
 
     return (
         <Group>
             <Card mode="shadow" style={{ position: 'relative' }}>
                 <RichCell
                     before={<Avatar size={96} src={user.photo_url} />}
-                    after={showExpertData && (
+                    after={isApprovedExpert && (
                         <IconButton onClick={onSettingsClick} aria-label="Настройки профиля">
                             <Icon28SettingsOutline />
                         </IconButton>
                     )}
-                    caption={<Text style={{ color: 'var(--vkui--color_text_secondary)' }}>{getRoleText()}</Text>}
+                    caption={getRoleText()}
                     disabled
                 >
                     <Title level="2">{user.first_name} {user.last_name}</Title>
+                    {(isApprovedExpert || isPending) && (
+                    <Div style={{ textAlign: 'left', color: 'var(--vkui--color_text_secondary)', paddingTop: 0, paddingBottom: 0 }}>
+                        <Text>Тариф: {user.tariff_plan || 'Начальный'}</Text>
+                    </Div>
+                    )}
                 </RichCell>
 
-                <Div style={{ textAlign: 'center', color: 'var(--vkui--color_text_secondary)', paddingTop: 0, paddingBottom: 0 }}>
-                    <Text>Тариф: {user.tariff_plan || 'Начальный'}</Text>
-                </Div>
 
-                {showExpertData && user.topics && user.topics.length > 0 && (
+
+                {isPending && (
+                    <Placeholder icon={<Icon56RecentOutline />}>
+                        Ваша заявка на становление экспертом находится на модерации.
+                    </Placeholder>
+                )}
+
+                {isApprovedExpert && user.topics && user.topics.length > 0 && (
                     <Div>
                         <Header mode="tertiary">Направления</Header>
                         {user.topics.map(topic => (
-                            <SimpleCell key={topic} multiline>{topic}</SimpleCell>
+                            <SimpleCell key={topic} disabled multiline>{topic}</SimpleCell>
                         ))}
                     </Div>
                 )}
 
-                {showExpertData && (
+                {isApprovedExpert && (
                     <Div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
                         <Tooltip description="Экспертный рейтинг">
                             <div className="stat-item">
@@ -87,7 +101,7 @@ export const UserProfile = ({ user, onSettingsClick }) => {
                     </Div>
                 )}
 
-                {!user.is_expert && user.status !== 'pending' && (
+                {!user.is_expert && !isPending && (
                     <Div>
                         <Button
                             stretched

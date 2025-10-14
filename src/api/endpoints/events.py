@@ -24,7 +24,6 @@ TARIFF_DURATION_LIMITS = {
     "Профи": 1440,
 }
 
-
 @router.post("/create", response_model=event_schemas.EventRead)
 async def create_event(
     event_data: event_schemas.EventCreate,
@@ -34,7 +33,7 @@ async def create_event(
 ):
     if not current_user.get("is_expert"):
         raise HTTPException(
-            status_code=403, detail="Only approved experts can create events."
+            status_code=403, detail="Только одобренные эксперты могут создавать мероприятия."
         )
 
     user_tariff = current_user.get("tariff_plan", "Начальный")
@@ -42,7 +41,7 @@ async def create_event(
     if event_data.duration_minutes > max_duration:
         raise HTTPException(
             status_code=400,
-            detail=f"Duration exceeds limit for your tariff '{user_tariff}'. Maximum is {max_duration} minutes.",
+            detail=f"Длительность превышает лимит для вашего тарифа '{user_tariff}'. Максимум: {max_duration} минут."
         )
 
     expert_id = current_user["vk_id"]
@@ -63,7 +62,7 @@ async def get_my_events(
     db: AsyncSession = Depends(get_db), current_user: Dict = Depends(get_current_user)
 ):
     if not current_user.get("is_expert"):
-        raise HTTPException(status_code=403, detail="You are not an approved expert.")
+        raise HTTPException(status_code=403, detail="Вы не являетесь одобренным экспертом.")
     expert_id = current_user["vk_id"]
     results = await event_crud.get_my_events(db=db, expert_id=expert_id)
     response_events = []
@@ -85,14 +84,21 @@ async def submit_vote(
     event = await event_crud.get_event_by_promo(db, vote_data.promo_word)
     if not event or event.status != "approved":
         raise HTTPException(
-            status_code=404, detail="Active event with this promo word not found."
+            status_code=404, detail="Активное мероприятие с таким промо-словом не найдено."
         )
+
+    # --- ИСПРАВЛЕНИЕ ЗДЕСЬ: Запрет голосовать за себя ---
+    if event.expert_id == vote_data.voter_vk_id:
+        raise HTTPException(
+            status_code=403, detail="Эксперт не может голосовать на собственном мероприятии."
+        )
+
     now = datetime.now(timezone.utc)
     start_time = event.event_date.replace(tzinfo=timezone.utc)
     end_time = start_time + timedelta(minutes=event.duration_minutes)
     if not (start_time <= now <= end_time):
         raise HTTPException(
-            status_code=403, detail="Voting for this event is not active now."
+            status_code=403, detail="Голосование на этом мероприятии сейчас неактивно."
         )
     try:
         await event_crud.create_vote(db=db, vote_data=vote_data, event=event)
@@ -137,8 +143,8 @@ async def get_event_status_by_promo(
             "first_name": user.first_name,
             "last_name": user.last_name,
             "photo_url": str(user.photo_url),
-            "regalia": expert_profile.regalia,
-        },
+            "regalia": expert_profile.regalia
+        }
     }
 
 

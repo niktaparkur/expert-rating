@@ -1,4 +1,3 @@
-// src/components/EventCard.jsx
 import React from 'react';
 import { Card, Header, Div, InfoRow, Button } from '@vkontakte/vkui';
 
