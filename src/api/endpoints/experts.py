@@ -1,5 +1,3 @@
-# src/api/endpoints/experts.py
-
 from typing import Dict, List
 
 import redis.asyncio as redis
