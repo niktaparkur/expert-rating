@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import bridge from '@vkontakte/vk-bridge';
 
-const API_URL = 'https://testg.potokrechi.ru/api/v1';
+const API_URL = 'https://api.exprating.ru/api/v1';
 
 export const useApi = () => {
     const apiRequest = useCallback(async (endpoint, method = 'GET', body = null) => {

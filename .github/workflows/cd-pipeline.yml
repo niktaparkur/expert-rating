@@ -1,0 +1,26 @@
+name: Continuous Deployment
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Deploy to Server
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          export ENV_PROD_VARS='${{ secrets.ENV_PROD_VARS }}'
+          
+          PROJECT_DIR="/root/expert-rating"
+          if [ ! -d "$PROJECT_DIR" ]; then
+            echo ">>> Cloning repository for the first time..."
+            git clone https://github.com/niktaparkur/expert-rating.git $PROJECT_DIR
+          fi
+          
+          bash $PROJECT_DIR/deploy.sh

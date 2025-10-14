@@ -6,9 +6,7 @@ from src.api.endpoints import experts, events, payment, tariffs, users, meta
 app = FastAPI(title="Рейтинг Экспертов")
 
 origins = [
-    "https://so.potokrechi.ru",
-    "https://testg.potokrechi.ru",
-    "https://p.potokrechi.ru",
+    "https://api.exprating.ru",
     "http://localhost:5173",
     "https://localhost:5173",
 ]
