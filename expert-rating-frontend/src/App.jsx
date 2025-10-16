@@ -20,6 +20,7 @@ import {
     PANEL_TARIFFS, PANEL_PROFILE
 } from './routes';
 
+
 export const App = () => {
     const { view: activeView = VIEW_MAIN, panel: activePanel = PANEL_HOME } = useActiveVkuiLocation();
     const routeNavigator = useRouteNavigator();

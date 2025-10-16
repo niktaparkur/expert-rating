@@ -47,10 +47,10 @@ export default defineConfig({
     targets: ['defaults', 'not IE 11']
   })],
   server: {
-    allowedHosts: 'api.exprating.ru',
+    allowedHosts: 'so.potokrechi.ru',
     hmr: {
       protocol: 'wss',
-      host: 'api.exprating.ru',
+      host: 'so.potokrechi.ru',
       clientPort: 443
     }
   },
