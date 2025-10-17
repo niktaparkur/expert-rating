@@ -11,7 +11,7 @@ import {
 } from '@vkontakte/icons';
 import bridge from '@vkontakte/vk-bridge';
 import debounce from 'lodash.debounce';
-import { Onboarding } from './components/Onboarding.jsx';
+import { Onboarding } from './components/Onboarding.tsx';
 import { useApi } from "./hooks/useApi.js";
 import { Home, Registration, Admin, Events, CreateEvent, Voting, ExpertProfile, Tariffs, Profile } from './panels';
 import {
@@ -37,12 +37,10 @@ export const App = () => {
     const [promoStatus, setPromoStatus] = useState(null);
     const [isCheckingPromo, setIsCheckingPromo] = useState(false);
 
-    // Стейты для модального окна выбора тем
     const [searchQuery, setSearchQuery] = useState('');
     const [allThemes, setAllThemes] = useState([]);
     const [selectedThemeIds, setSelectedThemeIds] = useState([]);
 
-    // Загружаем темы один раз при старте приложения
     useEffect(() => {
         apiGet('/meta/themes').then(setAllThemes).catch(e => console.error("Failed to load themes", e));
     }, [apiGet]);
