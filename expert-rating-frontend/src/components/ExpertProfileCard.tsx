@@ -1,16 +1,5 @@
-// src/components/ExpertProfileCard.jsx
-
 import React from 'react';
-import {
-    Card,
-    Avatar,
-    Title,
-    Text,
-    Div,
-    Tooltip,
-    Header,
-    IconButton
-} from '@vkontakte/vkui';
+import { Card, Avatar, Title, Text, Div, Tooltip, Header, IconButton } from '@vkontakte/vkui';
 import {
     Icon20FavoriteCircleFillYellow,
     Icon20CheckCircleFillGreen,
@@ -21,32 +10,55 @@ import {
 } from '@vkontakte/icons';
 import './ExpertProfileCard.css';
 
-export const ExpertProfileCard = ({ expert, onVoteClick, onFutureFeatureClick }) => {
+interface ExpertStats {
+    expert: number;
+    community: number;
+    events_count: number;
+}
+
+interface ExpertProfileData {
+    first_name?: string;
+    last_name?: string;
+    photo_url?: string;
+    regalia?: string;
+    social_link?: string;
+    topics?: string[];
+    stats?: ExpertStats;
+    show_community_rating: boolean;
+}
+
+interface ExpertProfileCardProps {
+    expert?: ExpertProfileData | null;
+    onVoteClick: () => void;
+    onFutureFeatureClick: () => void;
+}
+
+export const ExpertProfileCard = ({ expert, onVoteClick, onFutureFeatureClick }: ExpertProfileCardProps) => {
     if (!expert) return null;
 
-    const name = expert.first_name || '';
-    const surname = expert.last_name || '';
-    const photo = expert.photo_url || '';
-    const regalia = expert.regalia || '';
-    const social_link = expert.social_link || '#';
-    const topics = expert.topics || [];
-
-    const stats = expert.stats || {};
-    const communityRating = stats.community || 0;
-    const expertRating = stats.expert || 0;
-    const eventsCount = stats.events_count || 0;
+    const {
+        first_name = '',
+        last_name = '',
+        photo_url = '',
+        regalia = '',
+        social_link = '#',
+        topics = [],
+        stats = { expert: 0, community: 0, events_count: 0 },
+        show_community_rating
+    } = expert;
 
     return (
         <Card mode="shadow">
             <Div className="expert-profile-header">
-                <Avatar size={96} src={expert.photo_url} />
+                <Avatar size={96} src={photo_url} />
                 <div className="expert-profile-name-container">
                     <Tooltip description="Перейти в профиль эксперта" placement="top">
-                        <IconButton href={expert.social_link} target="_blank" aria-label="Перейти в профиль ВКонтакте">
-                            <Icon28Profile />
+                        <IconButton href={social_link} target="_blank" aria-label="Перейти в профиль ВКонтакте">
+                            {/* ИЗМЕНЕНИЕ: Добавлен стиль для цвета иконки */}
+                            <Icon28Profile style={{ color: 'var(--vkui--color_icon_accent)' }} />
                         </IconButton>
                     </Tooltip>
-                    <Title level="2" className="expert-profile-name">{expert.first_name} {expert.last_name}</Title>
+                    <Title level="2" className="expert-profile-name">{first_name} {last_name}</Title>
                 </div>
             </Div>
 
@@ -54,22 +66,21 @@ export const ExpertProfileCard = ({ expert, onVoteClick, onFutureFeatureClick })
                 <Tooltip description="Экспертный рейтинг">
                     <div className="stat-item">
                         <Icon20CheckCircleFillGreen width={28} height={28} />
-                        <Text className="stat-value">{expertRating}</Text>
+                        <Text className="stat-value">{stats.expert}</Text>
                     </div>
                 </Tooltip>
-                {expert.show_community_rating && (
+                {show_community_rating && (
                     <Tooltip description="Народный рейтинг">
                         <div className="stat-item" onClick={onVoteClick}>
                             <Icon20FavoriteCircleFillYellow width={28} height={28} />
-                            <Text className="stat-value">{communityRating}</Text>
+                            <Text className="stat-value">{stats.community}</Text>
                         </div>
                     </Tooltip>
                 )}
-
                 <Tooltip description="Проведено мероприятий">
                     <div className="stat-item">
                         <Icon24ListBulletSquareOutline width={28} height={28} />
-                        <Text className="stat-value">{eventsCount}</Text>
+                        <Text className="stat-value">{stats.events_count}</Text>
                     </div>
                 </Tooltip>
             </div>

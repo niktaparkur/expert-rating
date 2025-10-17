@@ -22,7 +22,7 @@ import {
 } from '@vkontakte/vkui';
 import { useRouteNavigator, useParams } from '@vkontakte/vk-mini-apps-router';
 import { useApi } from '../hooks/useApi.js';
-import { ExpertProfileCard } from '../components/ExpertProfileCard.jsx';
+import { ExpertProfileCard } from '../components/ExpertProfileCard.tsx';
 import { VoteCard } from '../components/VoteCard.jsx';
 import {
     Icon56CalendarOutline,

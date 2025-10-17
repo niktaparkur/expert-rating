@@ -1,18 +1,14 @@
-// src/panels/Registration.jsx
-
 import React, { useState, useEffect, useMemo } from 'react';
 import {
     Panel, PanelHeader, PanelHeaderBack, Button, FormItem, FormField, Input,
-    Textarea, Select, ScreenSpinner, Group, Checkbox,
-    ModalRoot, ModalPage, ModalPageHeader, Search, Div, ContentBadge, Header, Spinner, ModalCard, Snackbar
+    Textarea, Select, ScreenSpinner, Group, Checkbox, Div, ContentBadge, ModalCard, Snackbar
 } from '@vkontakte/vkui';
 import { Icon16Cancel, Icon56CheckCircleOutline } from '@vkontakte/icons';
-import bridge from '@vkontakte/vk-bridge';
 import { useRouteNavigator } from '@vkontakte/vk-mini-apps-router';
 import { useApi } from '../hooks/useApi';
 import { PendingRequestCard } from '../components/PendingRequestCard.jsx';
 
-export const Registration = ({ id, user, refetchUser }) => {
+export const Registration = ({ id, user, refetchUser, selectedThemeIds, onOpenTopicsModal }) => {
     const routeNavigator = useRouteNavigator();
     const { apiPost, apiGet } = useApi();
     const [popout, setPopout] = useState(null);
@@ -22,7 +18,6 @@ export const Registration = ({ id, user, refetchUser }) => {
     const [allRegions, setAllRegions] = useState([]);
     const [isLoadingMeta, setIsLoadingMeta] = useState(true);
 
-    const [selectedThemeIds, setSelectedThemeIds] = useState([]);
     const [formData, setFormData] = useState({
         region: '',
         social_link: '',
@@ -31,12 +26,10 @@ export const Registration = ({ id, user, refetchUser }) => {
         referrer: ''
     });
 
-    const [activeModal, setActiveModal] = useState(null);
-    const [searchQuery, setSearchQuery] = useState('');
     const [useVkProfile, setUseVkProfile] = useState(true);
 
     useEffect(() => {
-        const fetchData = async () => {
+        const fetchMetaData = async () => {
             setIsLoadingMeta(true);
             try {
                 const [themesData, regionsData] = await Promise.all([
@@ -44,47 +37,35 @@ export const Registration = ({ id, user, refetchUser }) => {
                     apiGet('/meta/regions')
                 ]);
 
-                if (useVkProfile && user?.vk_id) {
-                    setFormData(prev => ({ ...prev, social_link: `https://vk.com/id${user.vk_id}` }));
-                }
                 setAllThemes(themesData);
                 setAllRegions(regionsData);
-                if (regionsData.length > 0 && !formData.region) {
-                    setFormData(prev => ({ ...prev, region: regionsData[0] }));
+
+                if (regionsData.length > 0) {
+                    setFormData(prev => ({ ...prev, region: prev.region || regionsData[0] }));
                 }
 
             } catch (error) {
-                console.error('Failed to fetch initial data', error);
+                console.error('Failed to fetch initial data for registration', error);
                 setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel/>}>Не удалось загрузить данные для регистрации.</Snackbar>);
             } finally {
                 setIsLoadingMeta(false);
             }
         };
 
-        fetchData();
-    }, [apiGet, useVkProfile, user]);
+        fetchMetaData();
+    }, [apiGet]);
 
-    const filteredTopics = useMemo(() => {
-        if (!searchQuery) return allThemes;
-        const lowerQuery = searchQuery.toLowerCase();
-        return allThemes.map(group => ({
-            ...group,
-            items: group.items.filter(item => item.name.toLowerCase().includes(lowerQuery))
-        })).filter(group => group.items.length > 0);
-    }, [searchQuery, allThemes]);
+    useEffect(() => {
+        if (useVkProfile && user?.vk_id) {
+            setFormData(prev => ({ ...prev, social_link: `https://vk.com/id${user.vk_id}` }));
+        } else {
+            setFormData(prev => ({ ...prev, social_link: '' }));
+        }
+    }, [useVkProfile, user?.vk_id]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleTopicChange = (e, themeId) => {
-        const { checked } = e.target;
-        if (checked) {
-            if (selectedThemeIds.length < 3) setSelectedThemeIds([...selectedThemeIds, themeId]);
-        } else {
-            setSelectedThemeIds(selectedThemeIds.filter(id => id !== themeId));
-        }
     };
 
     const isTopicSelectionValid = selectedThemeIds.length >= 1 && selectedThemeIds.length <= 3;
@@ -154,36 +135,6 @@ export const Registration = ({ id, user, refetchUser }) => {
         return names;
     };
 
-    const topicsModal = (
-        <ModalRoot activeModal={activeModal} onClose={() => setActiveModal(null)}>
-            <ModalPage
-                id="topics-modal"
-                onClose={() => setActiveModal(null)}
-                header={<ModalPageHeader>Выберите темы ({selectedThemeIds.length}/3)</ModalPageHeader>}
-            >
-                <Search value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                <Group>
-                    {filteredTopics.map(group => (
-                        <div key={group.name}>
-                            <Header>{group.name}</Header>
-                            {group.items.map(item => (
-                                <Checkbox
-                                    key={item.id}
-                                    checked={selectedThemeIds.includes(item.id)}
-                                    onChange={(e) => handleTopicChange(e, item.id)}
-                                    disabled={selectedThemeIds.length >= 3 && !selectedThemeIds.includes(item.id)}
-                                >
-                                    {item.name}
-                                </Checkbox>
-                            ))}
-                        </div>
-                    ))}
-                    {filteredTopics.length === 0 && <Div>Ничего не найдено</Div>}
-                </Group>
-            </ModalPage>
-        </ModalRoot>
-    );
-
     if (isLoadingMeta) {
         return <Panel id={id}><ScreenSpinner /></Panel>;
     }
@@ -201,14 +152,13 @@ export const Registration = ({ id, user, refetchUser }) => {
 
     return (
         <Panel id={id} popout={popout}>
-            {topicsModal}
             <PanelHeader before={<PanelHeaderBack onClick={() => popout === null && routeNavigator.back()} />}>
                 Стать экспертом
             </PanelHeader>
             <Group>
                 <form onSubmit={handleSubmit}>
                     <FormItem top="Темы экспертизы" bottom={`Выбрано: ${selectedThemeIds.length} из 3`}>
-                        <Button mode="secondary" size="l" stretched onClick={() => setActiveModal('topics-modal')}>
+                        <Button mode="secondary" size="l" stretched onClick={onOpenTopicsModal}>
                            Выбрать темы
                         </Button>
                         {selectedThemeIds.length > 0 && (
@@ -238,7 +188,7 @@ export const Registration = ({ id, user, refetchUser }) => {
                                 name="social_link"
                                 value={formData.social_link}
                                 onChange={handleChange}
-                                placeholder="https://vk.com/durov"
+                                placeholder="https://vk.com/"
                                 required
                                 disabled={useVkProfile}
                             />

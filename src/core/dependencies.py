@@ -109,7 +109,7 @@ async def get_current_user(
             detail="User not found in database. Please register.",
         )
 
-    user, profile, stats_dict = user_with_profile_and_stats
+    user, profile, stats_dict, my_votes_stats_dict = user_with_profile_and_stats
     is_admin_flag = user.is_admin or (user.vk_id == settings.ADMIN_ID)
 
     current_user = {
@@ -123,6 +123,7 @@ async def get_current_user(
         "status": None,
         "tariff_plan": "Начальный",
         "stats": stats_dict,
+        "my_votes_stats": my_votes_stats_dict,
         "topics": [],
         "show_community_rating": True,
     }

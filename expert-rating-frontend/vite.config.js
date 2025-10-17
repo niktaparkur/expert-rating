@@ -46,6 +46,8 @@ export default defineConfig({
   plugins: [react(), threatJsFilesAsJsx(), handleModuleDirectivesPlugin(), legacy({
     targets: ['defaults', 'not IE 11']
   })],
+
+
   server: {
     allowedHosts: 'so.potokrechi.ru',
     hmr: {
@@ -60,7 +62,10 @@ export default defineConfig({
       loader: {
         '.js': 'jsx'
       }
-    }
+    },
+    include: [
+      '@storybook/addon-actions',
+    ],
   },
   build: {
     outDir: 'build'

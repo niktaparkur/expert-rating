@@ -1,10 +1,9 @@
-# src/crud/expert_crud.py
-
 from datetime import datetime, timedelta, timezone
+from typing import Sequence
 
 import redis.asyncio as redis
 from loguru import logger
-from sqlalchemy import func, and_
+from sqlalchemy import func, and_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -136,7 +135,9 @@ async def get_experts_by_status(db: AsyncSession, status: str):
     for user, profile in users_with_profiles:
         full_expert_data = await get_user_with_profile_by_vk_id(db, vk_id=user.vk_id)
         if full_expert_data:
-            user_obj, profile_obj, stats_dict = full_expert_data
+            user_obj, profile_obj, stats_dict, _ = (
+                full_expert_data  # Игнорируем my_votes_stats
+            )
             topics = [
                 f"{theme.category.name} > {theme.name}"
                 for theme in profile.selected_themes
@@ -192,7 +193,21 @@ async def get_user_with_profile_by_vk_id(db: AsyncSession, vk_id: int):
         "events_count": events_count,
     }
 
-    return tuple(user_profile_tuple) + (stats,)
+    given_votes_query = select(
+        func.count(Vote.id).label("total"),
+        func.sum(case((Vote.vote_type == "trust", 1), else_=0)).label("trust_count"),
+    ).where(Vote.voter_vk_id == vk_id)
+
+    given_votes_res = await db.execute(given_votes_query)
+    given_votes_stats = given_votes_res.first()
+
+    my_votes_stats = {
+        "trust": given_votes_stats.trust_count or 0,
+        "distrust": (given_votes_stats.total or 0)
+        - (given_votes_stats.trust_count or 0),
+    }
+
+    return tuple(user_profile_tuple) + (stats, my_votes_stats)
 
 
 async def update_expert_tariff(db: AsyncSession, vk_id: int, tariff_name: str) -> bool:
@@ -339,3 +354,20 @@ async def withdraw_expert_request(db: AsyncSession, vk_id: int) -> bool:
 
     logger.warning(f"No pending request found for user {vk_id} to withdraw.")
     return False
+
+
+async def get_user_votes(db: AsyncSession, vk_id: int) -> Sequence[Vote]:
+    """Получает все голоса, отданные пользователем."""
+    query = (
+        select(Vote)
+        .where(Vote.voter_vk_id == vk_id)
+        .options(
+            selectinload(Vote.expert).selectinload(ExpertProfile.user),
+            selectinload(Vote.event)
+            .selectinload(Event.expert)
+            .selectinload(ExpertProfile.user),
+        )
+        .order_by(Vote.created_at.desc())
+    )
+    result = await db.execute(query)
+    return result.scalars().all()

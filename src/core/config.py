@@ -16,6 +16,7 @@ class Settings:
     VK_APP_ID: int = int(os.environ.get("VK_APP_ID", 0))
 
     REDIS_URL: str = os.environ.get("REDIS_URL")
+    SENTRY_DSN: str | None = os.environ.get("SENTRY_DSN", None)
 
 
 settings = Settings()

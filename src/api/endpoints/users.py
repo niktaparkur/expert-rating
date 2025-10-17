@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 import redis.asyncio as redis
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,7 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.config import settings
 from src.core.dependencies import get_current_user, get_db, get_redis
 from src.crud import expert_crud
-from src.schemas.expert_schemas import UserAdminRead, UserCreate, UserSettingsUpdate
+from src.schemas.event_schemas import EventRead
+from src.schemas.expert_schemas import (
+    UserAdminRead,
+    UserCreate,
+    UserSettingsUpdate,
+    MyVoteRead,
+    VotedExpertInfo,
+)
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -79,3 +86,37 @@ async def update_user_settings(
         ]
 
     return UserAdminRead(**response_data_dict)
+
+
+@router.get("/me/votes", response_model=List[MyVoteRead])
+async def get_my_votes(
+    current_user: Dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Возвращает список всех голосов, отданных текущим пользователем."""
+    vk_id = current_user["vk_id"]
+    votes = await expert_crud.get_user_votes(db, vk_id=vk_id)
+
+    response = []
+    for vote in votes:
+        vote_data = MyVoteRead.model_validate(vote, from_attributes=True)
+        if vote.expert and not vote.is_expert_vote:
+            vote_data.expert = VotedExpertInfo.model_validate(
+                vote.expert.user, from_attributes=True
+            )
+        if vote.event:
+            # Пропускаем голоса за мероприятия, у которых нет эксперта (маловероятно, но возможно)
+            if not vote.event.expert:
+                continue
+
+            # Собираем данные для EventRead
+            event_data = EventRead.model_validate(vote.event, from_attributes=True)
+            # Добавляем информацию об эксперте в событие
+            event_data.expert_info = VotedExpertInfo.model_validate(
+                vote.event.expert.user, from_attributes=True
+            )
+            vote_data.event = event_data
+
+        response.append(vote_data)
+
+    return response
