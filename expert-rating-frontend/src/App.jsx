@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     Epic, Tabbar, TabbarItem, SplitLayout, SplitCol, View, AppRoot,
-    ModalRoot, ModalCard, FormItem, FormField, Input, Button, ScreenSpinner, Tooltip, Spinner, Snackbar, Avatar
+    ModalRoot, ModalCard, FormItem, FormField, Input, Button, ScreenSpinner, Tooltip, Spinner, Snackbar, Avatar,
+    ModalPage, ModalPageHeader, FixedLayout, Group, Header, Checkbox, Search, Div, PanelHeaderBack
 } from '@vkontakte/vkui';
 import { useActiveVkuiLocation, useRouteNavigator, useSearchParams } from '@vkontakte/vk-mini-apps-router';
 import {
@@ -29,15 +30,43 @@ export const App = () => {
     const [promoWord, setPromoWord] = useState('');
     const [snackbar, setSnackbar] = useState(null);
     const [searchParams] = useSearchParams();
-
     const [showOnboarding, setShowOnboarding] = useState(false);
     const [isLoadingApp, setIsLoadingApp] = useState(true);
     const [currentUser, setCurrentUser] = useState(null);
-
     const hasLaunchParams = searchParams.toString().length > 0;
-
     const [promoStatus, setPromoStatus] = useState(null);
     const [isCheckingPromo, setIsCheckingPromo] = useState(false);
+
+    // Стейты для модального окна выбора тем
+    const [searchQuery, setSearchQuery] = useState('');
+    const [allThemes, setAllThemes] = useState([]);
+    const [selectedThemeIds, setSelectedThemeIds] = useState([]);
+
+    // Загружаем темы один раз при старте приложения
+    useEffect(() => {
+        apiGet('/meta/themes').then(setAllThemes).catch(e => console.error("Failed to load themes", e));
+    }, [apiGet]);
+
+    const handleTopicChange = (e, themeId) => {
+        const { checked } = e.target;
+        if (checked) {
+            if (selectedThemeIds.length < 3) setSelectedThemeIds([...selectedThemeIds, themeId]);
+        } else {
+            setSelectedThemeIds(selectedThemeIds.filter(id => id !== themeId));
+        }
+    };
+
+    const isTopicSelectionValid = selectedThemeIds.length >= 1 && selectedThemeIds.length <= 3;
+
+    const filteredTopics = useMemo(() => {
+        if (!allThemes) return [];
+        if (!searchQuery) return allThemes;
+        const lowerQuery = searchQuery.toLowerCase();
+        return allThemes.map(group => ({
+            ...group,
+            items: group.items.filter(item => item.name.toLowerCase().includes(lowerQuery))
+        })).filter(group => group.items.length > 0);
+    }, [searchQuery, allThemes]);
 
     const checkPromo = useCallback(debounce(async (word) => {
         const normalizedWord = word.trim().toUpperCase();
@@ -71,21 +100,13 @@ export const App = () => {
     const getPromoBottomText = () => {
         if (isCheckingPromo) return <Spinner size='s' style={{alignSelf: 'center'}}/>;
         if (!promoStatus) return null;
-
         switch (promoStatus.status) {
-            case 'active':
-                return <span style={{ color: 'var(--vkui--color_text_positive)' }}>Мероприятие найдено и активно!</span>;
-            case 'not_started':
-                const startTime = new Date(promoStatus.start_time).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
-                return `Голосование еще не началось. Начало: ${startTime}`;
-            case 'finished':
-                return 'Голосование по этому слову уже завершилось.';
-            case 'not_found':
-                return <span style={{ color: 'var(--vkui--color_text_negative)' }}>Мероприятие с таким словом не найдено.</span>;
-            case 'error':
-                return <span style={{ color: 'var(--vkui--color_text_negative)' }}>Ошибка проверки. Попробуйте еще раз.</span>;
-            default:
-                return null;
+            case 'active': return <span style={{ color: 'var(--vkui--color_text_positive)' }}>Мероприятие найдено и активно!</span>;
+            case 'not_started': const startTime = new Date(promoStatus.start_time).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }); return `Голосование еще не началось. Начало: ${startTime}`;
+            case 'finished': return 'Голосование по этому слову уже завершилось.';
+            case 'not_found': return <span style={{ color: 'var(--vkui--color_text_negative)' }}>Мероприятие с таким словом не найдено.</span>;
+            case 'error': return <span style={{ color: 'var(--vkui--color_text_negative)' }}>Ошибка проверки. Попробуйте еще раз.</span>;
+            default: return null;
         }
     };
 
@@ -110,21 +131,15 @@ export const App = () => {
 
     useEffect(() => {
         const initApp = async () => {
-            setIsLoadingApp(true);
-
             let onboardingNeeded = true;
             if (!hasLaunchParams) {
                 try {
                     const result = await bridge.send('VKWebAppStorageGet', { keys: ['onboardingFinished'] });
                     const onboardingFinished = result.keys.find(k => k.key === 'onboardingFinished')?.value === 'true';
-                    if (onboardingFinished) {
-                        onboardingNeeded = false;
-                    }
+                    if (onboardingFinished) onboardingNeeded = false;
                 } catch (e) {
                     console.warn("VK Storage check failed, falling back to localStorage", e);
-                    if (localStorage.getItem('onboardingFinished')) {
-                        onboardingNeeded = false;
-                    }
+                    if (localStorage.getItem('onboardingFinished')) onboardingNeeded = false;
                 }
             } else {
                 onboardingNeeded = false;
@@ -138,10 +153,8 @@ export const App = () => {
 
             try {
                 const userData = await apiGet('/users/me');
-
                 if (userData) {
                     setCurrentUser(userData);
-                    setIsLoadingApp(false);
                 } else {
                     console.log("User not found, starting registration...");
                     const vkUser = await bridge.send('VKWebAppGetUserInfo');
@@ -153,14 +166,13 @@ export const App = () => {
                     };
                     const registeredUser = await apiPost('/users/register', newUserPayload);
                     setCurrentUser(registeredUser);
-                    setIsLoadingApp(false);
                 }
             } catch (error) {
                 console.error("Fatal: A critical error occurred during initialization:", error);
+            } finally {
                 setIsLoadingApp(false);
             }
         };
-
         initApp();
     }, [apiGet, apiPost, hasLaunchParams]);
 
@@ -198,50 +210,79 @@ export const App = () => {
                     bottom={getPromoBottomText()}
                     status={promoStatus?.status === 'not_found' || promoStatus?.status === 'error' ? 'error' : 'default'}
                 >
-                    <FormField>
-                        <Input value={promoWord} onChange={handlePromoWordChange} />
-                    </FormField>
+                    <FormField><Input value={promoWord} onChange={handlePromoWordChange} /></FormField>
                 </FormItem>
                 <FormItem>
-                    <Button
-                        size="l"
-                        stretched
-                        onClick={goToVoteByPromo}
-                        disabled={promoStatus?.status !== 'active'}
-                    >
+                    <Button size="l" stretched onClick={goToVoteByPromo} disabled={promoStatus?.status !== 'active'}>
                         Проголосовать
                     </Button>
                 </FormItem>
             </ModalCard>
+
+            <ModalPage
+                id="topics-modal"
+                onClose={() => setActiveModal(null)}
+                header={
+                    <ModalPageHeader before={<PanelHeaderBack onClick={() => setActiveModal(null)} />}>
+                        <div style={{ padding: '0 8px', width: '100%' }}>
+                             <Search
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Поиск по темам"
+                            />
+                        </div>
+                    </ModalPageHeader>
+                }
+                footer={
+                    isTopicSelectionValid && (
+                        <Div>
+                            <Button
+                                size="l"
+                                stretched
+                                onClick={() => setActiveModal(null)}
+                            >
+                                Сохранить
+                            </Button>
+                        </Div>
+                    )
+                }
+                settlingHeight={100}
+            >
+                <Group>
+                    {filteredTopics.map(group => (
+                        <div key={group.name}>
+                            <Header>{group.name}</Header>
+                            {group.items.map(item => (
+                                <Checkbox
+                                    key={item.id}
+                                    checked={selectedThemeIds.includes(item.id)}
+                                    onChange={(e) => handleTopicChange(e, item.id)}
+                                    disabled={selectedThemeIds.length >= 3 && !selectedThemeIds.includes(item.id)}
+                                >
+                                    {item.name}
+                                </Checkbox>
+                            ))}
+                        </div>
+                    ))}
+                    {filteredTopics.length === 0 && <Div>Ничего не найдено</Div>}
+                </Group>
+            </ModalPage>
         </ModalRoot>
     );
 
-    if (isLoadingApp) {
-        return <ScreenSpinner state="loading" />;
-    }
-
-    if (showOnboarding) {
-        return <Onboarding onFinish={finishOnboarding} />;
-    }
+    if (isLoadingApp) return <ScreenSpinner state="loading" />;
+    if (showOnboarding) return <Onboarding onFinish={finishOnboarding} />;
 
     const renderTabbar = () => {
         return (
              <Tabbar>
                 <TabbarItem onClick={onStoryChange} selected={activeView === VIEW_MAIN} data-story={VIEW_MAIN} label="Рейтинг"><Icon28ArticleOutline /></TabbarItem>
                 <TabbarItem onClick={onStoryChange} selected={activeView === VIEW_EVENTS} data-story={VIEW_EVENTS} label="Мероприятия"><Icon28CalendarOutline /></TabbarItem>
-                <TabbarItem
-                    onClick={() => setActiveModal('promo-vote-modal')}
-                    style={{ background: 'var(--vkui--color_background_accent)', borderRadius: '12px', color: 'white' }}
-                    label="Голосовать"
-                >
-                    <Icon24CheckCircleFilledBlue />
-                </TabbarItem>
+                <TabbarItem onClick={() => setActiveModal('promo-vote-modal')} style={{ background: 'var(--vkui--color_background_accent)', borderRadius: '12px', color: 'white' }} label="Голосовать"><Icon24CheckCircleFilledBlue /></TabbarItem>
                 <TabbarItem onClick={onStoryChange} selected={activeView === VIEW_TARIFFS} data-story={VIEW_TARIFFS} label="Тарифы"><Icon28MoneyCircleOutline /></TabbarItem>
                 <TabbarItem onClick={onStoryChange} selected={activeView === VIEW_PROFILE} data-story={VIEW_PROFILE} label="Аккаунт"><Icon28UserCircleOutline /></TabbarItem>
                 {currentUser?.is_admin && (
-                    <TabbarItem onClick={() => routeNavigator.push('/admin')} selected={activePanel === PANEL_ADMIN} label="Админка">
-                        <Icon28CheckShieldOutline />
-                    </TabbarItem>
+                    <TabbarItem onClick={() => routeNavigator.push('/admin')} selected={activePanel === PANEL_ADMIN} label="Админка"><Icon28CheckShieldOutline /></TabbarItem>
                 )}
             </Tabbar>
         );
@@ -251,13 +292,16 @@ export const App = () => {
         <AppRoot>
             <SplitLayout popout={popout} modal={modal}>
                 <SplitCol>
-                    <Epic
-                        activeStory={activeView}
-                        tabbar={renderTabbar()}
-                    >
+                    <Epic activeStory={activeView} tabbar={renderTabbar()}>
                         <View id={VIEW_MAIN} activePanel={activePanel}>
                             <Home id={PANEL_HOME} user={currentUser} />
-                            <Registration id={PANEL_REGISTRATION} user={currentUser} refetchUser={refetchUser} />
+                            <Registration
+                                id={PANEL_REGISTRATION}
+                                user={currentUser}
+                                refetchUser={refetchUser}
+                                selectedThemeIds={selectedThemeIds}
+                                onOpenTopicsModal={() => setActiveModal('topics-modal')}
+                            />
                             <Voting id={PANEL_VOTING} setPopout={setPopout} setSnackbar={setSnackbar} user={currentUser} />
                             <ExpertProfile id={PANEL_EXPERT_PROFILE} setPopout={setPopout} setSnackbar={setSnackbar} user={currentUser} />
                             <Admin id={PANEL_ADMIN} setPopout={setPopout} setSnackbar={setSnackbar} />

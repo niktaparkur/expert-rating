@@ -222,3 +222,4 @@ expert-rating-frontend/node_modules/
 storybook-static
 
 .env.*
+seed_database.py

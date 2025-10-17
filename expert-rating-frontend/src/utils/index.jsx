@@ -1,1 +1,1 @@
-export { transformVKBridgeAdaptivity } from './transformVKBridgeAdaptivity.jsx';
+export { transformVKBridgeAdaptivity } from './transformVKBridgeAdaptivity';
