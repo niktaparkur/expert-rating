@@ -1,12 +1,14 @@
 import { useCallback } from 'react';
 import bridge from '@vkontakte/vk-bridge';
 
-const API_URL = 'https://api.exprating.ru/api/v1';
+const API_URL = import.meta.env.VITE_API_URL;
+const APP_ID = import.meta.env.VITE_APP_ID;
+
 
 export const useApi = () => {
     const apiRequest = useCallback(async (endpoint, method = 'GET', body = null) => {
         const tokenData = await bridge.send('VKWebAppGetAuthToken', {
-            app_id: 54172799,
+            app_id: Number(APP_ID),
             scope: ''
         });
 
