@@ -95,28 +95,32 @@ async def get_my_votes(
 ):
     """Возвращает список всех голосов, отданных текущим пользователем."""
     vk_id = current_user["vk_id"]
-    votes = await expert_crud.get_user_votes(db, vk_id=vk_id)
+    votes_from_db = await expert_crud.get_user_votes(db, vk_id=vk_id)
 
-    response = []
-    for vote in votes:
-        vote_data = MyVoteRead.model_validate(vote, from_attributes=True)
-        if vote.expert and not vote.is_expert_vote:
-            vote_data.expert = VotedExpertInfo.model_validate(
+    response_list = []
+    for vote in votes_from_db:
+        vote_data_dict = {
+            "id": vote.id,
+            "vote_type": vote.vote_type,
+            "is_expert_vote": vote.is_expert_vote,
+            "created_at": vote.created_at,
+            "expert": None,
+            "event": None,
+        }
+
+        if not vote.is_expert_vote and vote.expert and vote.expert.user:
+            vote_data_dict["expert"] = VotedExpertInfo.model_validate(
                 vote.expert.user, from_attributes=True
             )
-        if vote.event:
-            # Пропускаем голоса за мероприятия, у которых нет эксперта (маловероятно, но возможно)
-            if not vote.event.expert:
-                continue
 
-            # Собираем данные для EventRead
-            event_data = EventRead.model_validate(vote.event, from_attributes=True)
-            # Добавляем информацию об эксперте в событие
-            event_data.expert_info = VotedExpertInfo.model_validate(
+        if vote.is_expert_vote and vote.event and vote.event.expert and vote.event.expert.user:
+            event_expert_info = VotedExpertInfo.model_validate(
                 vote.event.expert.user, from_attributes=True
             )
-            vote_data.event = event_data
+            event_data = EventRead.model_validate(vote.event, from_attributes=True)
+            event_data.expert_info = event_expert_info
+            vote_data_dict["event"] = event_data
 
-        response.append(vote_data)
+        response_list.append(MyVoteRead.model_validate(vote_data_dict))
 
-    return response
+    return response_list

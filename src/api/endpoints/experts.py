@@ -67,15 +67,17 @@ async def get_expert_profile(
     db: AsyncSession = Depends(get_db),
     current_user: Dict = Depends(get_current_user),
 ):
-    result = await expert_crud.get_user_with_profile_by_vk_id(db=db, vk_id=vk_id)
+    result = await expert_crud.get_full_user_profile_with_stats(db=db, vk_id=vk_id)
     if not result:
         raise HTTPException(status_code=404, detail="Expert not found")
 
-    user, profile, stats_dict = result
+    user, profile, stats_dict, my_votes_stats_dict = result
     response_data = expert_schemas.UserAdminRead.model_validate(
         user, from_attributes=True
     )
+
     response_data.stats = expert_schemas.Stats(**stats_dict)
+    response_data.my_votes_stats = expert_schemas.MyVotesStats(**my_votes_stats_dict)
     response_data.tariff_plan = profile.tariff_plan if profile else "Начальный"
 
     has_voted = await expert_crud.check_if_user_voted(
@@ -104,7 +106,6 @@ async def vote_for_expert_community(
 ):
     if vk_id == vote_data.voter_vk_id:
         raise HTTPException(status_code=400, detail="You cannot vote for yourself.")
-
     try:
         await expert_crud.create_community_vote(db=db, vk_id=vk_id, vote_data=vote_data)
         await cache.delete(f"user_profile:{vk_id}")
@@ -125,13 +126,11 @@ async def cancel_expert_community_vote(
         raise HTTPException(
             status_code=400, detail="Invalid action for your own profile."
         )
-
     success = await expert_crud.delete_community_vote(
         db=db, expert_vk_id=vk_id, voter_vk_id=voter_vk_id
     )
     if not success:
         raise HTTPException(status_code=404, detail="Vote not found to cancel.")
-
     await cache.delete(f"user_profile:{vk_id}")
     return {"status": "ok", "message": "Your vote has been cancelled."}
 
@@ -148,10 +147,8 @@ async def withdraw_expert_application(
         raise HTTPException(
             status_code=404, detail="No pending request found to withdraw."
         )
-
     cache_key = f"user_profile:{vk_id}"
     await cache.delete(cache_key)
-
     return {"status": "ok", "message": "Your expert application has been withdrawn."}
 
 
@@ -215,7 +212,6 @@ async def approve_expert(
     profile = await expert_crud.set_expert_status(db=db, vk_id=vk_id, status="approved")
     if not profile:
         raise HTTPException(status_code=404, detail="Expert profile not found")
-
     await cache.delete(f"user_profile:{vk_id}")
     await notifier.send_moderation_result(vk_id=vk_id, approved=True)
     return {"status": "ok", "message": "Expert approved"}
@@ -235,7 +231,6 @@ async def reject_expert(
     profile = await expert_crud.set_expert_status(db=db, vk_id=vk_id, status="rejected")
     if not profile:
         raise HTTPException(status_code=404, detail="Expert profile not found")
-
     await cache.delete(f"user_profile:{vk_id}")
     await notifier.send_moderation_result(
         vk_id=vk_id, approved=False, reason="Несоответствие требованиям"

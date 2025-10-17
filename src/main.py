@@ -14,11 +14,14 @@ if settings.SENTRY_DSN:
 
 app = FastAPI(title="Рейтинг Экспертов", proxy_headers=True, forwarded_allow_ips="*")
 
+
+origin_regex = r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|https?://.*\.potokrechi\.ru|https://vk\.com)$"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=origin_regex,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
