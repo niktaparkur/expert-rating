@@ -1,5 +1,3 @@
-// src/panels/CreateEvent.jsx
-
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Panel,

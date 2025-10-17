@@ -7,7 +7,6 @@ if TYPE_CHECKING:
     from src.schemas.event_schemas import EventRead
 
 
-# --- Сначала базовые, независимые схемы ---
 class Stats(BaseModel):
     expert: int = 0
     community: int = 0
@@ -40,7 +39,11 @@ class VotedExpertInfo(BaseModel):
         from_attributes = True
 
 
-# --- Схемы, которые могут зависеть от чего-то ---
+class UserVoteInfo(BaseModel):
+    vote_type: str
+    comment: Optional[str] = None
+
+
 class UserAdminRead(UserBase):
     registration_date: datetime
     is_expert: bool
@@ -53,13 +56,12 @@ class UserAdminRead(UserBase):
     regalia: Optional[str] = None
     social_link: Optional[str] = None
     tariff_plan: Optional[str] = "Начальный"
-    current_user_has_voted: bool = False
+    current_user_vote_info: Optional[UserVoteInfo] = None
 
     class Config:
         from_attributes = True
 
 
-# --- Схемы с циклическими зависимостями ---
 class MyVoteRead(BaseModel):
     id: int
     vote_type: str
@@ -72,7 +74,6 @@ class MyVoteRead(BaseModel):
         from_attributes = True
 
 
-# --- Остальные ---
 class ExpertProfileBase(BaseModel):
     theme_ids: List[int] = Field(..., min_length=1, max_length=3)
     region: str

@@ -1,3 +1,5 @@
+# src/services/notifier.py
+
 from typing import Optional
 from aionvk import Bot, Button, KeyboardBuilder
 
@@ -81,6 +83,23 @@ class Notifier:
             f"Мероприятие: {vote_data.promo_word}"
         )
         await self._send_message(expert_id, message)
+
+    async def send_vote_action_notification(
+        self, user_vk_id: int, expert_name: str, expert_vk_id: int, action: str
+    ):
+        """Уведомляет пользователя о его действии с народным голосом."""
+        if action == "submitted":
+            message = f"✅ Ваш голос за эксперта {expert_name} был успешно учтен."
+        elif action == "cancelled":
+            message = f"🗑️ Ваш голос за эксперта {expert_name} был отменен."
+        else:
+            return
+
+        kb = KeyboardBuilder(inline=True)
+        deep_link = f"https://vk.com/app{settings.VK_APP_ID}#/expert/{expert_vk_id}"
+        kb.add(Button.open_link("Перейти к профилю", link=deep_link))
+        await self._send_message(user_vk_id, message, kb.build())
+
 
     async def close(self):
         if self.bot:

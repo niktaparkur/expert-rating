@@ -1,3 +1,5 @@
+# src/crud/expert_crud.py
+
 from datetime import datetime, timedelta, timezone
 
 import redis.asyncio as redis
@@ -19,7 +21,9 @@ from src.schemas.expert_schemas import (
     ExpertCreate,
     UserCreate,
     UserSettingsUpdate,
+    UserVoteInfo,
 )
+from src.services.notifier import Notifier
 
 
 async def create_expert_request(db: AsyncSession, expert_data: ExpertCreate) -> User:
@@ -227,15 +231,22 @@ async def create_user(db: AsyncSession, user_data: UserCreate) -> User:
 
 
 async def create_community_vote(
-    db: AsyncSession, vk_id: int, vote_data: CommunityVoteCreate
+    db: AsyncSession,
+    vk_id: int,
+    vote_data: CommunityVoteCreate,
+    notifier: Notifier,
 ):
     expert_profile_res = await db.execute(
-        select(ExpertProfile).filter(
+        select(ExpertProfile)
+        .options(selectinload(ExpertProfile.user))
+        .filter(
             ExpertProfile.user_vk_id == vk_id, ExpertProfile.status == "approved"
         )
     )
-    if not expert_profile_res.scalars().first():
-        raise ValueError("Expert not found or not approved.")
+    expert_profile = expert_profile_res.scalars().first()
+    if not expert_profile:
+        raise ValueError("Эксперт не найден или не одобрен.")
+
     twenty_four_hours_ago = datetime.now(timezone.utc) - timedelta(hours=24)
     existing_vote_res = await db.execute(
         select(Vote).filter(
@@ -246,7 +257,10 @@ async def create_community_vote(
         )
     )
     if existing_vote_res.scalars().first():
-        raise ValueError("You can vote for this expert only once every 24 hours.")
+        raise ValueError(
+            "Вы можете голосовать за этого эксперта только раз в 24 часа."
+        )
+
     db_vote = Vote(
         voter_vk_id=vote_data.voter_vk_id,
         expert_vk_id=vk_id,
@@ -259,12 +273,23 @@ async def create_community_vote(
     db.add(db_vote)
     await db.commit()
     await db.refresh(db_vote)
+
+    expert_name = f"{expert_profile.user.first_name} {expert_profile.user.last_name}"
+    await notifier.send_vote_action_notification(
+        user_vk_id=vote_data.voter_vk_id,
+        expert_name=expert_name,
+        expert_vk_id=vk_id,
+        action="submitted",
+    )
     return db_vote
 
 
-async def check_if_user_voted(
+async def get_user_vote_for_expert(
     db: AsyncSession, expert_vk_id: int, voter_vk_id: int
-) -> bool:
+) -> UserVoteInfo | None:
+    """Возвращает информацию о голосе пользователя за конкретного эксперта."""
+    if not voter_vk_id:
+        return None
     query = select(Vote).where(
         and_(
             Vote.expert_vk_id == expert_vk_id,
@@ -273,12 +298,30 @@ async def check_if_user_voted(
         )
     )
     result = await db.execute(query)
-    return result.scalars().first() is not None
+    vote = result.scalars().first()
+    if not vote:
+        return None
+
+    comment = (
+        vote.comment_positive
+        if vote.vote_type == "trust"
+        else vote.comment_negative
+    )
+    return UserVoteInfo(vote_type=vote.vote_type, comment=comment)
 
 
 async def delete_community_vote(
-    db: AsyncSession, expert_vk_id: int, voter_vk_id: int
+    db: AsyncSession, expert_vk_id: int, voter_vk_id: int, notifier: Notifier
 ) -> bool:
+    expert_profile_res = await db.execute(
+        select(ExpertProfile)
+        .options(selectinload(ExpertProfile.user))
+        .filter(ExpertProfile.user_vk_id == expert_vk_id)
+    )
+    expert_profile = expert_profile_res.scalars().first()
+    if not expert_profile:
+        return False  # Эксперт не найден
+
     query = select(Vote).where(
         and_(
             Vote.expert_vk_id == expert_vk_id,
@@ -288,11 +331,22 @@ async def delete_community_vote(
     )
     result = await db.execute(query)
     db_vote = result.scalars().first()
+
     if db_vote:
         await db.delete(db_vote)
         await db.commit()
         logger.info(
             f"Vote from {voter_vk_id} for expert {expert_vk_id} has been deleted."
+        )
+
+        expert_name = (
+            f"{expert_profile.user.first_name} {expert_profile.user.last_name}"
+        )
+        await notifier.send_vote_action_notification(
+            user_vk_id=voter_vk_id,
+            expert_name=expert_name,
+            expert_vk_id=expert_vk_id,
+            action="cancelled",
         )
         return True
     return False
