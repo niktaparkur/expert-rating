@@ -1,17 +1,13 @@
-// src/panels/Admin.jsx
-
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Panel, PanelHeader, Group, Header, Button, ScreenSpinner, Div, Text, Spinner,
     ModalRoot, ModalPage, ModalPageHeader, PanelHeaderButton, Avatar, InfoRow, Tabs, TabsItem,
-    SimpleCell, Alert, PanelHeaderBack, Snackbar
+    SimpleCell, Alert, PanelHeaderBack, Snackbar, IconButton
 } from '@vkontakte/vkui';
 import { Icon16Cancel, Icon24Cancel, Icon24Delete } from '@vkontakte/icons';
 import { useRouteNavigator, useSearchParams } from '@vkontakte/vk-mini-apps-router';
 import { RequestCard } from '../components/RequestCard';
 import { useApi } from '../hooks/useApi';
-
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const Admin = ({ id, setPopout, setSnackbar }) => {
     const routeNavigator = useRouteNavigator();
@@ -21,64 +17,88 @@ export const Admin = ({ id, setPopout, setSnackbar }) => {
     const [activeModal, setActiveModal] = useState(null);
     const [selectedTab, setSelectedTab] = useState('moderation');
     const [selectedRequest, setSelectedRequest] = useState(null);
+
+    // --- Состояния и загрузка разделены для каждой вкладки ---
     const [expertRequests, setExpertRequests] = useState([]);
     const [eventRequests, setEventRequests] = useState([]);
     const [allUsers, setAllUsers] = useState([]);
-    const [loading, setLoading] = useState({ experts: true, events: true, users: true });
+
+    const [loading, setLoading] = useState({ experts: false, events: false, users: false });
     const [error, setError] = useState(null);
 
     const requestToOpenId = searchParams.get('vk_id');
 
-    const fetchData = useCallback(async () => {
-        setPopout(<ScreenSpinner state="loading" />);
-        setError(null);
-        setLoading({ experts: true, events: true, users: true });
+    // --- Логика ленивой загрузки данных в зависимости от активной вкладки ---
+    useEffect(() => {
+        // Функция для загрузки данных вкладки "Модерация"
+        const fetchModerationData = async () => {
+            // Не перезагружаем, если данные уже есть
+            if (expertRequests.length > 0 || eventRequests.length > 0) return;
 
-        try {
-            setLoading(prev => ({ ...prev, experts: true }));
-            const expertsData = await apiGet('/experts/admin/pending');
-            setExpertRequests(expertsData);
-            setLoading(prev => ({ ...prev, experts: false }));
+            setLoading(prev => ({ ...prev, experts: true, events: true }));
+            setError(null);
+            try {
+                // Запросы выполняются параллельно
+                const [expertsData, eventsData] = await Promise.all([
+                    apiGet('/experts/admin/pending'),
+                    apiGet('/events/admin/pending')
+                ]);
+                setExpertRequests(expertsData);
+                setEventRequests(eventsData);
 
-            await sleep(200);
+                // Если в URL есть ID для открытия, открываем модалку
+                if (requestToOpenId) {
+                    const requestToOpen = expertsData.find(req => String(req.vk_id) === String(requestToOpenId));
+                    if (requestToOpen) {
+                        openExpertRequest(requestToOpen);
+                    }
+                }
+            } catch (e) {
+                setError(e.message || "Ошибка загрузки данных модерации");
+                showErrorSnackbar(e.message || "Ошибка загрузки данных модерации");
+            } finally {
+                setLoading(prev => ({ ...prev, experts: false, events: false }));
+            }
+        };
 
-            setLoading(prev => ({ ...prev, events: true }));
-            const eventsData = await apiGet('/events/admin/pending');
-            setEventRequests(eventsData);
-            setLoading(prev => ({ ...prev, events: false }));
-
-            await sleep(200);
+        // Функция для загрузки данных вкладки "Пользователи"
+        const fetchUsersData = async () => {
+            // Не перезагружаем, если данные уже есть
+            if (allUsers.length > 0) return;
 
             setLoading(prev => ({ ...prev, users: true }));
-            const usersData = await apiGet('/experts/admin/all_users');
-            setAllUsers(usersData);
-            setLoading(prev => ({ ...prev, users: false }));
-
-            if (requestToOpenId) {
-                const requestToOpen = expertsData.find(req => String(req.vk_id) === String(requestToOpenId));
-                if (requestToOpen) {
-                    openExpertRequest(requestToOpen);
-                }
+            setError(null);
+            try {
+                const usersData = await apiGet('/experts/admin/all_users');
+                setAllUsers(usersData);
+            } catch (e) {
+                setError(e.message || "Ошибка загрузки пользователей");
+                showErrorSnackbar(e.message || "Ошибка загрузки пользователей");
+            } finally {
+                setLoading(prev => ({ ...prev, users: false }));
             }
+        };
 
-        } catch (e) {
-            setError(e.message || "Ошибка загрузки данных");
-            console.error(e);
-        } finally {
-            setLoading({ experts: false, events: false, users: false });
-            setPopout(null);
+        // Вызываем нужную функцию в зависимости от активной вкладки
+        if (selectedTab === 'moderation') {
+            fetchModerationData();
+        } else if (selectedTab === 'users') {
+            fetchUsersData();
         }
-    }, [apiGet, setPopout, requestToOpenId]);
+    }, [selectedTab, apiGet, expertRequests.length, eventRequests.length, allUsers.length, requestToOpenId]);
 
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+    const openExpertRequest = (request) => {
+        setSelectedRequest(request);
+        setActiveModal('expert-details');
+    };
 
-    const openExpertRequest = (request) => { setSelectedRequest(request); setActiveModal('expert-details'); };
-    const closeModal = () => { setActiveModal(null); setTimeout(() => setSelectedRequest(null), 200); };
+    const closeModal = () => {
+        setActiveModal(null);
+        setTimeout(() => setSelectedRequest(null), 200);
+    };
 
     const showErrorSnackbar = (message) => {
-        setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel/>}>{message}</Snackbar>);
+        setSnackbar(<Snackbar duration={3000} onClose={() => setSnackbar(null)} before={<Icon16Cancel/>}>{message}</Snackbar>);
     };
 
     const handleExpertAction = async (vkId, action) => {
@@ -157,22 +177,18 @@ export const Admin = ({ id, setPopout, setSnackbar }) => {
             {modal}
             <PanelHeader before={<PanelHeaderBack onClick={() => routeNavigator.back()} />}>Панель Администратора</PanelHeader>
             <Tabs>
-                 <TabsItem selected={selectedTab === 'moderation'} onClick={() => setSelectedTab('moderation')} id="tab-moderation" aria-controls="content-moderation">Модерация</TabsItem>
-                 <TabsItem selected={selectedTab === 'users'} onClick={() => setSelectedTab('users')} id="tab-users" aria-controls="content-users">Пользователи</TabsItem>
+                 <TabsItem selected={selectedTab === 'moderation'} onClick={() => setSelectedTab('moderation')} id="tab-moderation">Модерация</TabsItem>
+                 <TabsItem selected={selectedTab === 'users'} onClick={() => setSelectedTab('users')} id="tab-users">Пользователи</TabsItem>
             </Tabs>
 
-            <div id="content-moderation" role="tabpanel" aria-labelledby="tab-moderation" style={{ display: selectedTab === 'moderation' ? 'block' : 'none', paddingBottom: 60 }}>
-                {error && <Div><Text style={{ color: 'red' }}>{error}</Text></Div>}
+            {error && <Group><Div><Text style={{ color: 'var(--vkui--color_text_negative)' }}>{error}</Text></Div></Group>}
+
+            <div style={{ display: selectedTab === 'moderation' ? 'block' : 'none', paddingBottom: 60 }}>
                 <Group header={<Header>Заявки на регистрацию экспертов</Header>}>
                     {loading.experts ? <Spinner /> : (
                         expertRequests.length === 0 ? <Div><Text>Новых заявок нет</Text></Div> :
                         expertRequests.map(req => (
-                            <RequestCard
-                                key={req.vk_id}
-                                request={req}
-                                type="expert"
-                                onPrimaryClick={() => openExpertRequest(req)}
-                            />
+                            <RequestCard key={req.vk_id} request={req} type="expert" onPrimaryClick={() => openExpertRequest(req)} />
                         ))
                     )}
                 </Group>
@@ -180,25 +196,20 @@ export const Admin = ({ id, setPopout, setSnackbar }) => {
                     {loading.events ? <Spinner /> : (
                         eventRequests.length === 0 ? <Div><Text>Новых заявок нет</Text></Div> :
                         eventRequests.map(req => (
-                            <RequestCard
-                                key={req.id}
-                                request={req}
-                                type="event"
-                                onPrimaryClick={() => handleEventAction(req.id, 'approve')}
-                                onSecondaryClick={() => handleEventAction(req.id, 'reject')}
-                            />
+                            <RequestCard key={req.id} request={req} type="event" onPrimaryClick={() => handleEventAction(req.id, 'approve')} onSecondaryClick={() => handleEventAction(req.id, 'reject')} />
                         ))
                     )}
                 </Group>
             </div>
-            <div id="content-users" role="tabpanel" aria-labelledby="tab-users" style={{ display: selectedTab === 'users' ? 'block' : 'none', paddingBottom: 60 }}>
+            <div style={{ display: selectedTab === 'users' ? 'block' : 'none', paddingBottom: 60 }}>
                 <Group header={<Header>Все пользователи и эксперты</Header>}>
                     {loading.users ? <Spinner/> : (
+                         allUsers.length === 0 ? <Div><Text>Пользователи не найдены.</Text></Div> :
                         allUsers.map(user => (
                             <SimpleCell
                                 key={user.vk_id}
                                 before={<Avatar size={48} src={user.photo_url}/>}
-                                after={<Button mode="destructive" onClick={() => handleDeleteUser(user)}><Icon24Delete/></Button>}
+                                after={<IconButton hoverMode="destructive" onClick={() => handleDeleteUser(user)}><Icon24Delete/></IconButton>}
                                 subtitle={user.status ? `Эксперт (статус: ${user.status})` : 'Пользователь'}
                             >
                                 {user.first_name} {user.last_name}

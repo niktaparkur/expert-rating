@@ -29,8 +29,6 @@
     justify-content: space-around;
     margin: 16px 0;
     padding: 12px 0;
-    border-top: 1px solid var(--vkui--color_separator_primary);
-    border-bottom: 1px solid var(--vkui--color_separator_primary);
     width: 100%;
 }
 

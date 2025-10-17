@@ -1,10 +1,7 @@
-/* expert-rating-frontend/src/components/ExpertCard.css */
-
 .expert-card-container {
     padding: 12px;
 }
 
-/* --- СТИЛИ ПО УМОЛЧАНИЮ (ДЛЯ ПК И ПЛАНШЕТОВ) --- */
 .expert-card-main {
     display: flex;
     align-items: center;
@@ -26,28 +23,31 @@
 }
 
 .expert-card-info {
-    flex-grow: 1; /* Занимает все доступное пространство между аватаром и рейтингом */
+    flex-grow: 1;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-width: 0; /* Позволяет flex-элементу сжиматься и дает тексту переноситься */
 }
 
 .expert-name {
-    margin-bottom: 4px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    margin-bottom: 2px;
+    white-space: normal; /* Разрешаем перенос имени на новую строку */
+    overflow: visible;
+    text-overflow: initial;
+    word-break: break-word; /* Для очень длинных имен без пробелов */
 }
 
-.expert-topics-container {
-    display: flex;
-    gap: 6px;
-    /* На ПК темы не переносятся, а обрезаются */
-    white-space: nowrap;
-    overflow: hidden;
+.expert-topics-text {
+    font-size: 13px;
+    color: var(--vkui--color_text_secondary);
+    line-height: 1.3;
+    white-space: normal; /* Разрешаем перенос тем */
 }
 
 .rating-block {
     display: flex;
-    flex-shrink: 0; /* Блок рейтинга не должен сжиматься */
+    flex-shrink: 0;
     border-radius: 8px;
     overflow: hidden;
     text-align: center;
@@ -55,13 +55,21 @@
 }
 
 .rating-block.double {
-    min-width: 110px;
+    min-width: 100px;
+}
+
+.rating-block.single {
+    min-width: 50px;
 }
 
 .rating-segment {
     padding: 6px 8px;
     flex-grow: 1;
     background-color: var(--vkui--color_background_secondary);
+    display: flex;
+    flex-direction: column; /* По умолчанию: число НАД иконкой */
+    align-items: center;
+    gap: 2px;
 }
 
 .rating-separator {
@@ -72,39 +80,34 @@
 .rating-value {
     font-size: 17px;
     font-weight: 600;
+    line-height: 1;
     color: var(--vkui--color_text_primary);
-}
-
-.rating-label {
-    font-size: 11px;
-    color: var(--vkui--color_text_secondary);
-    margin-top: -2px;
 }
 
 /* --- АДАПТАЦИЯ ДЛЯ МОБИЛЬНЫХ УСТРОЙСТВ --- */
 @media (max-width: 480px) {
-    .expert-card-info {
-        /* Имя и темы теперь располагаются вертикально */
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .expert-topics-container {
-        /* Разрешаем темам переноситься на новую строку */
-        white-space: normal;
-        flex-wrap: wrap;
-    }
-
     .rating-block.double {
-        /* Блок рейтинга становится вертикальным */
-        flex-direction: column;
-        min-width: 80px; /* Можно подобрать оптимальную ширину */
+        flex-direction: column; /* Блок с двумя рейтингами становится вертикальным */
+        min-width: 70px;
+    }
+
+    .rating-segment {
+        flex-direction: row; /* Иконка и число выстраиваются в строку */
+        justify-content: center;
+        gap: 4px; /* Отступ между иконкой и числом */
+        padding: 6px;
+    }
+
+    /* Меняем визуальный порядок: сначала иконка, потом число */
+    .rating-segment svg {
+        order: 1;
+    }
+    .rating-segment .rating-value {
+        order: 2;
     }
 
     .rating-separator {
-        /* Разделитель становится горизонтальным */
-        height: 1px;
+        height: 1px; /* Разделитель становится горизонтальным */
         width: 100%;
     }
 }

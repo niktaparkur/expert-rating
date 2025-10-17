@@ -14,7 +14,7 @@ import {
 } from '@vkontakte/vkui';
 import { Icon56UsersOutline } from '@vkontakte/icons';
 import { useRouteNavigator } from '@vkontakte/vk-mini-apps-router';
-import { ExpertCard } from '../components/ExpertCard.jsx';
+import { ExpertCard } from '../components/ExpertCard.tsx';
 import { useApi } from '../hooks/useApi.js';
 
 export const Home = ({ id, user }) => {
