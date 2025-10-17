@@ -20,7 +20,6 @@ import {
     PANEL_TARIFFS, PANEL_PROFILE
 } from './routes';
 
-
 export const App = () => {
     const { view: activeView = VIEW_MAIN, panel: activePanel = PANEL_HOME } = useActiveVkuiLocation();
     const routeNavigator = useRouteNavigator();
@@ -29,12 +28,13 @@ export const App = () => {
     const [activeModal, setActiveModal] = useState(null);
     const [promoWord, setPromoWord] = useState('');
     const [snackbar, setSnackbar] = useState(null);
-
     const [searchParams] = useSearchParams();
+
+    const [showOnboarding, setShowOnboarding] = useState(false);
+    const [isLoadingApp, setIsLoadingApp] = useState(true);
+    const [currentUser, setCurrentUser] = useState(null);
+
     const hasLaunchParams = searchParams.toString().length > 0;
-    const [showOnboarding, setShowOnboarding] = useState(
-        !localStorage.getItem('onboardingFinished') && !hasLaunchParams
-    );
 
     const [promoStatus, setPromoStatus] = useState(null);
     const [isCheckingPromo, setIsCheckingPromo] = useState(false);
@@ -89,9 +89,6 @@ export const App = () => {
         }
     };
 
-    const [currentUser, setCurrentUser] = useState(null);
-    const [isLoadingApp, setIsLoadingApp] = useState(true);
-
     const refetchUser = useCallback(async () => {
         try {
             const userData = await apiGet('/users/me');
@@ -113,42 +110,69 @@ export const App = () => {
 
     useEffect(() => {
         const initApp = async () => {
-             if (!showOnboarding) {
-                setIsLoadingApp(true);
+            setIsLoadingApp(true);
+
+            let onboardingNeeded = true;
+            if (!hasLaunchParams) {
                 try {
-                    const userData = await apiGet('/users/me');
-                    setCurrentUser(userData);
-                } catch (error) {
-                    if (error.message.includes("404") || error.message.includes("not found")) {
-                        try {
-                            const vkUser = await bridge.send('VKWebAppGetUserInfo');
-                            const newUserPayload = {
-                                vk_id: vkUser.id,
-                                first_name: vkUser.first_name,
-                                last_name: vkUser.last_name,
-                                photo_url: vkUser.photo_200,
-                            };
-                            const registeredUser = await apiPost('/users/register', newUserPayload);
-                            setCurrentUser(registeredUser);
-                        } catch (registrationError) {
-                            console.error("Fatal: Failed to register new user:", registrationError);
-                        }
-                    } else {
-                        console.error("Fatal: Failed to fetch current user:", error);
+                    const result = await bridge.send('VKWebAppStorageGet', { keys: ['onboardingFinished'] });
+                    const onboardingFinished = result.keys.find(k => k.key === 'onboardingFinished')?.value === 'true';
+                    if (onboardingFinished) {
+                        onboardingNeeded = false;
                     }
-                } finally {
-                    setIsLoadingApp(false);
+                } catch (e) {
+                    console.warn("VK Storage check failed, falling back to localStorage", e);
+                    if (localStorage.getItem('onboardingFinished')) {
+                        onboardingNeeded = false;
+                    }
                 }
             } else {
-                 setIsLoadingApp(false);
-             }
-        };
-        initApp();
-    }, [apiGet, apiPost, showOnboarding, refetchUser]);
+                onboardingNeeded = false;
+            }
 
-    const finishOnboarding = () => {
-        localStorage.setItem('onboardingFinished', 'true');
+            if (onboardingNeeded) {
+                setShowOnboarding(true);
+                setIsLoadingApp(false);
+                return;
+            }
+
+            try {
+                const userData = await apiGet('/users/me');
+
+                if (userData) {
+                    setCurrentUser(userData);
+                    setIsLoadingApp(false);
+                } else {
+                    console.log("User not found, starting registration...");
+                    const vkUser = await bridge.send('VKWebAppGetUserInfo');
+                    const newUserPayload = {
+                        vk_id: vkUser.id,
+                        first_name: vkUser.first_name,
+                        last_name: vkUser.last_name,
+                        photo_url: vkUser.photo_200,
+                    };
+                    const registeredUser = await apiPost('/users/register', newUserPayload);
+                    setCurrentUser(registeredUser);
+                    setIsLoadingApp(false);
+                }
+            } catch (error) {
+                console.error("Fatal: A critical error occurred during initialization:", error);
+                setIsLoadingApp(false);
+            }
+        };
+
+        initApp();
+    }, [apiGet, apiPost, hasLaunchParams]);
+
+    const finishOnboarding = async () => {
+        try {
+            await bridge.send('VKWebAppStorageSet', { key: 'onboardingFinished', value: 'true' });
+        } catch (error) {
+            console.error('Failed to save onboarding status to VK Storage, falling back to localStorage:', error);
+            localStorage.setItem('onboardingFinished', 'true');
+        }
         setShowOnboarding(false);
+        window.location.reload();
     };
 
     const onStoryChange = (e) => {
@@ -192,12 +216,12 @@ export const App = () => {
         </ModalRoot>
     );
 
-    if (showOnboarding) {
-        return <Onboarding onFinish={finishOnboarding} />;
-    }
-
     if (isLoadingApp) {
         return <ScreenSpinner state="loading" />;
+    }
+
+    if (showOnboarding) {
+        return <Onboarding onFinish={finishOnboarding} />;
     }
 
     const renderTabbar = () => {
