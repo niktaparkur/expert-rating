@@ -3,6 +3,8 @@ from datetime import datetime
 from typing import List, Optional, TYPE_CHECKING
 from pydantic import BaseModel, Field, HttpUrl
 
+from src.schemas import event_schemas
+
 if TYPE_CHECKING:
     from src.schemas.event_schemas import EventRead
 
@@ -114,6 +116,6 @@ class UserSettingsUpdate(BaseModel):
     show_community_rating: Optional[bool] = None
 
 
-from src.schemas.event_schemas import EventRead
 
-MyVoteRead.model_rebuild()
+MyVoteRead.model_rebuild(force=True)
+event_schemas.EventRead.model_rebuild(force=True)

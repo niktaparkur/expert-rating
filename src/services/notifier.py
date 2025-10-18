@@ -100,7 +100,6 @@ class Notifier:
         kb.add(Button.open_link("Перейти к профилю", link=deep_link))
         await self._send_message(user_vk_id, message, kb.build())
 
-
     async def close(self):
         if self.bot:
             await self.bot.close()

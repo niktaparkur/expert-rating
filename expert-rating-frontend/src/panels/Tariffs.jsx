@@ -66,7 +66,7 @@ const getExpiryDate = () => {
     });
 };
 
-const TariffCardComponent = ({ tariff, isCurrent, isExpert, onSelect, onRegister, isSelectable }) => (
+const TariffCardComponent = ({ tariff, isCurrent, user, onSelect, onRegister, isSelectable }) => (
     <Card mode="outline" style={{ borderColor: isCurrent ? 'var(--vkui--color_background_accent)' : undefined }}>
         <Div>
             <Title level="2">{tariff.name}</Title>
@@ -96,8 +96,10 @@ const TariffCardComponent = ({ tariff, isCurrent, isExpert, onSelect, onRegister
             ))}
         </Group>
         <Div>
-            {!isExpert ? (
+            {!user?.is_expert && user?.status !== 'pending' ? (
                  <Button size="l" stretched mode="primary" onClick={onRegister}>Стать экспертом</Button>
+            ) : user?.status === 'pending' ? (
+                 <Button size="l" stretched disabled>Заявка на рассмотрении</Button>
             ) : isCurrent ? (
                 <Button size="l" stretched disabled>Ваш тариф</Button>
             ) : (
@@ -147,7 +149,6 @@ export const Tariffs = ({ id, user, setPopout, setSnackbar, refetchUser }) => {
 
     const handleRegister = () => routeNavigator.push('/registration');
     const getCurrentTariffName = () => user?.tariff_plan || 'Начальный';
-    const isExpert = user?.is_expert;
 
     const renderContent = () => {
         if (loading) return <ScreenSpinner />;
@@ -162,7 +163,7 @@ export const Tariffs = ({ id, user, setPopout, setSnackbar, refetchUser }) => {
                     key={tariff.id}
                     tariff={tariff}
                     isCurrent={tariff.name === currentTariffName}
-                    isExpert={isExpert}
+                    user={user}
                     onSelect={handleSelectTariff}
                     onRegister={handleRegister}
                     isSelectable={tariffLevel > currentUserLevel}

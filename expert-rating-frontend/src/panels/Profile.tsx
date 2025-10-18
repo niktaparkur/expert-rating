@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
     Panel,
     PanelHeader,
@@ -12,9 +12,14 @@ import {
     Placeholder,
     Spinner,
     Alert,
-    Header
+    Header,
+    Snackbar,
+    PullToRefresh,
+    PanelHeaderButton,
+    useAdaptivity,
+    ViewWidth
 } from '@vkontakte/vkui';
-import { Icon56UsersOutline } from '@vkontakte/icons';
+import { Icon56UsersOutline, Icon16Cancel, Icon16Done, Icon28RefreshOutline } from '@vkontakte/icons';
 import { UserProfile } from '../components/UserProfile';
 import { VoteHistoryCard } from '../components/VoteHistoryCard';
 import { useApi } from '../hooks/useApi';
@@ -31,25 +36,48 @@ interface ProfileProps {
     id: string;
     user: UserData | null;
     setCurrentUser: (user: UserData | null) => void;
+    refetchUser: () => void; // Функция для обновления данных пользователя
 }
 
-export const Profile = ({ id, user, setCurrentUser }: ProfileProps) => {
+export const Profile = ({ id, user, setCurrentUser, refetchUser }: ProfileProps) => {
+    const { viewWidth } = useAdaptivity();
+    const isDesktop = viewWidth >= ViewWidth.TABLET;
     const [activeModal, setActiveModal] = useState<string | null>(null);
-    const { apiPut, apiGet, apiDelete } = useApi();
+    const { apiPut, apiGet, apiDelete, apiPost } = useApi();
     const [popout, setPopout] = useState<React.ReactNode | null>(null);
+    const [snackbar, setSnackbar] = useState<React.ReactNode | null>(null);
+
+    // Состояние для отзыва заявки
+    const [isWithdrawLoading, setIsWithdrawLoading] = useState(false);
+    const [isFetching, setFetching] = useState(false);
 
     // Состояния для списка голосов
     const [votes, setVotes] = useState<any[]>([]); // TODO: Заменить any на типизацию VoteData
     const [isLoadingVotes, setIsLoadingVotes] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
 
-    useEffect(() => {
+    const fetchVotes = useCallback(async () => {
         setIsLoadingVotes(true);
-        apiGet('/users/me/votes')
-            .then(data => setVotes(data || []))
-            .catch(e => console.error("Failed to load user votes", e))
-            .finally(() => setIsLoadingVotes(false));
+        try {
+            const data = await apiGet('/users/me/votes');
+            setVotes(data || []);
+        } catch (e) {
+            console.error("Failed to load user votes", e);
+        } finally {
+            setIsLoadingVotes(false);
+        }
     }, [apiGet]);
+
+    useEffect(() => {
+        fetchVotes();
+    }, [fetchVotes]);
+
+    const onRefresh = useCallback(async () => {
+        setFetching(true);
+        await Promise.all([refetchUser(), fetchVotes()]);
+        setFetching(false);
+    }, [refetchUser, fetchVotes]);
+
 
     const handleSettingsChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const { checked } = e.target;
@@ -94,11 +122,40 @@ export const Profile = ({ id, user, setCurrentUser }: ProfileProps) => {
             setVotes(prevVotes => prevVotes.filter(vote => vote.id !== voteId));
         } catch(error) {
             console.error("Failed to cancel vote", error);
-            // TODO: Показать Snackbar с ошибкой
+            setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>Ошибка при отмене голоса</Snackbar>)
         } finally {
             setPopout(null);
         }
     };
+
+    const performWithdraw = async () => {
+        setIsWithdrawLoading(true);
+        try {
+            await apiPost('/experts/withdraw');
+            await refetchUser(); // Обновляем данные пользователя глобально
+            setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>Заявка успешно отозвана.</Snackbar>)
+        } catch (error) {
+            setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>{(error as Error).message}</Snackbar>);
+        } finally {
+            setIsWithdrawLoading(false);
+        }
+    };
+
+    // --- НОВАЯ ФУНКЦИЯ: Отзыв заявки с подтверждением ---
+    const handleWithdraw = () => {
+        setPopout(
+            <Alert
+                actions={[
+                    { title: 'Отмена', mode: 'cancel' },
+                    { title: 'Отозвать', mode: 'destructive', action: performWithdraw }
+                ]}
+                onClose={() => setPopout(null)}
+                header="Подтверждение"
+                text="Вы уверены, что хотите отозвать заявку? Вы сможете подать ее заново в любой момент."
+            />
+        );
+    };
+
 
     const filteredVotes = useMemo(() => {
         if (!votes) return [];
@@ -140,29 +197,41 @@ export const Profile = ({ id, user, setCurrentUser }: ProfileProps) => {
     return (
         <Panel id={id} popout={popout}>
             {modal}
-            <PanelHeader>Аккаунт</PanelHeader>
-            <UserProfile user={user} onSettingsClick={() => setActiveModal('profile-settings-modal')} />
-
-            <Group header={<Header>Мои голоса</Header>}>
-                <Search
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Поиск по эксперту или мероприятию"
+            {snackbar}
+            <PanelHeader
+                after={isDesktop && <PanelHeaderButton onClick={onRefresh}><Icon28RefreshOutline/></PanelHeaderButton>}
+            >
+                Аккаунт
+            </PanelHeader>
+            <PullToRefresh onRefresh={onRefresh} isFetching={isFetching}>
+                <UserProfile
+                    user={user}
+                    onSettingsClick={() => setActiveModal('profile-settings-modal')}
+                    onWithdraw={handleWithdraw}
+                    isWithdrawLoading={isWithdrawLoading}
                 />
-                <div style={{ paddingBottom: '12px' }}>
-                    {isLoadingVotes ? <Spinner /> : (
-                        filteredVotes.length > 0 ? (
-                            filteredVotes.map(vote => (
-                                <VoteHistoryCard key={vote.id} vote={vote} onCancelVote={handleCancelVote} />
-                            ))
-                        ) : (
-                            <Placeholder icon={<Icon56UsersOutline />} header="Вы еще не голосовали">
-                                Ваш голос помогает формировать честный рейтинг.
-                            </Placeholder>
-                        )
-                    )}
-                </div>
-            </Group>
+
+                <Group header={<Header>Мои голоса</Header>}>
+                    <Search
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Поиск по эксперту или мероприятию"
+                    />
+                    <div style={{ paddingBottom: '60px' }}>
+                        {isLoadingVotes ? <Spinner /> : (
+                            filteredVotes.length > 0 ? (
+                                filteredVotes.map(vote => (
+                                    <VoteHistoryCard key={vote.id} vote={vote} onCancelVote={handleCancelVote} />
+                                ))
+                            ) : (
+                                <Placeholder icon={<Icon56UsersOutline />} header="Вы еще не голосовали">
+                                    Ваш голос помогает формировать честный рейтинг.
+                                </Placeholder>
+                            )
+                        )}
+                    </div>
+                </Group>
+            </PullToRefresh>
         </Panel>
     );
 };

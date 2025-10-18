@@ -12,7 +12,8 @@ import {
     SimpleCell,
     Button,
     RichCell,
-    Placeholder
+    Placeholder,
+    Spinner
 } from '@vkontakte/vkui';
 import {
     Icon20FavoriteCircleFillYellow,
@@ -55,9 +56,11 @@ interface UserData {
 interface UserProfileProps {
     user: UserData | null;
     onSettingsClick: () => void;
+    onWithdraw: () => void;
+    isWithdrawLoading: boolean;
 }
 
-export const UserProfile = ({ user, onSettingsClick }: UserProfileProps) => {
+export const UserProfile = ({ user, onSettingsClick, onWithdraw, isWithdrawLoading }: UserProfileProps) => {
     if (!user) return null;
     const routeNavigator = useRouteNavigator();
 
@@ -87,7 +90,6 @@ export const UserProfile = ({ user, onSettingsClick }: UserProfileProps) => {
                 >
                     <Title level="2">{user.first_name} {user.last_name}</Title>
 
-                    {/* Статистика отданных голосов */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
                         <Tooltip description="Отдано голосов 'Доверяю'">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--vkui--color_text_positive)' }}>
@@ -103,7 +105,7 @@ export const UserProfile = ({ user, onSettingsClick }: UserProfileProps) => {
                         </Tooltip>
                     </div>
 
-                    {(isApprovedExpert || isPending) && (
+                    {isApprovedExpert && (
                         <Div style={{ textAlign: 'left', color: 'var(--vkui--color_text_secondary)', paddingTop: 8, paddingBottom: 0, paddingLeft: 0, paddingRight: 0 }}>
                             <Text>Тариф: {user.tariff_plan || 'Начальный'}</Text>
                         </Div>
@@ -111,8 +113,22 @@ export const UserProfile = ({ user, onSettingsClick }: UserProfileProps) => {
                 </RichCell>
 
                 {isPending && (
-                    <Placeholder icon={<Icon56RecentOutline />}>
-                        Ваша заявка на становление экспертом находится на модерации.
+                    <Placeholder
+                        icon={<Icon56RecentOutline />}
+                        header="Заявка на модерации"
+                        action={
+                            <Button
+                                size="m"
+                                mode="destructive"
+                                onClick={onWithdraw}
+                                disabled={isWithdrawLoading}
+                                after={isWithdrawLoading ? <Spinner size="s"/> : null}
+                            >
+                                Отозвать заявку
+                            </Button>
+                        }
+                    >
+                        Ваша анкета находится на рассмотрении. Вы можете отозвать ее, чтобы внести изменения и подать заново.
                     </Placeholder>
                 )}
 

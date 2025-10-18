@@ -1,5 +1,3 @@
-// src/panels/ExpertProfile.jsx
-
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Panel,
@@ -50,7 +48,7 @@ const PublicEventCard = ({ event }) => {
 };
 
 
-export const ExpertProfile = ({ id, user, setPopout, setSnackbar }) => {
+export const ExpertProfile = ({ id, user, setPopout, setSnackbar, refetchUser }) => {
     const routeNavigator = useRouteNavigator();
     const { expertId } = useParams();
     const { apiGet, apiPost, apiDelete } = useApi();
@@ -137,7 +135,7 @@ export const ExpertProfile = ({ id, user, setPopout, setSnackbar }) => {
 
         try {
             await apiPost(`/experts/${expertId}/vote`, finalData);
-            await refetchExpert();
+            await Promise.all([refetchExpert(), refetchUser()]);
             setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>Спасибо, ваш голос учтен!</Snackbar>);
         } catch (err) {
             setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel/>}>{err.message}</Snackbar>);
@@ -154,8 +152,8 @@ export const ExpertProfile = ({ id, user, setPopout, setSnackbar }) => {
                     { title: 'Да, отменить', mode: 'destructive', action: handleCancelVote }
                 ]}
                 onClose={() => setPopout(null)}
-                title="Подтверждение"
-                description="Вы уверены, что хотите отменить свой голос? Это действие необратимо."
+                header="Подтверждение"
+                text="Вы уверены, что хотите отменить свой голос? Это действие необратимо."
             />
         );
     }
@@ -165,10 +163,9 @@ export const ExpertProfile = ({ id, user, setPopout, setSnackbar }) => {
         setPopout(<Spinner size="l" />);
         try {
             await apiDelete(`/experts/${expertId}/vote`);
-            await refetchExpert();
+            await Promise.all([refetchExpert(), refetchUser()]);
             setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>Ваш голос был отменен.</Snackbar>);
-        } catch (err)
- {
+        } catch (err) {
             setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel/>}>{err.message}</Snackbar>);
         } finally {
             setPopout(null);
@@ -201,7 +198,6 @@ export const ExpertProfile = ({ id, user, setPopout, setSnackbar }) => {
 
     return (
         <Panel id={id}>
-            {/* --- ИЗМЕНЕНИЕ: Удалена ошибочная строка {popout} --- */}
             {modal}
             <PanelHeader before={<PanelHeaderBack onClick={() => routeNavigator.back()} />}>
                 Профиль эксперта

@@ -300,8 +300,8 @@ export const App = () => {
                                 selectedThemeIds={selectedThemeIds}
                                 onOpenTopicsModal={() => setActiveModal('topics-modal')}
                             />
-                            <Voting id={PANEL_VOTING} setPopout={setPopout} setSnackbar={setSnackbar} user={currentUser} />
-                            <ExpertProfile id={PANEL_EXPERT_PROFILE} setPopout={setPopout} setSnackbar={setSnackbar} user={currentUser} />
+                            <Voting id={PANEL_VOTING} setPopout={setPopout} setSnackbar={setSnackbar} user={currentUser} refetchUser={refetchUser} />
+                            <ExpertProfile id={PANEL_EXPERT_PROFILE} setPopout={setPopout} setSnackbar={setSnackbar} user={currentUser} refetchUser={refetchUser} />
                             <Admin id={PANEL_ADMIN} setPopout={setPopout} setSnackbar={setSnackbar} />
                         </View>
                         <View id={VIEW_EVENTS} activePanel={activePanel}>
@@ -312,12 +312,17 @@ export const App = () => {
                             <Tariffs id={PANEL_TARIFFS} user={currentUser} setPopout={setPopout} setSnackbar={setSnackbar} refetchUser={refetchUser} />
                         </View>
                         <View id={VIEW_PROFILE} activePanel={activePanel}>
-                            <Profile id={PANEL_PROFILE} user={currentUser} setCurrentUser={setCurrentUser}/>
+                            <Profile
+                                id={PANEL_PROFILE}
+                                user={currentUser}
+                                setCurrentUser={setCurrentUser}
+                                refetchUser={refetchUser}
+                            />
                         </View>
                     </Epic>
                 </SplitCol>
             </SplitLayout>
-            {snackbar}
+            {snackbar && React.cloneElement(snackbar, { style: { ...snackbar.props.style, zIndex: 1000 } })}
         </AppRoot>
     );
 };

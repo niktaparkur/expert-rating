@@ -239,9 +239,7 @@ async def create_community_vote(
     expert_profile_res = await db.execute(
         select(ExpertProfile)
         .options(selectinload(ExpertProfile.user))
-        .filter(
-            ExpertProfile.user_vk_id == vk_id, ExpertProfile.status == "approved"
-        )
+        .filter(ExpertProfile.user_vk_id == vk_id, ExpertProfile.status == "approved")
     )
     expert_profile = expert_profile_res.scalars().first()
     if not expert_profile:
@@ -257,9 +255,7 @@ async def create_community_vote(
         )
     )
     if existing_vote_res.scalars().first():
-        raise ValueError(
-            "Вы можете голосовать за этого эксперта только раз в 24 часа."
-        )
+        raise ValueError("Вы можете голосовать за этого эксперта только раз в 24 часа.")
 
     db_vote = Vote(
         voter_vk_id=vote_data.voter_vk_id,
@@ -303,9 +299,7 @@ async def get_user_vote_for_expert(
         return None
 
     comment = (
-        vote.comment_positive
-        if vote.vote_type == "trust"
-        else vote.comment_negative
+        vote.comment_positive if vote.vote_type == "trust" else vote.comment_negative
     )
     return UserVoteInfo(vote_type=vote.vote_type, comment=comment)
 

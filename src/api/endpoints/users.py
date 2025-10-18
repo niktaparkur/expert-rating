@@ -113,7 +113,12 @@ async def get_my_votes(
                 vote.expert.user, from_attributes=True
             )
 
-        if vote.is_expert_vote and vote.event and vote.event.expert and vote.event.expert.user:
+        if (
+            vote.is_expert_vote
+            and vote.event
+            and vote.event.expert
+            and vote.event.expert.user
+        ):
             event_expert_info = VotedExpertInfo.model_validate(
                 vote.event.expert.user, from_attributes=True
             )
