@@ -1,10 +1,11 @@
 # src/crud/expert_crud.py
 
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 import redis.asyncio as redis
 from loguru import logger
-from sqlalchemy import func, and_, case
+from sqlalchemy import func, and_, case, or_, String
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -111,7 +112,7 @@ async def get_full_user_profile_with_stats(db: AsyncSession, vk_id: int):
     my_votes_stats = {
         "trust": given_votes_stats.trust_count or 0,
         "distrust": (given_votes_stats.total or 0)
-        - (given_votes_stats.trust_count or 0),
+                    - (given_votes_stats.trust_count or 0),
     }
 
     return tuple(user_profile_tuple) + (stats, my_votes_stats)
@@ -147,18 +148,57 @@ async def set_expert_status(db: AsyncSession, vk_id: int, status: str) -> Expert
     return db_profile
 
 
-async def get_all_users_with_profiles(db: AsyncSession):
+async def get_all_users_paginated(
+        db: AsyncSession,
+        page: int,
+        size: int,
+        search_query: Optional[str] = None,
+        user_type_filter: Optional[str] = None,
+        date_sort_order: Optional[str] = None,
+):
     query = (
         select(User, ExpertProfile)
         .outerjoin(ExpertProfile, User.vk_id == ExpertProfile.user_vk_id)
-        .order_by(User.registration_date.desc())
     )
-    results = await db.execute(query)
-    return results.all()
+
+    # Фильтр по типу пользователя
+    if user_type_filter == "expert":
+        query = query.where(User.is_expert.is_(True))
+    elif user_type_filter == "user":
+        query = query.where(User.is_expert.is_(False))
+
+    # Поиск по имени/фамилии/ID
+    if search_query:
+        search_term = f"%{search_query.lower()}%"
+        query = query.where(
+            or_(
+                func.lower(User.first_name).like(search_term),
+                func.lower(User.last_name).like(search_term),
+                func.cast(User.vk_id, String).like(f"{search_term}%"),
+            )
+        )
+
+    # Сортировка по дате
+    if date_sort_order == "asc":
+        query = query.order_by(User.registration_date.asc())
+    else:  # Сортировка по умолчанию - desc
+        query = query.order_by(User.registration_date.desc())
+
+    # Сначала считаем общее количество
+    count_query = select(func.count()).select_from(query.subquery())
+    total_count_res = await db.execute(count_query)
+    total_count = total_count_res.scalar_one()
+
+    # Затем применяем пагинацию
+    offset = (page - 1) * size
+    paginated_query = query.offset(offset).limit(size)
+
+    results = await db.execute(paginated_query)
+    return results.all(), total_count
 
 
 async def delete_user_by_vk_id(
-    db: AsyncSession, vk_id: int, cache: redis.Redis
+        db: AsyncSession, vk_id: int, cache: redis.Redis
 ) -> bool:
     result = await db.execute(select(User).filter(User.vk_id == vk_id))
     db_user = result.scalars().first()
@@ -231,15 +271,17 @@ async def create_user(db: AsyncSession, user_data: UserCreate) -> User:
 
 
 async def create_community_vote(
-    db: AsyncSession,
-    vk_id: int,
-    vote_data: CommunityVoteCreate,
-    notifier: Notifier,
+        db: AsyncSession,
+        vk_id: int,
+        vote_data: CommunityVoteCreate,
+        notifier: Notifier,
 ):
     expert_profile_res = await db.execute(
         select(ExpertProfile)
         .options(selectinload(ExpertProfile.user))
-        .filter(ExpertProfile.user_vk_id == vk_id, ExpertProfile.status == "approved")
+        .filter(
+            ExpertProfile.user_vk_id == vk_id, ExpertProfile.status == "approved"
+        )
     )
     expert_profile = expert_profile_res.scalars().first()
     if not expert_profile:
@@ -255,7 +297,9 @@ async def create_community_vote(
         )
     )
     if existing_vote_res.scalars().first():
-        raise ValueError("Вы можете голосовать за этого эксперта только раз в 24 часа.")
+        raise ValueError(
+            "Вы можете голосовать за этого эксперта только раз в 24 часа."
+        )
 
     db_vote = Vote(
         voter_vk_id=vote_data.voter_vk_id,
@@ -281,7 +325,7 @@ async def create_community_vote(
 
 
 async def get_user_vote_for_expert(
-    db: AsyncSession, expert_vk_id: int, voter_vk_id: int
+        db: AsyncSession, expert_vk_id: int, voter_vk_id: int
 ) -> UserVoteInfo | None:
     """Возвращает информацию о голосе пользователя за конкретного эксперта."""
     if not voter_vk_id:
@@ -299,13 +343,15 @@ async def get_user_vote_for_expert(
         return None
 
     comment = (
-        vote.comment_positive if vote.vote_type == "trust" else vote.comment_negative
+        vote.comment_positive
+        if vote.vote_type == "trust"
+        else vote.comment_negative
     )
     return UserVoteInfo(vote_type=vote.vote_type, comment=comment)
 
 
 async def delete_community_vote(
-    db: AsyncSession, expert_vk_id: int, voter_vk_id: int, notifier: Notifier
+        db: AsyncSession, expert_vk_id: int, voter_vk_id: int, notifier: Notifier
 ) -> bool:
     expert_profile_res = await db.execute(
         select(ExpertProfile)
@@ -347,7 +393,7 @@ async def delete_community_vote(
 
 
 async def update_user_settings(
-    db: AsyncSession, vk_id: int, settings_data: UserSettingsUpdate
+        db: AsyncSession, vk_id: int, settings_data: UserSettingsUpdate
 ) -> ExpertProfile:
     result = await db.execute(
         select(ExpertProfile).filter(ExpertProfile.user_vk_id == vk_id)

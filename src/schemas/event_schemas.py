@@ -3,8 +3,6 @@ from datetime import datetime
 from pydantic import BaseModel, model_validator, HttpUrl
 from typing import Optional, Any, List, TYPE_CHECKING
 
-from src.schemas import expert_schemas
-
 if TYPE_CHECKING:
     from src.schemas.expert_schemas import VotedExpertInfo
 
@@ -67,6 +65,6 @@ class ExpertEventsResponse(BaseModel):
     past: List[EventRead]
 
 
+from src.schemas.expert_schemas import VotedExpertInfo
 
-EventRead.model_rebuild(force=True)
-expert_schemas.MyVoteRead.model_rebuild(force=True)
+EventRead.model_rebuild()
