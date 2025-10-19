@@ -1,5 +1,3 @@
-// src/panels/ExpertProfile.jsx
-
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Panel,
@@ -18,7 +16,8 @@ import {
     Avatar,
     Header,
     SimpleCell,
-    InfoRow
+    InfoRow,
+    Alert
 } from '@vkontakte/vkui';
 import { useRouteNavigator, useParams } from '@vkontakte/vk-mini-apps-router';
 import { useApi } from '../hooks/useApi.js';
@@ -49,7 +48,7 @@ const PublicEventCard = ({ event }) => {
 };
 
 
-export const ExpertProfile = ({ id, user, setPopout, setSnackbar }) => {
+export const ExpertProfile = ({ id, user, setPopout, setSnackbar, refetchUser }) => {
     const routeNavigator = useRouteNavigator();
     const { expertId } = useParams();
     const { apiGet, apiPost, apiDelete } = useApi();
@@ -62,7 +61,9 @@ export const ExpertProfile = ({ id, user, setPopout, setSnackbar }) => {
     const [activeTab, setActiveTab] = useState('current');
 
     const isSelf = user?.vk_id === Number(expertId);
-    const hasVoted = expert?.current_user_has_voted || false;
+
+    const hasVoted = !!expert?.current_user_vote_info;
+    const initialVote = expert?.current_user_vote_info;
 
     const refetchExpert = useCallback(async () => {
         try {
@@ -70,8 +71,9 @@ export const ExpertProfile = ({ id, user, setPopout, setSnackbar }) => {
             setExpert(profileData);
         } catch (err) {
             console.error("Failed to refetch expert data:", err);
+            setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel/>}>Не удалось обновить профиль.</Snackbar>);
         }
-    }, [apiGet, expertId]);
+    }, [apiGet, expertId, setSnackbar]);
 
     useEffect(() => {
         if (!expertId) return;
@@ -111,17 +113,13 @@ export const ExpertProfile = ({ id, user, setPopout, setSnackbar }) => {
 
     const handleVoteSubmit = async (voteData) => {
         if (!user?.vk_id) {
-            setSnackbar(<Snackbar onClose={() => setSnackbar(null)}>Не удалось определить ваш ID</Snackbar>);
+            setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel/>}>Не удалось определить ваш ID</Snackbar>);
             return;
         }
 
-        if (!voteData.vote_type) {
-            setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>Пожалуйста, выберите "Доверяю" или "Не доверяю".</Snackbar>);
-            return;
-        }
-
-        if (voteData.vote_type === 'distrust' && !voteData.comment.trim()) {
-            setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>При выборе "Не доверяю" комментарий обязателен.</Snackbar>);
+        const comment = voteData.comment.trim();
+        if (!comment) {
+             setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>Комментарий является обязательным.</Snackbar>);
             return;
         }
 
@@ -131,30 +129,44 @@ export const ExpertProfile = ({ id, user, setPopout, setSnackbar }) => {
         const finalData = {
             voter_vk_id: user.vk_id,
             vote_type: voteData.vote_type,
-            comment_positive: voteData.vote_type === 'trust' ? voteData.comment : null,
-            comment_negative: voteData.vote_type === 'distrust' ? voteData.comment : null,
+            comment_positive: voteData.vote_type === 'trust' ? comment : null,
+            comment_negative: voteData.vote_type === 'distrust' ? comment : null,
         };
 
         try {
             await apiPost(`/experts/${expertId}/vote`, finalData);
-            await refetchExpert();
+            await Promise.all([refetchExpert(), refetchUser()]);
             setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>Спасибо, ваш голос учтен!</Snackbar>);
         } catch (err) {
-            setSnackbar(<Snackbar onClose={() => setSnackbar(null)}>{err.message}</Snackbar>);
+            setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel/>}>{err.message}</Snackbar>);
         } finally {
             setPopout(null);
         }
     };
+
+    const confirmCancelVote = () => {
+        setPopout(
+            <Alert
+                actions={[
+                    { title: 'Оставить голос', mode: 'cancel' },
+                    { title: 'Да, отменить', mode: 'destructive', action: handleCancelVote }
+                ]}
+                onClose={() => setPopout(null)}
+                header="Подтверждение"
+                text="Вы уверены, что хотите отменить свой голос? Это действие необратимо."
+            />
+        );
+    }
 
     const handleCancelVote = async () => {
         setActiveModal(null);
         setPopout(<Spinner size="l" />);
         try {
             await apiDelete(`/experts/${expertId}/vote`);
-            await refetchExpert();
+            await Promise.all([refetchExpert(), refetchUser()]);
             setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>Ваш голос был отменен.</Snackbar>);
         } catch (err) {
-            setSnackbar(<Snackbar onClose={() => setSnackbar(null)}>{err.message}</Snackbar>);
+            setSnackbar(<Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel/>}>{err.message}</Snackbar>);
         } finally {
             setPopout(null);
         }
@@ -169,8 +181,9 @@ export const ExpertProfile = ({ id, user, setPopout, setSnackbar }) => {
             <ModalPage id="narod-vote-modal" onClose={() => setActiveModal(null)} header={<ModalPageHeader>Народное голосование</ModalPageHeader>}>
                 <VoteCard
                     onSubmit={handleVoteSubmit}
-                    onCancelVote={handleCancelVote}
+                    onCancelVote={confirmCancelVote}
                     hasVoted={hasVoted}
+                    initialVote={initialVote}
                 />
             </ModalPage>
         </ModalRoot>
@@ -208,7 +221,7 @@ export const ExpertProfile = ({ id, user, setPopout, setSnackbar }) => {
                                 { label: 'Завершенные', value: 'past' },
                             ]}
                         />
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingTop: '12px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingTop: '12px', paddingBottom: '60px' }}>
                             {loading.events && <Spinner />}
 
                             {!loading.events && activeTab === 'current' && (

@@ -49,7 +49,6 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authorization header is missing",
         )
-
     token_type, _, access_token = authorization.partition(" ")
     if token_type.lower() != "bearer" or not access_token:
         raise HTTPException(
@@ -61,9 +60,9 @@ async def get_current_user(
         "access_token": settings.VK_SERVICE_KEY,
         "v": "5.199",
     }
-
     token_cache_key = f"token_to_id:{access_token}"
     cached_id = await cache.get(token_cache_key)
+
     if cached_id:
         vk_user_id = int(cached_id)
         logger.debug(f"VK User ID {vk_user_id} found in token cache.")
@@ -81,13 +80,11 @@ async def get_current_user(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail=f"Could not connect to VK API: {e}",
                 )
-
         if "error" in data:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=f"Invalid token: {data['error'].get('error_msg')}",
             )
-
         vk_user_id = data["response"]["user_id"]
         await cache.set(token_cache_key, vk_user_id, ex=300)
 
@@ -99,17 +96,14 @@ async def get_current_user(
 
     logger.debug(f"User {vk_user_id} not in profile cache. Fetching from DB.")
 
-    user_with_profile_and_stats = await expert_crud.get_user_with_profile_by_vk_id(
-        db, vk_id=vk_user_id
-    )
-
-    if not user_with_profile_and_stats:
+    user_with_profile = await expert_crud.get_user_with_profile(db, vk_id=vk_user_id)
+    if not user_with_profile:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found in database. Please register.",
         )
 
-    user, profile, stats_dict = user_with_profile_and_stats
+    user, profile = user_with_profile
     is_admin_flag = user.is_admin or (user.vk_id == settings.ADMIN_ID)
 
     current_user = {
@@ -122,7 +116,6 @@ async def get_current_user(
         "is_expert": False,
         "status": None,
         "tariff_plan": "Начальный",
-        "stats": stats_dict,
         "topics": [],
         "show_community_rating": True,
     }
@@ -132,7 +125,6 @@ async def get_current_user(
         current_user["status"] = profile.status
         current_user["tariff_plan"] = profile.tariff_plan
         current_user["show_community_rating"] = profile.show_community_rating
-
         if profile.selected_themes:
             current_user["topics"] = [
                 f"{theme.category.name} > {theme.name}"

@@ -1,7 +1,12 @@
+from __future__ import annotations
 from datetime import datetime
-from typing import List, Optional
-
+from typing import List, Optional, TYPE_CHECKING
 from pydantic import BaseModel, Field, HttpUrl
+
+from src.schemas import event_schemas
+
+if TYPE_CHECKING:
+    from src.schemas.event_schemas import EventRead
 
 
 class Stats(BaseModel):
@@ -21,19 +26,51 @@ class UserCreate(UserBase):
     pass
 
 
+class MyVotesStats(BaseModel):
+    trust: int = 0
+    distrust: int = 0
+
+
+class VotedExpertInfo(BaseModel):
+    vk_id: int
+    first_name: str
+    last_name: str
+    photo_url: HttpUrl
+
+    class Config:
+        from_attributes = True
+
+
+class UserVoteInfo(BaseModel):
+    vote_type: str
+    comment: Optional[str] = None
+
+
 class UserAdminRead(UserBase):
     registration_date: datetime
     is_expert: bool
     is_admin: bool
     status: Optional[str] = None
     stats: Stats = Field(default_factory=Stats)
+    my_votes_stats: MyVotesStats = Field(default_factory=MyVotesStats)
     topics: List[str] = []
     show_community_rating: bool = True
     regalia: Optional[str] = None
     social_link: Optional[str] = None
     tariff_plan: Optional[str] = "Начальный"
+    current_user_vote_info: Optional[UserVoteInfo] = None
 
-    current_user_has_voted: bool = False
+    class Config:
+        from_attributes = True
+
+
+class MyVoteRead(BaseModel):
+    id: int
+    vote_type: str
+    is_expert_vote: bool
+    created_at: datetime
+    expert: Optional[VotedExpertInfo] = None
+    event: Optional[EventRead] = None
 
     class Config:
         from_attributes = True
@@ -77,3 +114,8 @@ class CommunityVoteCreate(BaseModel):
 
 class UserSettingsUpdate(BaseModel):
     show_community_rating: Optional[bool] = None
+
+
+
+MyVoteRead.model_rebuild(force=True)
+event_schemas.EventRead.model_rebuild(force=True)

@@ -67,6 +67,8 @@ class Vote(Base):
     comment_negative = Column(Text)
     is_expert_vote = Column(Boolean)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    expert = relationship("ExpertProfile", foreign_keys=[expert_vk_id])
+    event = relationship("Event", foreign_keys=[event_id])
 
 
 class Category(Base):

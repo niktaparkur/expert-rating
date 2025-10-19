@@ -1,5 +1,3 @@
-// src/panels/Voting.jsx
-
 import React, { useState, useEffect } from 'react';
 import {
     Panel, PanelHeader, PanelHeaderBack, Group, Spinner, Div, Text,
@@ -11,7 +9,7 @@ import { MiniExpertProfile } from '../components/MiniExpertProfile.jsx';
 import { VoteCard } from '../components/VoteCard.jsx';
 import { Icon56CheckCircleOutline, Icon56ErrorTriangleOutline, Icon56RecentOutline } from '@vkontakte/icons';
 
-export const Voting = ({ id, user, setPopout, setSnackbar }) => {
+export const Voting = ({ id, user, setPopout, setSnackbar, refetchUser }) => {
     const routeNavigator = useRouteNavigator();
     const { promo } = useParams();
     const { apiGet, apiPost } = useApi();
@@ -56,6 +54,7 @@ export const Voting = ({ id, user, setPopout, setSnackbar }) => {
 
         try {
             await apiPost('/events/vote', finalData);
+            await refetchUser();
             setActiveModal('vote-success-modal');
         } catch (err) {
             if (err.message.includes("already voted")) {
