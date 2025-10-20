@@ -42,6 +42,7 @@ class VotedExpertInfo(BaseModel):
 class UserVoteInfo(BaseModel):
     vote_type: str
     comment: Optional[str] = None
+    comment_neutral: Optional[str] = None
 
 
 class UserAdminRead(UserBase):
@@ -108,6 +109,7 @@ class CommunityVoteCreate(BaseModel):
     vote_type: str
     comment_positive: Optional[str] = None
     comment_negative: Optional[str] = None
+    comment_neutral: Optional[str] = None
 
 
 class UserSettingsUpdate(BaseModel):
@@ -119,6 +121,7 @@ class PaginatedUsersResponse(BaseModel):
     total_count: int
     page: int
     size: int
+
 
 from src.schemas.event_schemas import EventRead
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from datetime import datetime
-from pydantic import BaseModel, model_validator, HttpUrl
+from pydantic import BaseModel, model_validator, HttpUrl, field_serializer
 from typing import Optional, Any, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -29,6 +29,7 @@ class EventRead(EventBase):
     votes_count: int = 0
     trust_count: int = 0
     distrust_count: int = 0
+    has_tariff_warning: bool = False
 
     expert_info: Optional[VotedExpertInfo] = None
 
@@ -41,6 +42,10 @@ class EventRead(EventBase):
         if hasattr(data, "event_name"):
             data.name = data.event_name
         return data
+
+    @field_serializer('event_date')
+    def serialize_dt(self, dt: datetime, _info):
+        return dt.isoformat().replace('+00:00', 'Z')
 
 
 class VoteBase(BaseModel):
@@ -63,6 +68,13 @@ class Stats(BaseModel):
 class ExpertEventsResponse(BaseModel):
     current: List[EventRead]
     past: List[EventRead]
+
+
+class PaginatedEventsResponse(BaseModel):
+    items: List[EventRead]
+    total_count: int
+    page: int
+    size: int
 
 
 from src.schemas.expert_schemas import VotedExpertInfo

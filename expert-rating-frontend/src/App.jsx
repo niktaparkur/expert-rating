@@ -2,21 +2,21 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     Epic, Tabbar, TabbarItem, SplitLayout, SplitCol, View, AppRoot,
     ModalRoot, ModalCard, FormItem, FormField, Input, Button, ScreenSpinner, Tooltip, Spinner, Snackbar, Avatar,
-    ModalPage, ModalPageHeader, FixedLayout, Group, Header, Checkbox, Search, Div, PanelHeaderBack
+    ModalPage, ModalPageHeader, FixedLayout, Group, Header, Checkbox, Search, Div, PanelHeaderBack, useAdaptivity
 } from '@vkontakte/vkui';
 import { useActiveVkuiLocation, useRouteNavigator, useSearchParams } from '@vkontakte/vk-mini-apps-router';
 import {
-    Icon28ArticleOutline, Icon28CalendarOutline, Icon28MoneyCircleOutline,
-    Icon28UserCircleOutline, Icon24CheckCircleFilledBlue, Icon28CheckShieldOutline, Icon16Done, Icon16Cancel
+    Icon28ArticleOutline, Icon28CompassOutline, Icon28MoneyCircleOutline,
+    Icon28UserCircleOutline, Icon24CheckCircleFilledBlue, Icon28CheckShieldOutline
 } from '@vkontakte/icons';
 import bridge from '@vkontakte/vk-bridge';
 import debounce from 'lodash.debounce';
 import { Onboarding } from './components/Onboarding.tsx';
 import { useApi } from "./hooks/useApi.js";
-import { Home, Registration, Admin, Events, CreateEvent, Voting, ExpertProfile, Tariffs, Profile } from './panels';
+import { Home, Registration, Admin, Afisha, CreateEvent, Voting, ExpertProfile, Tariffs, Profile } from './panels';
 import {
-    VIEW_MAIN, VIEW_EVENTS, VIEW_TARIFFS, VIEW_PROFILE,
-    PANEL_HOME, PANEL_REGISTRATION, PANEL_EVENTS, PANEL_CREATE_EVENT,
+    VIEW_MAIN, VIEW_AFISHA, VIEW_TARIFFS, VIEW_PROFILE,
+    PANEL_HOME, PANEL_REGISTRATION, PANEL_AFISHA, PANEL_CREATE_EVENT,
     PANEL_ADMIN, PANEL_VOTING, PANEL_EXPERT_PROFILE,
     PANEL_TARIFFS, PANEL_PROFILE
 } from './routes';
@@ -154,7 +154,6 @@ export const App = () => {
                 if (userData) {
                     setCurrentUser(userData);
                 } else {
-                    console.log("User not found, starting registration...");
                     const vkUser = await bridge.send('VKWebAppGetUserInfo');
                     const newUserPayload = {
                         vk_id: vkUser.id,
@@ -178,7 +177,6 @@ export const App = () => {
         try {
             await bridge.send('VKWebAppStorageSet', { key: 'onboardingFinished', value: 'true' });
         } catch (error) {
-            console.error('Failed to save onboarding status to VK Storage, falling back to localStorage:', error);
             localStorage.setItem('onboardingFinished', 'true');
         }
         setShowOnboarding(false);
@@ -188,7 +186,7 @@ export const App = () => {
     const onStoryChange = (e) => {
         const story = e.currentTarget.dataset.story;
         if (story === VIEW_MAIN) routeNavigator.push('/');
-        if (story === VIEW_EVENTS) routeNavigator.push('/dashboard');
+        if (story === VIEW_AFISHA) routeNavigator.push('/afisha');
         if (story === VIEW_TARIFFS) routeNavigator.push('/tariffs');
         if (story === VIEW_PROFILE) routeNavigator.push('/profile');
     };
@@ -220,30 +218,8 @@ export const App = () => {
             <ModalPage
                 id="topics-modal"
                 onClose={() => setActiveModal(null)}
-                header={
-                    <ModalPageHeader before={<PanelHeaderBack onClick={() => setActiveModal(null)} />}>
-                        <div style={{ padding: '0 8px', width: '100%' }}>
-                             <Search
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Поиск по темам"
-                            />
-                        </div>
-                    </ModalPageHeader>
-                }
-                footer={
-                    isTopicSelectionValid && (
-                        <Div>
-                            <Button
-                                size="l"
-                                stretched
-                                onClick={() => setActiveModal(null)}
-                            >
-                                Сохранить
-                            </Button>
-                        </Div>
-                    )
-                }
+                header={ <ModalPageHeader before={<PanelHeaderBack onClick={() => setActiveModal(null)} />}> <div style={{ padding: '0 8px', width: '100%' }}> <Search value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Поиск по темам" /> </div> </ModalPageHeader> }
+                footer={ isTopicSelectionValid && ( <Div> <Button size="l" stretched onClick={() => setActiveModal(null)}> Сохранить </Button> </Div> ) }
                 settlingHeight={100}
             >
                 <Group>
@@ -251,12 +227,7 @@ export const App = () => {
                         <div key={group.name}>
                             <Header>{group.name}</Header>
                             {group.items.map(item => (
-                                <Checkbox
-                                    key={item.id}
-                                    checked={selectedThemeIds.includes(item.id)}
-                                    onChange={(e) => handleTopicChange(e, item.id)}
-                                    disabled={selectedThemeIds.length >= 3 && !selectedThemeIds.includes(item.id)}
-                                >
+                                <Checkbox key={item.id} checked={selectedThemeIds.includes(item.id)} onChange={(e) => handleTopicChange(e, item.id)} disabled={selectedThemeIds.length >= 3 && !selectedThemeIds.includes(item.id)}>
                                     {item.name}
                                 </Checkbox>
                             ))}
@@ -275,7 +246,7 @@ export const App = () => {
         return (
              <Tabbar>
                 <TabbarItem onClick={onStoryChange} selected={activeView === VIEW_MAIN} data-story={VIEW_MAIN} label="Рейтинг"><Icon28ArticleOutline /></TabbarItem>
-                <TabbarItem onClick={onStoryChange} selected={activeView === VIEW_EVENTS} data-story={VIEW_EVENTS} label="Мероприятия"><Icon28CalendarOutline /></TabbarItem>
+                <TabbarItem onClick={onStoryChange} selected={activeView === VIEW_AFISHA} data-story={VIEW_AFISHA} label="Афиша"><Icon28CompassOutline /></TabbarItem>
                 <TabbarItem onClick={() => setActiveModal('promo-vote-modal')} style={{ background: 'var(--vkui--color_background_accent)', borderRadius: '12px', color: 'white' }} label="Голосовать"><Icon24CheckCircleFilledBlue /></TabbarItem>
                 <TabbarItem onClick={onStoryChange} selected={activeView === VIEW_TARIFFS} data-story={VIEW_TARIFFS} label="Тарифы"><Icon28MoneyCircleOutline /></TabbarItem>
                 <TabbarItem onClick={onStoryChange} selected={activeView === VIEW_PROFILE} data-story={VIEW_PROFILE} label="Аккаунт"><Icon28UserCircleOutline /></TabbarItem>
@@ -293,31 +264,20 @@ export const App = () => {
                     <Epic activeStory={activeView} tabbar={renderTabbar()}>
                         <View id={VIEW_MAIN} activePanel={activePanel}>
                             <Home id={PANEL_HOME} user={currentUser} />
-                            <Registration
-                                id={PANEL_REGISTRATION}
-                                user={currentUser}
-                                refetchUser={refetchUser}
-                                selectedThemeIds={selectedThemeIds}
-                                onOpenTopicsModal={() => setActiveModal('topics-modal')}
-                            />
+                            <Registration id={PANEL_REGISTRATION} user={currentUser} refetchUser={refetchUser} selectedThemeIds={selectedThemeIds} onOpenTopicsModal={() => setActiveModal('topics-modal')} />
                             <Voting id={PANEL_VOTING} setPopout={setPopout} setSnackbar={setSnackbar} user={currentUser} refetchUser={refetchUser} />
                             <ExpertProfile id={PANEL_EXPERT_PROFILE} setPopout={setPopout} setSnackbar={setSnackbar} user={currentUser} refetchUser={refetchUser} />
                             <Admin id={PANEL_ADMIN} setPopout={setPopout} setSnackbar={setSnackbar} />
                         </View>
-                        <View id={VIEW_EVENTS} activePanel={activePanel}>
-                            <Events id={PANEL_EVENTS} user={currentUser} />
+                        <View id={VIEW_AFISHA} activePanel={activePanel}>
+                            <Afisha id={PANEL_AFISHA} user={currentUser} />
                             <CreateEvent id={PANEL_CREATE_EVENT} setPopout={setPopout} />
                         </View>
                         <View id={VIEW_TARIFFS} activePanel={activePanel}>
                             <Tariffs id={PANEL_TARIFFS} user={currentUser} setPopout={setPopout} setSnackbar={setSnackbar} refetchUser={refetchUser} />
                         </View>
                         <View id={VIEW_PROFILE} activePanel={activePanel}>
-                            <Profile
-                                id={PANEL_PROFILE}
-                                user={currentUser}
-                                setCurrentUser={setCurrentUser}
-                                refetchUser={refetchUser}
-                            />
+                            <Profile id={PANEL_PROFILE} user={currentUser} setCurrentUser={setCurrentUser} refetchUser={refetchUser} setPopout={setPopout} setSnackbar={setSnackbar} />
                         </View>
                     </Epic>
                 </SplitCol>

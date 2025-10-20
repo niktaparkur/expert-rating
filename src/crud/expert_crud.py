@@ -1,5 +1,3 @@
-# src/crud/expert_crud.py
-
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -57,7 +55,6 @@ async def create_expert_request(db: AsyncSession, expert_data: ExpertCreate) -> 
 
 
 async def get_user_with_profile(db: AsyncSession, vk_id: int):
-    """Быстро получает пользователя и его профиль, без тяжелых расчетов статистики."""
     query = (
         select(User, ExpertProfile)
         .outerjoin(ExpertProfile, User.vk_id == ExpertProfile.user_vk_id)
@@ -71,12 +68,10 @@ async def get_user_with_profile(db: AsyncSession, vk_id: int):
 
 
 async def get_full_user_profile_with_stats(db: AsyncSession, vk_id: int):
-    """Получает полную информацию о пользователе со всей статистикой."""
     user_profile_tuple = await get_user_with_profile(db, vk_id)
     if not user_profile_tuple:
         return None
 
-    # Расчет статистики эксперта (голоса, полученные им)
     community_query = select(func.count(Vote.id)).where(
         Vote.expert_vk_id == vk_id,
         Vote.is_expert_vote.is_(False),
@@ -102,7 +97,6 @@ async def get_full_user_profile_with_stats(db: AsyncSession, vk_id: int):
         "events_count": events_count,
     }
 
-    # Расчет статистики отданных голосов (голоса, отданные им)
     given_votes_query = select(
         func.count(Vote.id).label("total"),
         func.sum(case((Vote.vote_type == "trust", 1), else_=0)).label("trust_count"),
@@ -112,7 +106,7 @@ async def get_full_user_profile_with_stats(db: AsyncSession, vk_id: int):
     my_votes_stats = {
         "trust": given_votes_stats.trust_count or 0,
         "distrust": (given_votes_stats.total or 0)
-                    - (given_votes_stats.trust_count or 0),
+        - (given_votes_stats.trust_count or 0),
     }
 
     return tuple(user_profile_tuple) + (stats, my_votes_stats)
@@ -149,25 +143,22 @@ async def set_expert_status(db: AsyncSession, vk_id: int, status: str) -> Expert
 
 
 async def get_all_users_paginated(
-        db: AsyncSession,
-        page: int,
-        size: int,
-        search_query: Optional[str] = None,
-        user_type_filter: Optional[str] = None,
-        date_sort_order: Optional[str] = None,
+    db: AsyncSession,
+    page: int,
+    size: int,
+    search_query: Optional[str] = None,
+    user_type_filter: Optional[str] = None,
+    date_sort_order: Optional[str] = None,
 ):
-    query = (
-        select(User, ExpertProfile)
-        .outerjoin(ExpertProfile, User.vk_id == ExpertProfile.user_vk_id)
+    query = select(User, ExpertProfile).outerjoin(
+        ExpertProfile, User.vk_id == ExpertProfile.user_vk_id
     )
 
-    # Фильтр по типу пользователя
     if user_type_filter == "expert":
         query = query.where(User.is_expert.is_(True))
     elif user_type_filter == "user":
         query = query.where(User.is_expert.is_(False))
 
-    # Поиск по имени/фамилии/ID
     if search_query:
         search_term = f"%{search_query.lower()}%"
         query = query.where(
@@ -178,18 +169,15 @@ async def get_all_users_paginated(
             )
         )
 
-    # Сортировка по дате
     if date_sort_order == "asc":
         query = query.order_by(User.registration_date.asc())
-    else:  # Сортировка по умолчанию - desc
+    else:
         query = query.order_by(User.registration_date.desc())
 
-    # Сначала считаем общее количество
     count_query = select(func.count()).select_from(query.subquery())
     total_count_res = await db.execute(count_query)
     total_count = total_count_res.scalar_one()
 
-    # Затем применяем пагинацию
     offset = (page - 1) * size
     paginated_query = query.offset(offset).limit(size)
 
@@ -198,7 +186,7 @@ async def get_all_users_paginated(
 
 
 async def delete_user_by_vk_id(
-        db: AsyncSession, vk_id: int, cache: redis.Redis
+    db: AsyncSession, vk_id: int, cache: redis.Redis
 ) -> bool:
     result = await db.execute(select(User).filter(User.vk_id == vk_id))
     db_user = result.scalars().first()
@@ -270,47 +258,70 @@ async def create_user(db: AsyncSession, user_data: UserCreate) -> User:
     return db_user
 
 
-async def create_community_vote(
-        db: AsyncSession,
-        vk_id: int,
-        vote_data: CommunityVoteCreate,
-        notifier: Notifier,
+async def upsert_community_vote(
+    db: AsyncSession,
+    expert_vk_id: int,
+    vote_data: CommunityVoteCreate,
+    notifier: Notifier,
 ):
     expert_profile_res = await db.execute(
         select(ExpertProfile)
         .options(selectinload(ExpertProfile.user))
         .filter(
-            ExpertProfile.user_vk_id == vk_id, ExpertProfile.status == "approved"
+            ExpertProfile.user_vk_id == expert_vk_id, ExpertProfile.status == "approved"
         )
     )
     expert_profile = expert_profile_res.scalars().first()
     if not expert_profile:
         raise ValueError("Эксперт не найден или не одобрен.")
 
-    twenty_four_hours_ago = datetime.now(timezone.utc) - timedelta(hours=24)
     existing_vote_res = await db.execute(
         select(Vote).filter(
             Vote.voter_vk_id == vote_data.voter_vk_id,
-            Vote.expert_vk_id == vk_id,
+            Vote.expert_vk_id == expert_vk_id,
             Vote.is_expert_vote.is_(False),
-            Vote.created_at >= twenty_four_hours_ago,
         )
     )
-    if existing_vote_res.scalars().first():
-        raise ValueError(
-            "Вы можете голосовать за этого эксперта только раз в 24 часа."
-        )
+    db_vote = existing_vote_res.scalars().first()
 
-    db_vote = Vote(
-        voter_vk_id=vote_data.voter_vk_id,
-        expert_vk_id=vk_id,
-        event_id=None,
-        is_expert_vote=False,
-        vote_type=vote_data.vote_type,
-        comment_positive=vote_data.comment_positive,
-        comment_negative=vote_data.comment_negative,
-    )
-    db.add(db_vote)
+    if db_vote:
+        twenty_four_hours_ago = datetime.now(timezone.utc) - timedelta(hours=24)
+        if (
+            db_vote.created_at >= twenty_four_hours_ago
+            and vote_data.vote_type != "neutral"
+        ):
+            if db_vote.vote_type != vote_data.vote_type:
+                raise ValueError(
+                    "Вы можете изменять свой голос (кроме отмены) только раз в 24 часа."
+                )
+
+        db_vote.vote_type = vote_data.vote_type
+        db_vote.comment_positive = vote_data.comment_positive
+        db_vote.comment_negative = vote_data.comment_negative
+        db_vote.comment_neutral = vote_data.comment_neutral
+        db_vote.created_at = datetime.now(timezone.utc)
+        action_for_notifier = "updated"
+        if vote_data.vote_type == "neutral":
+            action_for_notifier = "neutralized"
+    else:
+        if vote_data.vote_type == "neutral":
+            raise ValueError(
+                "Нельзя установить нейтральный статус, не проголосовав ранее."
+            )
+
+        db_vote = Vote(
+            voter_vk_id=vote_data.voter_vk_id,
+            expert_vk_id=expert_vk_id,
+            event_id=None,
+            is_expert_vote=False,
+            vote_type=vote_data.vote_type,
+            comment_positive=vote_data.comment_positive,
+            comment_negative=vote_data.comment_negative,
+            comment_neutral=None,
+        )
+        db.add(db_vote)
+        action_for_notifier = "submitted"
+
     await db.commit()
     await db.refresh(db_vote)
 
@@ -318,16 +329,16 @@ async def create_community_vote(
     await notifier.send_vote_action_notification(
         user_vk_id=vote_data.voter_vk_id,
         expert_name=expert_name,
-        expert_vk_id=vk_id,
-        action="submitted",
+        expert_vk_id=expert_vk_id,
+        action=action_for_notifier,
+        vote_type=vote_data.vote_type,
     )
     return db_vote
 
 
 async def get_user_vote_for_expert(
-        db: AsyncSession, expert_vk_id: int, voter_vk_id: int
+    db: AsyncSession, expert_vk_id: int, voter_vk_id: int
 ) -> UserVoteInfo | None:
-    """Возвращает информацию о голосе пользователя за конкретного эксперта."""
     if not voter_vk_id:
         return None
     query = select(Vote).where(
@@ -335,6 +346,7 @@ async def get_user_vote_for_expert(
             Vote.expert_vk_id == expert_vk_id,
             Vote.voter_vk_id == voter_vk_id,
             Vote.is_expert_vote.is_(False),
+            Vote.vote_type != "neutral",
         )
     )
     result = await db.execute(query)
@@ -343,57 +355,15 @@ async def get_user_vote_for_expert(
         return None
 
     comment = (
-        vote.comment_positive
-        if vote.vote_type == "trust"
-        else vote.comment_negative
+        vote.comment_positive if vote.vote_type == "trust" else vote.comment_negative
     )
-    return UserVoteInfo(vote_type=vote.vote_type, comment=comment)
-
-
-async def delete_community_vote(
-        db: AsyncSession, expert_vk_id: int, voter_vk_id: int, notifier: Notifier
-) -> bool:
-    expert_profile_res = await db.execute(
-        select(ExpertProfile)
-        .options(selectinload(ExpertProfile.user))
-        .filter(ExpertProfile.user_vk_id == expert_vk_id)
+    return UserVoteInfo(
+        vote_type=vote.vote_type, comment=comment, comment_neutral=vote.comment_neutral
     )
-    expert_profile = expert_profile_res.scalars().first()
-    if not expert_profile:
-        return False  # Эксперт не найден
-
-    query = select(Vote).where(
-        and_(
-            Vote.expert_vk_id == expert_vk_id,
-            Vote.voter_vk_id == voter_vk_id,
-            Vote.is_expert_vote.is_(False),
-        )
-    )
-    result = await db.execute(query)
-    db_vote = result.scalars().first()
-
-    if db_vote:
-        await db.delete(db_vote)
-        await db.commit()
-        logger.info(
-            f"Vote from {voter_vk_id} for expert {expert_vk_id} has been deleted."
-        )
-
-        expert_name = (
-            f"{expert_profile.user.first_name} {expert_profile.user.last_name}"
-        )
-        await notifier.send_vote_action_notification(
-            user_vk_id=voter_vk_id,
-            expert_name=expert_name,
-            expert_vk_id=expert_vk_id,
-            action="cancelled",
-        )
-        return True
-    return False
 
 
 async def update_user_settings(
-        db: AsyncSession, vk_id: int, settings_data: UserSettingsUpdate
+    db: AsyncSession, vk_id: int, settings_data: UserSettingsUpdate
 ) -> ExpertProfile:
     result = await db.execute(
         select(ExpertProfile).filter(ExpertProfile.user_vk_id == vk_id)
@@ -426,7 +396,6 @@ async def withdraw_expert_request(db: AsyncSession, vk_id: int) -> bool:
 
 
 async def get_user_votes(db: AsyncSession, vk_id: int) -> list[Vote]:
-    """Получает все голоса, отданные пользователем."""
     query = (
         select(Vote)
         .where(Vote.voter_vk_id == vk_id)

@@ -1,7 +1,7 @@
 export { Home } from './Home';
 export { Registration } from './Registration';
 export { Admin } from './Admin';
-export { Events } from './Events';
+export { Afisha } from './Afisha';
 export { CreateEvent } from './CreateEvent';
 export { Voting } from './Voting';
 export { ExpertProfile } from './ExpertProfile';

@@ -62,9 +62,10 @@ class Vote(Base):
     event_id = Column(
         Integer, ForeignKey("Events.id", ondelete="SET NULL"), nullable=True
     )
-    vote_type = Column(Enum("trust", "distrust"))
+    vote_type = Column(Enum("trust", "distrust", "neutral"))
     comment_positive = Column(Text)
     comment_negative = Column(Text)
+    comment_neutral = Column(Text, nullable=True)
     is_expert_vote = Column(Boolean)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     expert = relationship("ExpertProfile", foreign_keys=[expert_vk_id])
