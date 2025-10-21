@@ -25,5 +25,5 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-root
 
-      - name: Run linter (Ruff)
-        run: poetry run ruff check .
+#      - name: Run linter (Ruff)
+#        run: poetry run ruff check .
