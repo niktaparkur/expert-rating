@@ -12,6 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from src.core.config import settings
 from src.crud import expert_crud
 from src.services.notifier import Notifier
+from src.schemas import expert_schemas
 
 load_dotenv()
 
@@ -96,50 +97,42 @@ async def get_current_user(
 
     logger.debug(f"User {vk_user_id} not in profile cache. Fetching from DB.")
 
-    user_with_profile = await expert_crud.get_user_with_profile(db, vk_id=vk_user_id)
-    if not user_with_profile:
+    result = await expert_crud.get_full_user_profile_with_stats(db, vk_id=vk_user_id)
+
+    if not result:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found in database. Please register.",
         )
 
-    user, profile = user_with_profile
-    is_admin_flag = user.is_admin or (user.vk_id == settings.ADMIN_ID)
+    user, profile, stats_dict, my_votes_stats_dict = result
 
-    current_user = {
-        "vk_id": user.vk_id,
-        "first_name": user.first_name,
-        "last_name": user.last_name,
-        "photo_url": str(user.photo_url),
-        "registration_date": user.registration_date,
-        "is_admin": is_admin_flag,
-        "is_expert": False,
-        "status": None,
-        "tariff_plan": "Начальный",
-        "topics": [],
-        "show_community_rating": True,
-    }
+    response_data = expert_schemas.UserAdminRead.model_validate(
+        user, from_attributes=True
+    )
+    response_data.stats = expert_schemas.Stats(**stats_dict)
+    response_data.my_votes_stats = expert_schemas.MyVotesStats(**my_votes_stats_dict)
+    response_data.is_admin = user.is_admin or (user.vk_id == settings.ADMIN_ID)
 
     if profile:
-        current_user["is_expert"] = profile.status == "approved"
-        current_user["status"] = profile.status
-        current_user["tariff_plan"] = profile.tariff_plan
-        current_user["show_community_rating"] = profile.show_community_rating
+        response_data.is_expert = profile.status == "approved"
+        response_data.status = profile.status
+        response_data.show_community_rating = profile.show_community_rating
+        response_data.tariff_plan = profile.tariff_plan
+        response_data.regalia = profile.regalia
+        response_data.social_link = str(profile.social_link)
         if profile.selected_themes:
-            current_user["topics"] = [
+            response_data.topics = [
                 f"{theme.category.name} > {theme.name}"
                 for theme in profile.selected_themes
             ]
 
-    if current_user.get("registration_date"):
-        current_user["registration_date"] = current_user[
-            "registration_date"
-        ].isoformat()
+    current_user_dict = response_data.model_dump(mode="json")
 
-    await cache.set(cache_key, json.dumps(current_user), ex=3600)
+    await cache.set(cache_key, json.dumps(current_user_dict), ex=3600)
     logger.info(f"User {vk_user_id} data has been cached.")
 
-    return current_user
+    return current_user_dict
 
 
 async def get_current_admin_user(current_user: Dict = Depends(get_current_user)):

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import sentry_sdk
 
-from src.api.endpoints import experts, events, payment, tariffs, users, meta
+from src.api.endpoints import experts, events, payment, tariffs, users, meta, promo
 from src.core.config import settings
 
 if settings.SENTRY_DSN:
@@ -31,6 +31,7 @@ app.include_router(payment.router, prefix="/api/v1")
 app.include_router(tariffs.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(meta.router, prefix="/api/v1")
+app.include_router(promo.router, prefix="/api/v1")
 
 
 @app.get("/")

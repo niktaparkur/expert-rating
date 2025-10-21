@@ -1,9 +1,7 @@
 from __future__ import annotations
 from datetime import datetime
-from pydantic import BaseModel, model_validator, HttpUrl
+from pydantic import BaseModel, model_validator, HttpUrl, field_serializer
 from typing import Optional, Any, List, TYPE_CHECKING
-
-from src.schemas import expert_schemas
 
 if TYPE_CHECKING:
     from src.schemas.expert_schemas import VotedExpertInfo
@@ -20,6 +18,9 @@ class EventCreate(EventBase):
     event_link: Optional[HttpUrl] = None
     is_private: bool = False
 
+    voter_thank_you_message: Optional[str] = None
+    send_reminder: bool = False
+
 
 class EventRead(EventBase):
     id: int
@@ -31,6 +32,7 @@ class EventRead(EventBase):
     votes_count: int = 0
     trust_count: int = 0
     distrust_count: int = 0
+    has_tariff_warning: bool = False
 
     expert_info: Optional[VotedExpertInfo] = None
 
@@ -43,6 +45,10 @@ class EventRead(EventBase):
         if hasattr(data, "event_name"):
             data.name = data.event_name
         return data
+
+    @field_serializer("event_date")
+    def serialize_dt(self, dt: datetime, _info):
+        return dt.isoformat().replace("+00:00", "Z")
 
 
 class VoteBase(BaseModel):
@@ -67,6 +73,13 @@ class ExpertEventsResponse(BaseModel):
     past: List[EventRead]
 
 
+class PaginatedEventsResponse(BaseModel):
+    items: List[EventRead]
+    total_count: int
+    page: int
+    size: int
 
-EventRead.model_rebuild(force=True)
-expert_schemas.MyVoteRead.model_rebuild(force=True)
+
+from src.schemas.expert_schemas import VotedExpertInfo
+
+EventRead.model_rebuild()

@@ -3,8 +3,6 @@ from datetime import datetime
 from typing import List, Optional, TYPE_CHECKING
 from pydantic import BaseModel, Field, HttpUrl
 
-from src.schemas import event_schemas
-
 if TYPE_CHECKING:
     from src.schemas.event_schemas import EventRead
 
@@ -59,6 +57,8 @@ class UserAdminRead(UserBase):
     social_link: Optional[str] = None
     tariff_plan: Optional[str] = "Начальный"
     current_user_vote_info: Optional[UserVoteInfo] = None
+    allow_notifications: bool = True
+    allow_expert_mailings: bool = True
 
     class Config:
         from_attributes = True
@@ -114,8 +114,17 @@ class CommunityVoteCreate(BaseModel):
 
 class UserSettingsUpdate(BaseModel):
     show_community_rating: Optional[bool] = None
+    allow_notifications: Optional[bool] = None
+    allow_expert_mailings: Optional[bool] = None
 
 
+class PaginatedUsersResponse(BaseModel):
+    items: List[UserAdminRead]
+    total_count: int
+    page: int
+    size: int
 
-MyVoteRead.model_rebuild(force=True)
-event_schemas.EventRead.model_rebuild(force=True)
+
+from src.schemas.event_schemas import EventRead
+
+MyVoteRead.model_rebuild()

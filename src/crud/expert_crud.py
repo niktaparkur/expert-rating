@@ -1,10 +1,9 @@
-# src/crud/expert_crud.py
-
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 import redis.asyncio as redis
 from loguru import logger
-from sqlalchemy import func, and_, case
+from sqlalchemy import func, and_, case, or_, String, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -56,7 +55,6 @@ async def create_expert_request(db: AsyncSession, expert_data: ExpertCreate) -> 
 
 
 async def get_user_with_profile(db: AsyncSession, vk_id: int):
-    """Быстро получает пользователя и его профиль, без тяжелых расчетов статистики."""
     query = (
         select(User, ExpertProfile)
         .outerjoin(ExpertProfile, User.vk_id == ExpertProfile.user_vk_id)
@@ -70,12 +68,10 @@ async def get_user_with_profile(db: AsyncSession, vk_id: int):
 
 
 async def get_full_user_profile_with_stats(db: AsyncSession, vk_id: int):
-    """Получает полную информацию о пользователе со всей статистикой."""
     user_profile_tuple = await get_user_with_profile(db, vk_id)
     if not user_profile_tuple:
         return None
 
-    # Расчет статистики эксперта (голоса, полученные им)
     community_query = select(func.count(Vote.id)).where(
         Vote.expert_vk_id == vk_id,
         Vote.is_expert_vote.is_(False),
@@ -101,17 +97,15 @@ async def get_full_user_profile_with_stats(db: AsyncSession, vk_id: int):
         "events_count": events_count,
     }
 
-    # Расчет статистики отданных голосов (голоса, отданные им)
-    given_votes_query = select(
-        func.count(Vote.id).label("total"),
-        func.sum(case((Vote.vote_type == "trust", 1), else_=0)).label("trust_count"),
+    my_votes_query = select(
+        func.sum(case((Vote.vote_type == "trust", 1), else_=0)).label("trust"),
+        func.sum(case((Vote.vote_type == "distrust", 1), else_=0)).label("distrust"),
     ).where(Vote.voter_vk_id == vk_id)
-    given_votes_res = await db.execute(given_votes_query)
-    given_votes_stats = given_votes_res.first()
+    my_votes_res = await db.execute(my_votes_query)
+    my_votes_counts = my_votes_res.first()
     my_votes_stats = {
-        "trust": given_votes_stats.trust_count or 0,
-        "distrust": (given_votes_stats.total or 0)
-        - (given_votes_stats.trust_count or 0),
+        "trust": int(my_votes_counts.trust or 0),
+        "distrust": int(my_votes_counts.distrust or 0),
     }
 
     return tuple(user_profile_tuple) + (stats, my_votes_stats)
@@ -130,7 +124,9 @@ async def get_pending_experts(db: AsyncSession):
     return results.all()
 
 
-async def set_expert_status(db: AsyncSession, vk_id: int, status: str) -> ExpertProfile:
+async def set_expert_status(
+    db: AsyncSession, vk_id: int, status: str
+) -> Optional[ExpertProfile]:
     result = await db.execute(
         select(ExpertProfile).filter(ExpertProfile.user_vk_id == vk_id)
     )
@@ -147,14 +143,41 @@ async def set_expert_status(db: AsyncSession, vk_id: int, status: str) -> Expert
     return db_profile
 
 
-async def get_all_users_with_profiles(db: AsyncSession):
-    query = (
-        select(User, ExpertProfile)
-        .outerjoin(ExpertProfile, User.vk_id == ExpertProfile.user_vk_id)
-        .order_by(User.registration_date.desc())
+async def get_all_users_paginated(
+    db: AsyncSession,
+    page: int,
+    size: int,
+    search_query: Optional[str] = None,
+    user_type_filter: Optional[str] = None,
+    date_sort_order: Optional[str] = None,
+):
+    query = select(User, ExpertProfile).outerjoin(
+        ExpertProfile, User.vk_id == ExpertProfile.user_vk_id
     )
-    results = await db.execute(query)
-    return results.all()
+    if user_type_filter == "expert":
+        query = query.where(User.is_expert.is_(True))
+    elif user_type_filter == "user":
+        query = query.where(User.is_expert.is_(False))
+    if search_query:
+        search_term = f"%{search_query.lower()}%"
+        query = query.where(
+            or_(
+                func.lower(User.first_name).like(search_term),
+                func.lower(User.last_name).like(search_term),
+                func.cast(User.vk_id, String).like(f"{search_term}%"),
+            )
+        )
+    if date_sort_order == "asc":
+        query = query.order_by(User.registration_date.asc())
+    else:
+        query = query.order_by(User.registration_date.desc())
+    count_query = select(func.count()).select_from(query.subquery())
+    total_count_res = await db.execute(count_query)
+    total_count = total_count_res.scalar_one()
+    offset = (page - 1) * size
+    paginated_query = query.offset(offset).limit(size)
+    results = await db.execute(paginated_query)
+    return results.all(), total_count
 
 
 async def delete_user_by_vk_id(
@@ -174,31 +197,83 @@ async def delete_user_by_vk_id(
     return False
 
 
-async def get_experts_by_status(db: AsyncSession, status: str):
-    query = (
-        select(User, ExpertProfile)
-        .join(ExpertProfile, User.vk_id == ExpertProfile.user_vk_id)
-        .filter(ExpertProfile.status == status)
+async def get_top_experts_paginated(
+    db: AsyncSession,
+    page: int,
+    size: int,
+    search_query: Optional[str] = None,
+    region: Optional[str] = None,
+    category_id: Optional[int] = None,
+):
+    expert_rating = (
+        select(Vote.expert_vk_id, func.count(Vote.id).label("expert_rating"))
+        .where(Vote.is_expert_vote.is_(True), Vote.vote_type == "trust")
+        .group_by(Vote.expert_vk_id)
+        .subquery()
+    )
+
+    base_query = (
+        select(ExpertProfile)
+        .join(User)
+        .where(ExpertProfile.status == "approved")
+        .join(
+            expert_rating,
+            ExpertProfile.user_vk_id == expert_rating.c.expert_vk_id,
+            isouter=True,
+        )
         .options(
-            selectinload(ExpertProfile.selected_themes).selectinload(Theme.category)
+            selectinload(ExpertProfile.user),
+            selectinload(ExpertProfile.selected_themes).selectinload(Theme.category),
         )
     )
-    results = await db.execute(query)
-    users_with_profiles = results.all()
+
+    if search_query:
+        search_term = f"%{search_query.lower()}%"
+        base_query = base_query.join(ExpertProfile.selected_themes, isouter=True).where(
+            or_(
+                func.lower(User.first_name).like(search_term),
+                func.lower(User.last_name).like(search_term),
+                func.lower(Theme.name).like(search_term),
+            )
+        )
+
+    if region:
+        base_query = base_query.where(ExpertProfile.region == region)
+
+    if category_id:
+        base_query = base_query.join(ExpertProfile.selected_themes).where(
+            Theme.category_id == category_id
+        )
+
+    count_query = select(
+        func.count(func.distinct(ExpertProfile.user_vk_id))
+    ).select_from(base_query.subquery())
+    total_count_res = await db.execute(count_query)
+    total_count = total_count_res.scalar_one()
+
+    paginated_query = (
+        base_query.order_by(desc(func.coalesce(expert_rating.c.expert_rating, 0)))
+        .offset((page - 1) * size)
+        .limit(size)
+    )
+
+    results = await db.execute(paginated_query)
+    profiles = results.scalars().unique().all()
+
     experts_with_stats = []
-    for user, profile in users_with_profiles:
-        full_expert_data = await get_full_user_profile_with_stats(db, vk_id=user.vk_id)
+    for profile in profiles:
+        full_expert_data = await get_full_user_profile_with_stats(
+            db, vk_id=profile.user_vk_id
+        )
         if full_expert_data:
             user_obj, profile_obj, stats_dict, my_votes_stats_dict = full_expert_data
             topics = [
                 f"{theme.category.name} > {theme.name}"
-                for theme in profile.selected_themes
+                for theme in profile_obj.selected_themes
             ]
             experts_with_stats.append((user_obj, profile_obj, stats_dict, topics))
-    sorted_experts = sorted(
-        experts_with_stats, key=lambda data: data[2]["expert"], reverse=True
-    )
-    return sorted_experts
+
+    return experts_with_stats, total_count
 
 
 async def update_expert_tariff(db: AsyncSession, vk_id: int, tariff_name: str) -> bool:
@@ -232,34 +307,36 @@ async def create_user(db: AsyncSession, user_data: UserCreate) -> User:
 
 async def create_community_vote(
     db: AsyncSession,
-    vk_id: int,
+    expert_vk_id: int,
     vote_data: CommunityVoteCreate,
     notifier: Notifier,
 ):
     expert_profile_res = await db.execute(
         select(ExpertProfile)
         .options(selectinload(ExpertProfile.user))
-        .filter(ExpertProfile.user_vk_id == vk_id, ExpertProfile.status == "approved")
+        .filter(
+            ExpertProfile.user_vk_id == expert_vk_id, ExpertProfile.status == "approved"
+        )
     )
     expert_profile = expert_profile_res.scalars().first()
     if not expert_profile:
         raise ValueError("Эксперт не найден или не одобрен.")
 
-    twenty_four_hours_ago = datetime.now(timezone.utc) - timedelta(hours=24)
     existing_vote_res = await db.execute(
         select(Vote).filter(
             Vote.voter_vk_id == vote_data.voter_vk_id,
-            Vote.expert_vk_id == vk_id,
+            Vote.expert_vk_id == expert_vk_id,
             Vote.is_expert_vote.is_(False),
-            Vote.created_at >= twenty_four_hours_ago,
         )
     )
     if existing_vote_res.scalars().first():
-        raise ValueError("Вы можете голосовать за этого эксперта только раз в 24 часа.")
+        raise ValueError(
+            "Вы уже голосовали за этого эксперта. Вы можете отменить свой голос в профиле."
+        )
 
     db_vote = Vote(
         voter_vk_id=vote_data.voter_vk_id,
-        expert_vk_id=vk_id,
+        expert_vk_id=expert_vk_id,
         event_id=None,
         is_expert_vote=False,
         vote_type=vote_data.vote_type,
@@ -274,16 +351,34 @@ async def create_community_vote(
     await notifier.send_vote_action_notification(
         user_vk_id=vote_data.voter_vk_id,
         expert_name=expert_name,
-        expert_vk_id=vk_id,
+        expert_vk_id=expert_vk_id,
         action="submitted",
+        vote_type=vote_data.vote_type,
     )
     return db_vote
 
 
+async def delete_community_vote(
+    db: AsyncSession, expert_vk_id: int, voter_vk_id: int
+) -> bool:
+    query = select(Vote).where(
+        Vote.voter_vk_id == voter_vk_id,
+        Vote.expert_vk_id == expert_vk_id,
+        Vote.is_expert_vote.is_(False),
+    )
+    result = await db.execute(query)
+    vote_to_delete = result.scalars().first()
+
+    if vote_to_delete:
+        await db.delete(vote_to_delete)
+        await db.commit()
+        return True
+    return False
+
+
 async def get_user_vote_for_expert(
     db: AsyncSession, expert_vk_id: int, voter_vk_id: int
-) -> UserVoteInfo | None:
-    """Возвращает информацию о голосе пользователя за конкретного эксперта."""
+) -> Optional[UserVoteInfo]:
     if not voter_vk_id:
         return None
     query = select(Vote).where(
@@ -297,70 +392,27 @@ async def get_user_vote_for_expert(
     vote = result.scalars().first()
     if not vote:
         return None
-
     comment = (
         vote.comment_positive if vote.vote_type == "trust" else vote.comment_negative
     )
-    return UserVoteInfo(vote_type=vote.vote_type, comment=comment)
-
-
-async def delete_community_vote(
-    db: AsyncSession, expert_vk_id: int, voter_vk_id: int, notifier: Notifier
-) -> bool:
-    expert_profile_res = await db.execute(
-        select(ExpertProfile)
-        .options(selectinload(ExpertProfile.user))
-        .filter(ExpertProfile.user_vk_id == expert_vk_id)
-    )
-    expert_profile = expert_profile_res.scalars().first()
-    if not expert_profile:
-        return False  # Эксперт не найден
-
-    query = select(Vote).where(
-        and_(
-            Vote.expert_vk_id == expert_vk_id,
-            Vote.voter_vk_id == voter_vk_id,
-            Vote.is_expert_vote.is_(False),
-        )
-    )
-    result = await db.execute(query)
-    db_vote = result.scalars().first()
-
-    if db_vote:
-        await db.delete(db_vote)
-        await db.commit()
-        logger.info(
-            f"Vote from {voter_vk_id} for expert {expert_vk_id} has been deleted."
-        )
-
-        expert_name = (
-            f"{expert_profile.user.first_name} {expert_profile.user.last_name}"
-        )
-        await notifier.send_vote_action_notification(
-            user_vk_id=voter_vk_id,
-            expert_name=expert_name,
-            expert_vk_id=expert_vk_id,
-            action="cancelled",
-        )
-        return True
-    return False
+    return UserVoteInfo(vote_type=vote.vote_type, comment=comment)  # type: ignore
 
 
 async def update_user_settings(
     db: AsyncSession, vk_id: int, settings_data: UserSettingsUpdate
-) -> ExpertProfile:
-    result = await db.execute(
-        select(ExpertProfile).filter(ExpertProfile.user_vk_id == vk_id)
-    )
-    db_profile = result.scalars().first()
-    if not db_profile:
-        raise ValueError("Expert profile not found.")
+) -> User:
+    result = await db.execute(select(User).filter(User.vk_id == vk_id))
+    db_user = result.scalars().first()
+    if not db_user:
+        raise ValueError("User not found.")
+
     update_data = settings_data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
-        setattr(db_profile, key, value)
+        setattr(db_user, key, value)
+
     await db.commit()
-    await db.refresh(db_profile)
-    return db_profile
+    await db.refresh(db_user)
+    return db_user
 
 
 async def withdraw_expert_request(db: AsyncSession, vk_id: int) -> bool:
@@ -380,7 +432,6 @@ async def withdraw_expert_request(db: AsyncSession, vk_id: int) -> bool:
 
 
 async def get_user_votes(db: AsyncSession, vk_id: int) -> list[Vote]:
-    """Получает все голоса, отданные пользователем."""
     query = (
         select(Vote)
         .where(Vote.voter_vk_id == vk_id)

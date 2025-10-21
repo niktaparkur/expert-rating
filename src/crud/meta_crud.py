@@ -14,6 +14,7 @@ async def get_all_themes(db: AsyncSession):
     for category in categories:
         response.append(
             {
+                "id": category.id,
                 "name": category.name,
                 "items": [
                     {"id": theme.id, "name": theme.name} for theme in category.themes

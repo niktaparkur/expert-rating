@@ -4,17 +4,17 @@ export const transformVKBridgeAdaptivity = ({
   viewportHeight,
 }) => {
   switch (type) {
-    case 'adaptive':
+    case "adaptive":
       return {
         viewWidth: viewportWidth,
         viewHeight: viewportHeight,
       };
-    case 'force_mobile':
-    case 'force_mobile_compact':
+    case "force_mobile":
+    case "force_mobile_compact":
       return {
         viewWidth: 320,
-        sizeX: 'compact',
-        sizeY: 'regular',
+        sizeX: "compact",
+        sizeY: "regular",
       };
     default:
       return {};
