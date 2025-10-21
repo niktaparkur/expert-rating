@@ -3,7 +3,6 @@ from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
-from loguru import logger
 
 from src.core.dependencies import (
     get_current_admin_user,
@@ -54,7 +53,7 @@ async def create_event(
         return new_event
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error.")
 
 
@@ -305,15 +304,19 @@ async def reject_event(
 
 @router.delete("/vote/{vote_id}/cancel", status_code=200)
 async def cancel_event_vote(
-        vote_id: int,
-        db: AsyncSession = Depends(get_db),
-        current_user: Dict = Depends(get_current_user),
-        cache: redis.Redis = Depends(get_redis),
+    vote_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Dict = Depends(get_current_user),
+    cache: redis.Redis = Depends(get_redis),
 ):
     voter_vk_id = current_user["vk_id"]
-    success = await event_crud.delete_event_vote(db=db, vote_id=vote_id, voter_vk_id=voter_vk_id)
+    success = await event_crud.delete_event_vote(
+        db=db, vote_id=vote_id, voter_vk_id=voter_vk_id
+    )
     if not success:
-        raise HTTPException(status_code=404, detail="Голос для отмены не найден или у вас нет прав.")
+        raise HTTPException(
+            status_code=404, detail="Голос для отмены не найден или у вас нет прав."
+        )
 
     # В данном случае инвалидация кэша не так критична, но полезна для обновления my_votes_stats
     await cache.delete(f"user_profile:{voter_vk_id}")

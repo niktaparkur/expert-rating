@@ -267,7 +267,7 @@ async def delete_event_vote(db: AsyncSession, vote_id: int, voter_vk_id: int) ->
     query = select(Vote).where(
         Vote.id == vote_id,
         Vote.voter_vk_id == voter_vk_id,
-        Vote.is_expert_vote.is_(True)
+        Vote.is_expert_vote.is_(True),
     )
     result = await db.execute(query)
     vote_to_delete = result.scalars().first()

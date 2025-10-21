@@ -544,9 +544,7 @@ export const Profile = ({
   return (
     <Panel id={id}>
       {modal}
-      <PanelHeader>
-        Аккаунт
-      </PanelHeader>
+      <PanelHeader>Аккаунт</PanelHeader>
       <PullToRefresh onRefresh={onRefresh} isFetching={isFetching}>
         <UserProfile
           user={user}

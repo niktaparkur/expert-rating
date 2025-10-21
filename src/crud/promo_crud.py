@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Optional
 
 from sqlalchemy import desc
 from sqlalchemy.ext.asyncio import AsyncSession
