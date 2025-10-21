@@ -3,8 +3,10 @@ from datetime import datetime
 from pydantic import BaseModel, model_validator, HttpUrl, field_serializer
 from typing import Optional, Any, List, TYPE_CHECKING
 
+from src.schemas.base_schemas import VotedExpertInfo
+
 if TYPE_CHECKING:
-    from src.schemas.expert_schemas import VotedExpertInfo
+    pass
 
 
 class EventBase(BaseModel):
@@ -17,7 +19,6 @@ class EventCreate(EventBase):
     name: str
     event_link: Optional[HttpUrl] = None
     is_private: bool = False
-
     voter_thank_you_message: Optional[str] = None
     send_reminder: bool = False
 
@@ -79,7 +80,5 @@ class PaginatedEventsResponse(BaseModel):
     page: int
     size: int
 
-
-from src.schemas.expert_schemas import VotedExpertInfo
 
 EventRead.model_rebuild()

@@ -2,6 +2,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional, TYPE_CHECKING
 from pydantic import BaseModel, Field, HttpUrl
+from src.schemas.base_schemas import VotedExpertInfo
+
 
 if TYPE_CHECKING:
     from src.schemas.event_schemas import EventRead
@@ -27,16 +29,6 @@ class UserCreate(UserBase):
 class MyVotesStats(BaseModel):
     trust: int = 0
     distrust: int = 0
-
-
-class VotedExpertInfo(BaseModel):
-    vk_id: int
-    first_name: str
-    last_name: str
-    photo_url: HttpUrl
-
-    class Config:
-        from_attributes = True
 
 
 class UserVoteInfo(BaseModel):
@@ -125,6 +117,7 @@ class PaginatedUsersResponse(BaseModel):
     size: int
 
 
-from src.schemas.event_schemas import EventRead
+if TYPE_CHECKING:
+    from src.schemas.event_schemas import EventRead
 
-MyVoteRead.model_rebuild()
+    MyVoteRead.model_rebuild()
