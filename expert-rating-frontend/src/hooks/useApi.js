@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import {useCallback} from 'react';
 import bridge from '@vkontakte/vk-bridge';
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -9,7 +9,7 @@ let tokenPromise = null;
 const getAuthToken = () => {
     if (authToken) return Promise.resolve(authToken);
     if (tokenPromise) return tokenPromise;
-    tokenPromise = bridge.send('VKWebAppGetAuthToken', { app_id: APP_ID, scope: '' })
+    tokenPromise = bridge.send('VKWebAppGetAuthToken', {app_id: APP_ID, scope: ''})
         .then(data => {
             if (!data.access_token) throw new Error('VK Bridge не вернул access_token');
             authToken = data.access_token;
@@ -29,8 +29,8 @@ export const useApi = () => {
         }
 
         const accessToken = await getAuthToken();
-        const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` };
-        const config = { method, headers, body: body ? JSON.stringify(body) : null };
+        const headers = {'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}`};
+        const config = {method, headers, body: body ? JSON.stringify(body) : null};
 
         const response = await fetch(`${API_URL}${endpoint}`, config);
 
@@ -39,12 +39,22 @@ export const useApi = () => {
                 return null;
             }
 
-            const errorData = await response.json().catch(() => ({ detail: `Server error: ${response.status}` }));
-            throw new Error(errorData.detail || `Ошибка сервера: ${response.status}`);
+            const errorData = await response.json().catch(() => ({detail: `Server error: ${response.status}`}));
+
+            let errorMessage = `Ошибка сервера: ${response.status}`;
+            if (errorData.detail) {
+                if (typeof errorData.detail === 'string') {
+                    errorMessage = errorData.detail;
+                } else if (Array.isArray(errorData.detail)) {
+                    const firstError = errorData.detail[0];
+                    errorMessage = `Ошибка валидации поля '${firstError.loc[1]}': ${firstError.msg}`;
+                }
+            }
+            throw new Error(errorMessage);
         }
 
         if (response.status === 204 || (response.status === 200 && method === 'DELETE')) {
-            return { status: 'ok' };
+            return {status: 'ok'};
         }
 
         return response.json();
@@ -55,5 +65,5 @@ export const useApi = () => {
     const apiPut = useCallback((endpoint, body) => apiRequest(endpoint, 'PUT', body), [apiRequest]);
     const apiDelete = useCallback((endpoint) => apiRequest(endpoint, 'DELETE'), [apiRequest]);
 
-    return { apiGet, apiPost, apiPut, apiDelete };
+    return {apiGet, apiPost, apiPut, apiDelete};
 };

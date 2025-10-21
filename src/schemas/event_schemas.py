@@ -18,6 +18,9 @@ class EventCreate(EventBase):
     event_link: Optional[HttpUrl] = None
     is_private: bool = False
 
+    voter_thank_you_message: Optional[str] = None
+    send_reminder: bool = False
+
 
 class EventRead(EventBase):
     id: int
@@ -43,9 +46,9 @@ class EventRead(EventBase):
             data.name = data.event_name
         return data
 
-    @field_serializer('event_date')
+    @field_serializer("event_date")
     def serialize_dt(self, dt: datetime, _info):
-        return dt.isoformat().replace('+00:00', 'Z')
+        return dt.isoformat().replace("+00:00", "Z")
 
 
 class VoteBase(BaseModel):

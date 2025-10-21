@@ -1,15 +1,17 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, {useState, useEffect, useCallback, useRef, useMemo} from 'react';
 import {
     Panel, PanelHeader, Group, Spinner, Placeholder, Search,
-    Button, Div
+    SimpleCell, ModalRoot
 } from '@vkontakte/vkui';
-import { Icon56NewsfeedOutline } from '@vkontakte/icons';
-import { useApi } from '../hooks/useApi';
-import { EventData, UserData } from '../types';
-import { AfishaEventCard } from '../components/AfishaEventCard';
-import { AfishaFilters } from '../components/AfishaFilters';
+import {Icon28CalendarOutline, Icon56NewsfeedOutline} from '@vkontakte/icons';
+import {useApi} from '../hooks/useApi';
+import {EventData, UserData} from '../types';
+import {AfishaFilters} from '../components/AfishaFilters';
+import {AfishaEventModal} from '../components/AfishaEventModal';
 import debounce from 'lodash.debounce';
-import { useRouteNavigator } from '@vkontakte/vk-mini-apps-router';
+import {useRouteNavigator} from '@vkontakte/vk-mini-apps-router';
+import {format} from 'date-fns';
+import {ru} from 'date-fns/locale';
 
 interface AfishaProps {
     id: string;
@@ -18,9 +20,9 @@ interface AfishaProps {
 
 const PAGE_SIZE = 10;
 
-export const Afisha = ({ id, user }: AfishaProps) => {
+export const Afisha = ({id, user}: AfishaProps) => {
     const routeNavigator = useRouteNavigator();
-    const { apiGet } = useApi();
+    const {apiGet} = useApi();
     const observerRef = useRef<HTMLDivElement>(null);
 
     const [events, setEvents] = useState<EventData[]>([]);
@@ -31,7 +33,10 @@ export const Afisha = ({ id, user }: AfishaProps) => {
 
     const [searchQuery, setSearchQuery] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
-    const [filters, setFilters] = useState({ region: '', category_id: '' });
+    const [filters, setFilters] = useState({region: '', category_id: ''});
+
+    const [activeModal, setActiveModal] = useState<string | null>(null);
+    const [selectedEvent, setSelectedEvent] = useState<EventData | null>(null);
 
     const [regions, setRegions] = useState<string[]>([]);
     const [categories, setCategories] = useState<any[]>([]);
@@ -43,13 +48,8 @@ export const Afisha = ({ id, user }: AfishaProps) => {
     const fetchEvents = useCallback(async (isNewSearch = false) => {
         if (isLoading) return;
         setIsLoading(true);
-
         const currentPage = isNewSearch ? 1 : page;
-
-        const params = new URLSearchParams({
-            page: String(currentPage),
-            size: String(PAGE_SIZE),
-        });
+        const params = new URLSearchParams({page: String(currentPage), size: String(PAGE_SIZE)});
         if (debouncedSearch) params.append('search', debouncedSearch);
         if (filters.region) params.append('region', filters.region);
         if (filters.category_id) params.append('category_id', filters.category_id);
@@ -57,8 +57,7 @@ export const Afisha = ({ id, user }: AfishaProps) => {
         try {
             const data = await apiGet(`/events/feed?${params.toString()}`);
             setEvents(prev => isNewSearch ? data.items : [...prev, ...data.items]);
-            setTotalEvents(data.total_count);
-            setHasMore(data.items.length === PAGE_SIZE && (currentPage * PAGE_SIZE) < data.total_count);
+            setHasMore((currentPage * PAGE_SIZE) < data.total_count);
             if (isNewSearch) setPage(2); else setPage(p => p + 1);
         } catch (error) {
             console.error("Failed to fetch events feed:", error);
@@ -87,7 +86,7 @@ export const Afisha = ({ id, user }: AfishaProps) => {
                     fetchEvents();
                 }
             },
-            { threshold: 1.0 }
+            {threshold: 1.0}
         );
 
         const currentObserverRef = observerRef.current;
@@ -102,29 +101,55 @@ export const Afisha = ({ id, user }: AfishaProps) => {
         };
     }, [hasMore, isLoading, fetchEvents]);
 
+    const handleEventClick = (event: EventData) => {
+        setSelectedEvent(event);
+        setActiveModal('afisha-event-details');
+    };
+
+    const modal = (
+        <ModalRoot activeModal={activeModal} onClose={() => setActiveModal(null)}>
+            <AfishaEventModal id="afisha-event-details" event={selectedEvent} onClose={() => setActiveModal(null)}/>
+        </ModalRoot>
+    );
+
     return (
         <Panel id={id}>
+            {modal}
             <PanelHeader>Афиша</PanelHeader>
             <Group>
-                <Search value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                <AfishaFilters regions={regions} categories={categories} onFiltersChange={setFilters} />
+                <Search value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}/>
+                {/* <AfishaFilters regions={regions} categories={categories} onFiltersChange={setFilters} /> */}
             </Group>
 
-            <div style={{ paddingBottom: '60px' }}>
-                {events.map(event => (
-                    <AfishaEventCard key={event.id} event={event} />
-                ))}
+            <Group style={{paddingBottom: '60px'}}>
+                {events.map(event => {
+                    const isoDateString = event.event_date.endsWith('Z') ? event.event_date : event.event_date + 'Z';
+                    const eventDate = new Date(isoDateString);
+                    const dateString = format(eventDate, 'd MMMM, HH:mm', {locale: ru});
 
-                <div ref={observerRef} style={{ height: '1px' }} />
+                    return (
+                        <SimpleCell
+                            key={event.id}
+                            before={<Icon28CalendarOutline/>}
+                            subtitle={dateString}
+                            onClick={() => handleEventClick(event)}
+                            hoverMode="background"
+                            activeMode="background"
+                            multiline
+                        >
+                            {event.name}
+                        </SimpleCell>
+                    );
+                })}
 
-                {isLoading && <Spinner size="l" style={{ margin: '20px 0' }} />}
-
+                <div ref={observerRef} style={{height: '1px'}}/>
+                {isLoading && <Spinner size="l" style={{margin: '20px 0'}}/>}
                 {!isLoading && events.length === 0 && (
-                    <Placeholder icon={<Icon56NewsfeedOutline />} title="Мероприятия не найдены">
+                    <Placeholder icon={<Icon56NewsfeedOutline/>} title="Мероприятия не найдены">
                         Попробуйте изменить фильтры или поисковый запрос.
                     </Placeholder>
                 )}
-            </div>
+            </Group>
         </Panel>
     );
 };

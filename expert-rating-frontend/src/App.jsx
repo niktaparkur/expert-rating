@@ -271,7 +271,7 @@ export const App = () => {
                         </View>
                         <View id={VIEW_AFISHA} activePanel={activePanel}>
                             <Afisha id={PANEL_AFISHA} user={currentUser} />
-                            <CreateEvent id={PANEL_CREATE_EVENT} setPopout={setPopout} />
+                            <CreateEvent id={PANEL_CREATE_EVENT} setPopout={setPopout} user={currentUser} />
                         </View>
                         <View id={VIEW_TARIFFS} activePanel={activePanel}>
                             <Tariffs id={PANEL_TARIFFS} user={currentUser} setPopout={setPopout} setSnackbar={setSnackbar} refetchUser={refetchUser} />

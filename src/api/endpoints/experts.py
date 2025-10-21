@@ -40,13 +40,18 @@ async def register_expert(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/top", response_model=List[expert_schemas.UserAdminRead])
-async def get_top_experts(db: AsyncSession = Depends(get_db)):
-    approved_experts_data = await expert_crud.get_experts_by_status(
-        db=db, status="approved"
+@router.get("/top", response_model=expert_schemas.PaginatedUsersResponse)
+async def get_top_experts(
+    db: AsyncSession = Depends(get_db),
+    page: int = 1,
+    size: int = 20,
+    search: Optional[str] = None,
+):
+    experts_data, total_count = await expert_crud.get_top_experts_paginated(
+        db=db, page=page, size=size, search_query=search
     )
     response_users = []
-    for user, profile, stats_dict, topics in approved_experts_data:
+    for user, profile, stats_dict, topics in experts_data:
         user_data = expert_schemas.UserAdminRead.model_validate(
             user, from_attributes=True
         )
@@ -58,7 +63,12 @@ async def get_top_experts(db: AsyncSession = Depends(get_db)):
         user_data.social_link = str(profile.social_link)
         user_data.tariff_plan = profile.tariff_plan
         response_users.append(user_data)
-    return response_users
+    return {
+        "items": response_users,
+        "total_count": total_count,
+        "page": page,
+        "size": size,
+    }
 
 
 @router.get("/{vk_id}", response_model=expert_schemas.UserAdminRead)
@@ -70,21 +80,17 @@ async def get_expert_profile(
     result = await expert_crud.get_full_user_profile_with_stats(db=db, vk_id=vk_id)
     if not result:
         raise HTTPException(status_code=404, detail="Expert not found")
-
     user, profile, stats_dict, my_votes_stats_dict = result
     response_data = expert_schemas.UserAdminRead.model_validate(
         user, from_attributes=True
     )
-
     response_data.stats = expert_schemas.Stats(**stats_dict)
     response_data.my_votes_stats = expert_schemas.MyVotesStats(**my_votes_stats_dict)
     response_data.tariff_plan = profile.tariff_plan if profile else "Начальный"
-
     vote_info = await expert_crud.get_user_vote_for_expert(
         db=db, expert_vk_id=vk_id, voter_vk_id=current_user["vk_id"]
     )
     response_data.current_user_vote_info = vote_info
-
     if profile:
         response_data.status = profile.status
         response_data.show_community_rating = profile.show_community_rating
@@ -93,7 +99,6 @@ async def get_expert_profile(
         response_data.topics = [
             f"{theme.category.name} > {theme.name}" for theme in profile.selected_themes
         ]
-
     return response_data
 
 
@@ -107,7 +112,6 @@ async def upsert_vote_for_expert_community(
 ):
     if vk_id == vote_data.voter_vk_id:
         raise HTTPException(status_code=400, detail="Вы не можете голосовать за себя.")
-
     is_comment_missing = (
         (vote_data.vote_type == "trust" and not vote_data.comment_positive)
         or (vote_data.vote_type == "distrust" and not vote_data.comment_negative)
@@ -118,10 +122,9 @@ async def upsert_vote_for_expert_community(
             status_code=400,
             detail="Комментарий является обязательным для этого действия.",
         )
-
     try:
         await expert_crud.upsert_community_vote(
-            db=db, vk_id=vk_id, vote_data=vote_data, notifier=notifier
+            db=db, expert_vk_id=vk_id, vote_data=vote_data, notifier=notifier
         )
         await cache.delete(f"user_profile:{vk_id}")
         await cache.delete(f"user_profile:{vote_data.voter_vk_id}")
@@ -195,7 +198,6 @@ async def get_all_users(
         user_type_filter=user_type,
         date_sort_order=sort_by_date,
     )
-
     response_users = []
     for user, profile in users_with_profiles:
         user_data = expert_schemas.UserAdminRead.model_validate(
@@ -205,7 +207,6 @@ async def get_all_users(
             user_data.status = profile.status
             user_data.tariff_plan = profile.tariff_plan
         response_users.append(user_data)
-
     return {
         "items": response_users,
         "total_count": total_count,

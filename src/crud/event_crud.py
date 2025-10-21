@@ -6,12 +6,12 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from typing import Optional
 
-from src.models.all_models import Event, ExpertProfile, Vote, User, Theme
+from src.models.all_models import Event, ExpertProfile, Vote, Theme
 from src.schemas import event_schemas
 
 
 async def check_if_user_voted_on_event(
-        db: AsyncSession, event_id: int, voter_vk_id: int
+    db: AsyncSession, event_id: int, voter_vk_id: int
 ) -> bool:
     if not voter_vk_id:
         return False
@@ -23,7 +23,7 @@ async def check_if_user_voted_on_event(
 
 
 async def create_event(
-        db: AsyncSession, event_data: event_schemas.EventCreate, expert_id: int
+    db: AsyncSession, event_data: event_schemas.EventCreate, expert_id: int
 ):
     promo_normalized = event_data.promo_word.upper().strip()
     existing_event = await get_event_by_promo(db, promo_normalized)
@@ -79,7 +79,7 @@ async def get_event_by_promo(db: AsyncSession, promo_word: str):
 
 
 async def create_vote(
-        db: AsyncSession, vote_data: event_schemas.VoteCreate, event: Event
+    db: AsyncSession, vote_data: event_schemas.VoteCreate, event: Event
 ):
     existing_vote_result = await db.execute(
         select(Vote).filter(
@@ -110,7 +110,7 @@ async def get_pending_events(db: AsyncSession):
 
 
 async def set_event_status(
-        db: AsyncSession, event_id: int, status: str, reason: str = None
+    db: AsyncSession, event_id: int, status: str, reason: str = None
 ):
     result = await db.execute(select(Event).filter(Event.id == event_id))
     db_event = result.scalars().first()
@@ -126,28 +126,19 @@ async def set_event_status(
 
 async def get_public_upcoming_events(db: AsyncSession):
     now = datetime.now(timezone.utc)
-
     query = (
         select(Event)
         .where(
             and_(
                 Event.status == "approved",
                 Event.is_private.is_(False),
+                Event.event_date >= now,
             )
         )
         .order_by(Event.event_date.asc())
     )
     results = await db.execute(query)
-    all_approved_public_events = results.scalars().all()
-
-    upcoming_events = []
-    for event in all_approved_public_events:
-        start_time_aware = event.event_date.replace(tzinfo=timezone.utc)
-        end_time = start_time_aware + timedelta(minutes=event.duration_minutes)
-        if end_time >= now:
-            upcoming_events.append(event)
-
-    return upcoming_events[:20]
+    return results.scalars().all()
 
 
 async def get_events_by_expert_id(db: AsyncSession, expert_id: int):
@@ -167,32 +158,28 @@ async def get_events_by_expert_id(db: AsyncSession, expert_id: int):
 
     current_events = []
     past_events = []
-
     for event in all_events:
         start_time_aware = event.event_date.replace(tzinfo=timezone.utc)
         end_time = start_time_aware + timedelta(minutes=event.duration_minutes)
-
         if end_time < now:
             past_events.append(event)
         else:
             current_events.append(event)
 
     current_events.sort(key=lambda e: e.event_date)
-
-    return {
-        "current": current_events,
-        "past": past_events,
-    }
+    return {"current": current_events, "past": past_events}
 
 
 async def get_public_events_feed(
-        db: AsyncSession,
-        page: int,
-        size: int,
-        search_query: Optional[str] = None,
-        region: Optional[str] = None,
-        category_id: Optional[int] = None,
+    db: AsyncSession,
+    page: int,
+    size: int,
+    search_query: Optional[str] = None,
+    region: Optional[str] = None,
+    category_id: Optional[int] = None,
 ):
+    now = datetime.now(timezone.utc)
+
     query = (
         select(Event)
         .join(Event.expert)
@@ -200,31 +187,27 @@ async def get_public_events_feed(
             and_(
                 Event.status == "approved",
                 Event.is_private.is_(False),
+                Event.event_date >= now,
             )
         )
-        .options(
-            selectinload(Event.expert).selectinload(ExpertProfile.user)
-        )
+        .options(selectinload(Event.expert).selectinload(ExpertProfile.user))
     )
 
     if search_query:
         query = query.where(Event.event_name.ilike(f"%{search_query}%"))
-
     if region:
         query = query.where(ExpertProfile.region == region)
-
     if category_id:
-        query = query.join(ExpertProfile.selected_themes).where(Theme.category_id == category_id)
+        query = query.join(ExpertProfile.selected_themes).where(
+            Theme.category_id == category_id
+        )
 
     count_query = select(func.count()).select_from(query.distinct().subquery())
     total_count_res = await db.execute(count_query)
     total_count = total_count_res.scalar_one()
 
     paginated_query = (
-        query
-        .order_by(Event.event_date.asc())
-        .offset((page - 1) * size)
-        .limit(size)
+        query.order_by(Event.event_date.asc()).offset((page - 1) * size).limit(size)
     )
 
     results = await db.execute(paginated_query)

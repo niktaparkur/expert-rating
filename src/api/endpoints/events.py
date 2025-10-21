@@ -14,6 +14,7 @@ from src.crud import event_crud
 from src.schemas import event_schemas
 from src.services.notifier import Notifier
 from src.schemas.expert_schemas import VotedExpertInfo
+from loguru import logger
 
 router = APIRouter(prefix="/events", tags=["Events & Voting"])
 
@@ -36,31 +37,36 @@ async def create_event(
         current_user: Dict = Depends(get_current_user),
         notifier: Notifier = Depends(get_notifier),
 ):
+    logger.debug(f"Received event creation data: {event_data.model_dump_json(indent=2)}")
+
     if not current_user.get("is_expert"):
-        raise HTTPException(
-            status_code=403,
-            detail="Только одобренные эксперты могут создавать мероприятия.",
-        )
+        raise HTTPException(status_code=403, detail="Только одобренные эксперты могут создавать мероприятия.")
 
     user_tariff = current_user.get("tariff_plan", "Начальный")
     max_duration = TARIFF_DURATION_LIMITS.get(user_tariff, 60)
-    if event_data.duration_minutes > max_duration:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Длительность превышает лимит для вашего тарифа '{user_tariff}'. Максимум: {max_duration} минут.",
-        )
+
+    if not current_user.get("is_admin") and event_data.duration_minutes > max_duration:
+        raise HTTPException(status_code=400,
+                            detail=f"Длительность превышает лимит для вашего тарифа '{user_tariff}'. Максимум: {max_duration} минут.")
 
     expert_id = current_user["vk_id"]
     try:
-        new_event = await event_crud.create_event(
-            db=db, event_data=event_data, expert_id=expert_id
-        )
-        await notifier.send_new_event_to_admin(
-            event_name=new_event.event_name, expert_name=current_user.get("first_name")
-        )
+        if isinstance(event_data.event_link, str) and not event_data.event_link.strip():
+            event_data.event_link = None
+
+        new_event = await event_crud.create_event(db=db, event_data=event_data, expert_id=expert_id)
+
+        logger.success(f"Event '{new_event.event_name}' created successfully for expert {expert_id}.")
+
+        await notifier.send_new_event_to_admin(event_name=new_event.event_name,
+                                               expert_name=current_user.get("first_name"))
         return new_event
     except ValueError as e:
+        logger.warning(f"Value error during event creation: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error during event creation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error.")
 
 
 @router.get("/my", response_model=List[event_schemas.EventRead])
@@ -77,7 +83,7 @@ async def get_my_events(
     user_tariff = current_user.get("tariff_plan", "Начальный")
 
     if current_user.get("is_admin"):
-        limit = float('inf')
+        limit = float("inf")
     else:
         limit = TARIFF_VOTES_LIMITS.get(user_tariff, 100)
 
