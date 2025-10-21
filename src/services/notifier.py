@@ -85,14 +85,16 @@ class Notifier:
     async def send_vote_action_notification(
         self,
         user_vk_id: int,
-        expert_name: str,
-        expert_vk_id: int,
-        action: str,
-        vote_type: Optional[str] = None,  # 1. Добавляем аргумент
+        expert_name: Optional[str] = None,
+        expert_vk_id: Optional[int] = None,
+        action: Optional[str] = None,
+        vote_type: Optional[str] = None,
+        message_override: Optional[str] = None,
     ):
-        """Уведомляет пользователя о его действии с народным голосом."""
+        if message_override:
+            await self._send_message(user_vk_id, message_override)
+            return
 
-        # 2. Улучшаем текст сообщения
         vote_map = {"trust": "«👍 Доверие»", "distrust": "«👎 Недоверие»"}
         vote_text = vote_map.get(vote_type, "") if vote_type else ""
 
@@ -104,8 +106,6 @@ class Notifier:
             message = (
                 f"🔄 Ваш голос за эксперта {expert_name} был изменен на {vote_text}."
             )
-        elif action == "neutralized":
-            message = f"🗑️ Вы отменили свой голос за эксперта {expert_name}."
         elif action == "cancelled":
             message = f"🗑️ Ваш голос за эксперта {expert_name} был отменен."
         else:

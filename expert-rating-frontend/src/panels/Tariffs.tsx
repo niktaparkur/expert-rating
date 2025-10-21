@@ -20,7 +20,6 @@ import {
   ModalRoot,
   ModalPage,
   ModalPageHeader,
-  FixedLayout,
   FormItem,
   Input,
   Spinner,
@@ -323,13 +322,11 @@ export const Tariffs = ({
           )}
         </Group>
 
-        <FixedLayout vertical="bottom" filled>
-          <Div>
-            <Button size="l" stretched onClick={handleInitiatePayment}>
-              {`Оплатить ${promoResult ? promoResult.final_price : selectedTariff?.price_votes} голосов`}
-            </Button>
-          </Div>
-        </FixedLayout>
+        <Div>
+          <Button size="l" stretched onClick={handleInitiatePayment}>
+            {`Оплатить ${promoResult ? promoResult.final_price : selectedTariff?.price_votes} голосов`}
+          </Button>
+        </Div>
       </ModalPage>
     </ModalRoot>
   );

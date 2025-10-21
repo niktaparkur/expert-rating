@@ -10,7 +10,6 @@ import {
   Button,
   DateInput,
   SimpleCell,
-  FixedLayout,
 } from "@vkontakte/vkui";
 
 interface PromoCode {

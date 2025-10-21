@@ -5,7 +5,6 @@ import {
   Title,
   Text,
   Button,
-  FixedLayout,
   Separator,
   Headline,
 } from "@vkontakte/vkui";

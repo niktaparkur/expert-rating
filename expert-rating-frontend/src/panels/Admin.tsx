@@ -37,7 +37,6 @@ import {
   usePlatform,
   Platform,
   Text,
-  FixedLayout,
 } from "@vkontakte/vkui";
 import {
   Icon16Cancel,

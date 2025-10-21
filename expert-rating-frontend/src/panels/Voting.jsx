@@ -29,18 +29,17 @@ export const Voting = ({ id, user, setPopout, setSnackbar, refetchUser }) => {
   const routeNavigator = useRouteNavigator();
   const { promo } = useParams();
   const { apiGet, apiPost } = useApi();
-
   const [eventData, setEventData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [alreadyVoted, setAlreadyVoted] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
+  const [thankYouMessage, setThankYouMessage] = useState(null);
 
   useEffect(() => {
     if (!promo) return;
     setIsLoading(true);
     apiGet(`/events/status/${promo}`)
-      .then((data) => setEventData(data))
+      .then(setEventData)
       .catch((err) => setError(err.message))
       .finally(() => setIsLoading(false));
   }, [promo, apiGet]);
@@ -62,10 +61,13 @@ export const Voting = ({ id, user, setPopout, setSnackbar, refetchUser }) => {
       );
       return;
     }
-    if (voteData.vote_type === "distrust" && !voteData.comment.trim()) {
+    const isCommentMissing =
+      (voteData.vote_type === "trust" && !voteData.comment_positive?.trim()) ||
+      (voteData.vote_type === "distrust" && !voteData.comment_negative?.trim());
+    if (isCommentMissing) {
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)}>
-          При выборе "Не доверяю" комментарий обязателен.
+          Комментарий является обязательным.
         </Snackbar>,
       );
       return;
@@ -76,24 +78,19 @@ export const Voting = ({ id, user, setPopout, setSnackbar, refetchUser }) => {
       promo_word: promo,
       voter_vk_id: user.vk_id,
       vote_type: voteData.vote_type,
-      comment_positive:
-        voteData.vote_type === "trust" ? voteData.comment : null,
-      comment_negative:
-        voteData.vote_type === "distrust" ? voteData.comment : null,
+      comment_positive: voteData.comment_positive,
+      comment_negative: voteData.comment_negative,
     };
 
     try {
-      await apiPost("/events/vote", finalData);
+      const response = await apiPost("/events/vote", finalData);
+      setThankYouMessage(response.thank_you_message);
       await refetchUser();
       setActiveModal("vote-success-modal");
     } catch (err) {
-      if (err.message.includes("already voted")) {
-        setAlreadyVoted(true);
-      } else {
-        setSnackbar(
-          <Snackbar onClose={() => setSnackbar(null)}>{err.message}</Snackbar>,
-        );
-      }
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)}>{err.message}</Snackbar>,
+      );
     } finally {
       setPopout(null);
     }
@@ -108,7 +105,7 @@ export const Voting = ({ id, user, setPopout, setSnackbar, refetchUser }) => {
         </Placeholder>
       );
     if (!eventData) return <Placeholder header="Загрузка..." />;
-    if (alreadyVoted)
+    if (eventData.current_user_has_voted)
       return (
         <Placeholder
           icon={<Icon56CheckCircleOutline />}
@@ -117,17 +114,6 @@ export const Voting = ({ id, user, setPopout, setSnackbar, refetchUser }) => {
           Ваш голос на этом мероприятии учтен.
         </Placeholder>
       );
-
-    if (eventData.current_user_has_voted) {
-      return (
-        <Placeholder
-          icon={<Icon56CheckCircleOutline />}
-          header="Вы уже проголосовали"
-        >
-          Ваш голос на этом мероприятии учтен.
-        </Placeholder>
-      );
-    }
 
     switch (eventData.status) {
       case "active":
@@ -138,7 +124,11 @@ export const Voting = ({ id, user, setPopout, setSnackbar, refetchUser }) => {
             >
               <MiniExpertProfile expert={eventData.expert} />
             </Group>
-            <VoteCard onSubmit={handleEventVoteSubmit} />
+            <VoteCard
+              onSubmit={handleEventVoteSubmit}
+              setPopout={setPopout}
+              onCancelVote={() => {}}
+            />
           </>
         );
       case "not_started":
@@ -161,7 +151,6 @@ export const Voting = ({ id, user, setPopout, setSnackbar, refetchUser }) => {
             Вы больше не можете оставить свой голос на этом мероприятии.
           </Placeholder>
         );
-      case "not_found":
       default:
         return (
           <Placeholder
@@ -180,6 +169,7 @@ export const Voting = ({ id, user, setPopout, setSnackbar, refetchUser }) => {
         id="vote-success-modal"
         onClose={() => setActiveModal(null)}
         header={<ModalPageHeader>Голос принят!</ModalPageHeader>}
+        settlingHeight={100}
       >
         <Placeholder
           icon={
@@ -200,8 +190,11 @@ export const Voting = ({ id, user, setPopout, setSnackbar, refetchUser }) => {
             </Button>
           }
         >
-          Он будет засчитан в экспертный рейтинг. Если вы передумали, вы можете
-          отменить свой голос в профиле эксперта.
+          {thankYouMessage ? (
+            <Text>{thankYouMessage}</Text>
+          ) : (
+            "Он будет засчитан в экспертный рейтинг."
+          )}
         </Placeholder>
       </ModalPage>
     </ModalRoot>

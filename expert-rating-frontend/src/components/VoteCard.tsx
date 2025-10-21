@@ -8,7 +8,6 @@ import {
   Group,
   FormStatus,
   Alert,
-  FixedLayout,
 } from "@vkontakte/vkui";
 
 interface InitialVote {

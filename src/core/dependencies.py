@@ -41,9 +41,9 @@ async def get_redis() -> redis.Redis:
 
 
 async def get_current_user(
-        authorization: Optional[str] = Header(None),
-        db: AsyncSession = Depends(get_db),
-        cache: redis.Redis = Depends(get_redis),
+    authorization: Optional[str] = Header(None),
+    db: AsyncSession = Depends(get_db),
+    cache: redis.Redis = Depends(get_redis),
 ) -> Dict:
     if authorization is None:
         raise HTTPException(
@@ -107,7 +107,9 @@ async def get_current_user(
 
     user, profile, stats_dict, my_votes_stats_dict = result
 
-    response_data = expert_schemas.UserAdminRead.model_validate(user, from_attributes=True)
+    response_data = expert_schemas.UserAdminRead.model_validate(
+        user, from_attributes=True
+    )
     response_data.stats = expert_schemas.Stats(**stats_dict)
     response_data.my_votes_stats = expert_schemas.MyVotesStats(**my_votes_stats_dict)
     response_data.is_admin = user.is_admin or (user.vk_id == settings.ADMIN_ID)

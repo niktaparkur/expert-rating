@@ -66,14 +66,12 @@ export const UserProfile = ({
         <RichCell
           before={<Avatar size={96} src={user.photo_url} />}
           after={
-            isApprovedExpert && (
-              <IconButton
-                onClick={onSettingsClick}
-                aria-label="Настройки профиля"
-              >
-                <Icon28SettingsOutline />
-              </IconButton>
-            )
+            <IconButton
+              onClick={onSettingsClick}
+              aria-label="Настройки профиля"
+            >
+              <Icon28SettingsOutline />
+            </IconButton>
           }
           subtitle={getRoleText()}
           disabled

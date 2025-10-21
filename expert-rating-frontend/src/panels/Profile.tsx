@@ -11,9 +11,6 @@ import {
   Header,
   Snackbar,
   PullToRefresh,
-  PanelHeaderButton,
-  useAdaptivity,
-  ViewWidth,
   Button,
   Div,
   Text,
@@ -29,15 +26,18 @@ import {
   Icon28RefreshOutline,
   Icon28SettingsOutline,
 } from "@vkontakte/icons";
-
+import bridge from "@vkontakte/vk-bridge";
 import { UserProfile } from "../components/UserProfile";
 import { VoteHistoryCard } from "../components/VoteHistoryCard";
 import { EventInfoCard } from "../components/EventInfoCard";
 import { EventActionModal } from "../components/EventActionModal";
+import { QrCodeModal } from "../components/QrCodeModal";
 import { groupPlannedEvents } from "../utils/groupEventsByDate";
 import { useApi } from "../hooks/useApi";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
 import { EventData, UserData } from "../types";
+
+const GROUP_ID = Number(import.meta.env.VITE_VK_GROUP_ID);
 
 interface ProfileProps {
   id: string;
@@ -57,8 +57,7 @@ export const Profile = ({
   setSnackbar,
 }: ProfileProps) => {
   const routeNavigator = useRouteNavigator();
-  const { apiGet, apiDelete, apiPut } = useApi();
-
+  const { apiGet, apiDelete, apiPost, apiPut } = useApi();
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [isFetching, setFetching] = useState(false);
   const [isWithdrawLoading, setIsWithdrawLoading] = useState(false);
@@ -81,7 +80,6 @@ export const Profile = ({
       setIsLoadingVotes(false);
     }
   }, [apiGet]);
-
   const fetchMyEvents = useCallback(async () => {
     if (!user?.is_expert) {
       setIsLoadingMyEvents(false);
@@ -97,59 +95,189 @@ export const Profile = ({
       setIsLoadingMyEvents(false);
     }
   }, [apiGet, user?.is_expert]);
-
   useEffect(() => {
     if (!user?.is_expert) {
       fetchVotes();
       return;
     }
-    if (activeTab === "votes" && votes.length === 0) fetchVotes();
-    if (activeTab === "events" && myEvents.length === 0) fetchMyEvents();
+    if (activeTab === "votes") fetchVotes();
+    if (activeTab === "events") fetchMyEvents();
   }, [activeTab, user?.is_expert, fetchVotes, fetchMyEvents]);
 
   const onRefresh = useCallback(async () => {
     setFetching(true);
-    const promises = [refetchUser(), fetchVotes()];
-    if (user?.is_expert) promises.push(fetchMyEvents());
-    await Promise.all(promises);
+    await Promise.all(
+      [refetchUser(), fetchVotes(), user?.is_expert && fetchMyEvents()].filter(
+        Boolean,
+      ),
+    );
     setFetching(false);
   }, [refetchUser, fetchVotes, fetchMyEvents, user?.is_expert]);
-
   const handleEventClick = (event: EventData) => {
     setSelectedEvent(event);
     setActiveModal("event-actions-modal");
   };
 
   const handleShare = () => {
+    if (!selectedEvent) return;
+    const link = `https://vk.com/app${import.meta.env.VITE_VK_APP_ID}#/vote/${selectedEvent.promo_word}`;
+    bridge.send("VKWebAppShare", { link });
     setActiveModal(null);
-    setSnackbar(
-      <Snackbar onClose={() => setSnackbar(null)}>
-        Функция в разработке
-      </Snackbar>,
-    );
   };
-
+  const performDeleteEvent = async () => {
+    if (!selectedEvent) return;
+    setPopout(<Spinner size="l" />);
+    try {
+      await apiDelete(`/events/${selectedEvent.id}`);
+      setMyEvents((prev) => prev.filter((e) => e.id !== selectedEvent.id));
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
+          Мероприятие удалено.
+        </Snackbar>,
+      );
+    } catch (err) {
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+          {(err as Error).message}
+        </Snackbar>,
+      );
+    } finally {
+      setPopout(null);
+    }
+  };
   const handleDeleteEvent = () => {
     setActiveModal(null);
-    setSnackbar(
-      <Snackbar onClose={() => setSnackbar(null)}>
-        Функция в разработке
-      </Snackbar>,
+    setPopout(
+      <Alert
+        actions={[
+          { title: "Отмена", mode: "cancel" },
+          {
+            title: "Удалить",
+            mode: "destructive",
+            action: performDeleteEvent,
+          },
+        ]}
+        onClose={() => setPopout(null)}
+        title="Подтверждение"
+        description="Вы уверены, что хотите удалить это мероприятие? Действие необратимо."
+      />,
     );
   };
-
-  const handleSettingsChange = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const { checked } = e.target;
-    if (user) setCurrentUser({ ...user, show_community_rating: checked });
+  const performStopEvent = async () => {
+    if (!selectedEvent) return;
+    setPopout(<Spinner size="l" />);
     try {
-      const updatedUser = await apiPut("/users/me/settings", {
-        show_community_rating: checked,
+      const updatedEvent = await apiPost(
+        `/events/${selectedEvent.id}/stop`,
+        {},
+      );
+      setMyEvents((prev) =>
+        prev.map((e) => (e.id === updatedEvent.id ? updatedEvent : e)),
+      );
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
+          Прием голосов остановлен.
+        </Snackbar>,
+      );
+    } catch (err) {
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+          {(err as Error).message}
+        </Snackbar>,
+      );
+    } finally {
+      setPopout(null);
+    }
+  };
+  const handleStopEvent = () => {
+    setActiveModal(null);
+    setPopout(
+      <Alert
+        actions={[
+          { title: "Отмена", mode: "cancel" },
+          {
+            title: "Остановить",
+            mode: "destructive",
+            action: performStopEvent,
+          },
+        ]}
+        onClose={() => setPopout(null)}
+        title="Подтверждение"
+        description="Вы уверены, что хотите остановить прием голосов? После этого запустить его снова будет невозможно."
+      />,
+    );
+  };
+  const handleShowQr = () => setActiveModal("qr-code-modal");
+
+  const handleSettingsChange = async (fieldName: string, value: boolean) => {
+    const payload = { [fieldName]: value };
+    if (fieldName === "allow_notifications" && !value) {
+      payload.allow_expert_mailings = false;
+    }
+    try {
+      await apiPut("/users/me/settings", payload);
+      await refetchUser();
+    } catch (err) {
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+          {(err as Error).message}
+        </Snackbar>,
+      );
+      await refetchUser();
+    }
+  };
+
+  const handleNotificationSettingsChange = async (
+    fieldName: "allow_notifications" | "allow_expert_mailings",
+    value: boolean,
+  ) => {
+    if (!user) return;
+    setCurrentUser({ ...user, [fieldName]: value });
+    if (fieldName === "allow_notifications" && !value) {
+      setCurrentUser({
+        ...user,
+        allow_notifications: false,
+        allow_expert_mailings: false,
       });
-      setCurrentUser(updatedUser);
-    } catch (error) {
-      if (user) setCurrentUser({ ...user, show_community_rating: !checked });
+    }
+
+    if (fieldName === "allow_notifications" && value === true) {
+      // Если мы не в браузере для разработки, а внутри VK
+      if (bridge.isWebView()) {
+        try {
+          // Сразу пытаемся запросить разрешение. Если оно уже есть, метод вернет { result: true }
+          const result = await bridge.send("VKWebAppAllowMessagesFromGroup", {
+            group_id: GROUP_ID,
+          });
+          if (result.result) {
+            // Права есть или были успешно получены
+            await handleSettingsChange(fieldName, value);
+          } else {
+            // Пользователь отказался давать права
+            await refetchUser(); // Откатываем UI
+          }
+        } catch (error) {
+          // Произошла ошибка VK Bridge (например, на платформе, где это не поддерживается)
+          await refetchUser(); // Откатываем UI
+          setSnackbar(
+            <Snackbar
+              onClose={() => setSnackbar(null)}
+              before={<Icon16Cancel />}
+            >
+              Не удалось запросить разрешение на уведомления.
+            </Snackbar>,
+          );
+        }
+      } else {
+        // Если мы в браузере, просто сохраняем настройку для отладки
+        console.log(
+          "DEV BROWSER: Skipping VK Bridge call, saving settings directly.",
+        );
+        await handleSettingsChange(fieldName, value);
+      }
+    } else {
+      // Для всех остальных случаев (выключение allow_notifications или изменение allow_expert_mailings)
+      await handleSettingsChange(fieldName, value);
     }
   };
 
@@ -170,7 +298,6 @@ export const Profile = ({
       />,
     );
   };
-
   const performCancelVote = async (voteId: number, isExpertVote: boolean) => {
     const endpoint = isExpertVote
       ? `/events/vote/${voteId}/cancel`
@@ -194,7 +321,6 @@ export const Profile = ({
       setPopout(null);
     }
   };
-
   const filteredVotes = useMemo(() => {
     const query = searchQueryVotes.toLowerCase().trim();
     if (!query) return votes;
@@ -210,7 +336,6 @@ export const Profile = ({
       );
     });
   }, [searchQueryVotes, votes]);
-
   const { planned, archived } = useMemo(() => {
     const p: EventData[] = [],
       a: EventData[] = [];
@@ -230,7 +355,6 @@ export const Profile = ({
     );
     return { planned: p, archived: a };
   }, [myEvents]);
-
   const groupedPlannedEvents = groupPlannedEvents(planned);
   const renderGroupedEvents = (group: EventData[], title: string) =>
     group.length > 0 && (
@@ -247,7 +371,6 @@ export const Profile = ({
         </div>
       </React.Fragment>
     );
-
   const renderVotesContent = () => (
     <Group>
       <Search
@@ -282,7 +405,6 @@ export const Profile = ({
       )}
     </Group>
   );
-
   const renderEventsContent = () => (
     <div style={{ paddingBottom: "60px" }}>
       <Group>
@@ -302,7 +424,13 @@ export const Profile = ({
         ) : planned.length === 0 ? (
           <Placeholder title="Нет запланированных мероприятий." />
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+            }}
+          >
             {renderGroupedEvents(groupedPlannedEvents.today, "Сегодня")}
             {renderGroupedEvents(groupedPlannedEvents.tomorrow, "Завтра")}
             {renderGroupedEvents(
@@ -338,24 +466,75 @@ export const Profile = ({
         onClose={() => setActiveModal(null)}
         onShare={handleShare}
         onDelete={handleDeleteEvent}
+        onStop={handleStopEvent}
+        onShowQr={handleShowQr}
+      />
+      <QrCodeModal
+        id="qr-code-modal"
+        event={selectedEvent}
+        onClose={() => setActiveModal(null)}
       />
       <ModalPage
         id="profile-settings-modal"
         onClose={() => setActiveModal(null)}
         header={<ModalPageHeader>Настройки</ModalPageHeader>}
+        settlingHeight={100}
       >
-        <Group>
+        {user?.is_expert && (
+          <Group header={<Header>Рейтинг</Header>}>
+            <SimpleCell
+              Component="label"
+              after={
+                <Switch
+                  checked={user?.show_community_rating ?? true}
+                  onChange={(e) =>
+                    handleSettingsChange(
+                      "show_community_rating",
+                      e.target.checked,
+                    )
+                  }
+                />
+              }
+            >
+              Показывать народный рейтинг
+            </SimpleCell>
+          </Group>
+        )}
+        <Group header={<Header>Уведомления</Header>}>
           <SimpleCell
             Component="label"
-            disabled={!user?.is_expert}
             after={
               <Switch
-                checked={user?.show_community_rating ?? true}
-                onChange={handleSettingsChange}
+                name="allow_notifications"
+                checked={user?.allow_notifications ?? false}
+                onChange={(e) =>
+                  handleNotificationSettingsChange(
+                    "allow_notifications",
+                    e.target.checked,
+                  )
+                }
               />
             }
           >
-            Показывать народный рейтинг
+            Получать уведомления
+          </SimpleCell>
+          <SimpleCell
+            Component="label"
+            disabled={!user?.allow_notifications}
+            after={
+              <Switch
+                name="allow_expert_mailings"
+                checked={user?.allow_expert_mailings ?? false}
+                onChange={(e) =>
+                  handleNotificationSettingsChange(
+                    "allow_expert_mailings",
+                    e.target.checked,
+                  )
+                }
+              />
+            }
+          >
+            Сообщения от экспертов
           </SimpleCell>
         </Group>
       </ModalPage>
@@ -365,7 +544,9 @@ export const Profile = ({
   return (
     <Panel id={id}>
       {modal}
-      <PanelHeader>Аккаунт</PanelHeader>
+      <PanelHeader>
+        Аккаунт
+      </PanelHeader>
       <PullToRefresh onRefresh={onRefresh} isFetching={isFetching}>
         <UserProfile
           user={user}
@@ -376,7 +557,6 @@ export const Profile = ({
           activeTab={activeTab}
           onTabChange={setActiveTab}
         />
-
         {user?.is_expert ? (
           <>
             {activeTab === "votes" && renderVotesContent()}

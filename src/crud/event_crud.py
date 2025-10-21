@@ -10,6 +10,53 @@ from src.models.all_models import Event, ExpertProfile, Vote, Theme
 from src.schemas import event_schemas
 
 
+async def delete_event_by_id(db: AsyncSession, event_id: int, expert_id: int) -> bool:
+    result = await db.execute(select(Event).where(Event.id == event_id))
+    event = result.scalars().first()
+
+    if not event or event.expert_id != expert_id:
+        return False
+
+    # Проверяем, что мероприятие еще не началось
+    now = datetime.now(timezone.utc)
+    event_start_time = event.event_date.replace(tzinfo=timezone.utc)
+    if now >= event_start_time:
+        raise ValueError(
+            "Нельзя удалить мероприятие, которое уже началось или завершилось."
+        )
+
+    await db.delete(event)
+    await db.commit()
+    return True
+
+
+async def stop_event_voting(
+    db: AsyncSession, event_id: int, expert_id: int
+) -> Optional[Event]:
+    result = await db.execute(select(Event).where(Event.id == event_id))
+    event = result.scalars().first()
+
+    if not event or event.expert_id != expert_id:
+        return None
+
+    now = datetime.now(timezone.utc)
+    event_start_time = event.event_date.replace(tzinfo=timezone.utc)
+    event_end_time = event_start_time + timedelta(minutes=event.duration_minutes)
+
+    if not (event_start_time <= now < event_end_time):
+        raise ValueError(
+            "Можно остановить только то голосование, которое идет в данный момент."
+        )
+
+    # Устанавливаем длительность так, чтобы время окончания стало текущим временем
+    new_duration = (now - event_start_time).total_seconds() / 60
+    event.duration_minutes = int(new_duration)
+
+    await db.commit()
+    await db.refresh(event)
+    return event
+
+
 async def check_if_user_voted_on_event(
     db: AsyncSession, event_id: int, voter_vk_id: int
 ) -> bool:
@@ -38,6 +85,8 @@ async def create_event(
         event_date=event_data.event_date,
         is_private=event_data.is_private,
         event_link=str(event_data.event_link) if event_data.event_link else None,
+        voter_thank_you_message=event_data.voter_thank_you_message,
+        send_reminder=event_data.send_reminder,
         start_date=datetime.now(timezone.utc),
         status="pending",
     )
@@ -212,3 +261,19 @@ async def get_public_events_feed(
 
     results = await db.execute(paginated_query)
     return results.scalars().unique().all(), total_count
+
+
+async def delete_event_vote(db: AsyncSession, vote_id: int, voter_vk_id: int) -> bool:
+    query = select(Vote).where(
+        Vote.id == vote_id,
+        Vote.voter_vk_id == voter_vk_id,
+        Vote.is_expert_vote.is_(True)
+    )
+    result = await db.execute(query)
+    vote_to_delete = result.scalars().first()
+
+    if vote_to_delete:
+        await db.delete(vote_to_delete)
+        await db.commit()
+        return True
+    return False

@@ -39,7 +39,6 @@ interface CreateEventProps {
 export const CreateEvent = ({ id, setPopout, user }: CreateEventProps) => {
   const routeNavigator = useRouteNavigator();
   const { apiPost, apiGet } = useApi();
-
   const [formData, setFormData] = useState({
     name: "",
     promo_word: "",
@@ -50,24 +49,15 @@ export const CreateEvent = ({ id, setPopout, user }: CreateEventProps) => {
     send_reminder: false,
     voter_thank_you_message: "",
   });
-
-  const TARIFF_LIMITS = {
-    Начальный: 60,
-    Стандарт: 720,
-    Профи: 1440,
-  };
-
+  const TARIFF_LIMITS = { Начальный: 60, Стандарт: 720, Профи: 1440 };
   const [promoStatus, setPromoStatus] = useState<
     "available" | "taken" | "error" | "invalid" | null
   >(null);
   const [isCheckingPromo, setIsCheckingPromo] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
   const [durationError, setDurationError] = useState<string | null>(null);
-
   const userTariff = user?.tariff_plan || "Начальный";
   const isAdmin = user?.is_admin || false;
-
   const canUseStandardOptions =
     userTariff === "Стандарт" || userTariff === "Профи" || isAdmin;
   const canUseProOptions = userTariff === "Профи" || isAdmin;
@@ -97,33 +87,24 @@ export const CreateEvent = ({ id, setPopout, user }: CreateEventProps) => {
   useEffect(() => {
     checkPromo(formData.promo_word);
   }, [formData.promo_word, checkPromo]);
-
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { name, value, type } = e.target;
     const isCheckbox = type === "checkbox";
     const checked = (e.target as HTMLInputElement).checked;
-
     if (name === "duration_minutes") {
       const durationValue = parseInt(value, 10);
       const maxDuration =
         TARIFF_LIMITS[userTariff as keyof typeof TARIFF_LIMITS] || 60;
-
-      if (!isAdmin && durationValue > maxDuration) {
+      if (!isAdmin && durationValue > maxDuration)
         setDurationError(`Максимум для вашего тарифа: ${maxDuration} мин.`);
-      } else {
-        setDurationError(null);
-      }
+      else setDurationError(null);
     }
-
     setFormData((prev) => ({ ...prev, [name]: isCheckbox ? checked : value }));
   };
-
-  const handleDateChange = (date: Date | null | undefined) => {
+  const handleDateChange = (date: Date | null | undefined) =>
     setFormData((prev) => ({ ...prev, event_date: date || null }));
-  };
-
   const setDuration = (minutes: string) => {
     setDurationError(null);
     setFormData((prev) => ({ ...prev, duration_minutes: minutes }));
@@ -177,9 +158,9 @@ export const CreateEvent = ({ id, setPopout, user }: CreateEventProps) => {
       );
     } catch (error) {
       setPopout(null);
-      const errorMessage =
-        error instanceof Error ? error.message : "Произошла неизвестная ошибка";
-      alert(errorMessage);
+      alert(
+        error instanceof Error ? error.message : "Произошла неизвестная ошибка",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -276,7 +257,6 @@ export const CreateEvent = ({ id, setPopout, user }: CreateEventProps) => {
                 />
               </FormField>
             </div>
-
             <ButtonGroup mode="horizontal" gap="s" style={{ marginTop: 8 }}>
               <Button
                 size="m"
@@ -344,7 +324,6 @@ export const CreateEvent = ({ id, setPopout, user }: CreateEventProps) => {
               )}
             </ButtonGroup>
           </FormItem>
-
           <Header>Дополнительные настройки</Header>
           <FormItem
             top="Сообщение проголосовавшим (необязательно)"
