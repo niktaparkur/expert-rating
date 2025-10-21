@@ -1,9 +1,10 @@
-import { isToday, isYesterday, isFuture, differenceInDays, parseISO } from 'date-fns';
-
-/**
- * @typedef {object} EventData
- * @property {string} event_date - Дата события в формате ISO (например, '2025-10-25T14:00:00Z')
- */
+import {
+  isToday,
+  isYesterday,
+  isFuture,
+  differenceInDays,
+  parseISO,
+} from "date-fns";
 
 /**
  * Группирует мероприятия по временным категориям.
@@ -20,7 +21,7 @@ export const groupPlannedEvents = (events) => {
 
   const now = new Date();
 
-  events.forEach(event => {
+  events.forEach((event) => {
     const eventDate = parseISO(event.event_date);
     if (!isFuture(eventDate) && !isToday(eventDate)) return; // Пропускаем прошедшие
 
@@ -39,7 +40,7 @@ export const groupPlannedEvents = (events) => {
 
   // Сортируем каждую группу по возрастанию даты
   for (const key in groups) {
-      groups[key].sort((a, b) => parseISO(a.event_date) - parseISO(b.event_date));
+    groups[key].sort((a, b) => parseISO(a.event_date) - parseISO(b.event_date));
   }
 
   return groups;

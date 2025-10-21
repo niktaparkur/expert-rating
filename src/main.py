@@ -33,6 +33,7 @@ app.include_router(users.router, prefix="/api/v1")
 app.include_router(meta.router, prefix="/api/v1")
 app.include_router(promo.router, prefix="/api/v1")
 
+
 @app.get("/")
 def read_root():
     return {"status": "ok"}

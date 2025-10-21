@@ -24,6 +24,14 @@ class User(Base):
     registration_date = Column(TIMESTAMP(timezone=True), server_default=func.now())
     is_expert = Column(Boolean, default=False)
     is_admin = Column(Boolean, default=False)
+
+    allow_notifications = Column(
+        Boolean, default=True, nullable=False, server_default="1"
+    )
+    allow_expert_mailings = Column(
+        Boolean, default=True, nullable=False, server_default="1"
+    )
+
     expert_profile = relationship(
         "ExpertProfile",
         back_populates="user",
@@ -66,10 +74,9 @@ class Vote(Base):
     event_id = Column(
         Integer, ForeignKey("Events.id", ondelete="SET NULL"), nullable=True
     )
-    vote_type = Column(Enum("trust", "distrust", "neutral"))
+    vote_type = Column(Enum("trust", "distrust"))
     comment_positive = Column(Text)
     comment_negative = Column(Text)
-    comment_neutral = Column(Text, nullable=True)
     is_expert_vote = Column(Boolean)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     expert = relationship("ExpertProfile", foreign_keys=[expert_vk_id])
@@ -145,6 +152,27 @@ class PromoCode(Base):
     expires_at = Column(TIMESTAMP(timezone=True), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    activations_limit = Column(Integer, nullable=True)
+    user_activations_limit = Column(Integer, nullable=False, default=1)
+
+    activations = relationship(
+        "PromoCodeActivation", back_populates="promo_code", cascade="all, delete-orphan"
+    )
+
+
+class PromoCodeActivation(Base):
+    __tablename__ = "PromoCodeActivations"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    promo_code_id = Column(
+        Integer, ForeignKey("PromoCodes.id", ondelete="CASCADE"), nullable=False
+    )
+    user_vk_id = Column(
+        BigInteger, ForeignKey("Users.vk_id", ondelete="CASCADE"), nullable=False
+    )
+    activated_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+    promo_code = relationship("PromoCode", back_populates="activations")
+    user = relationship("User")
 
 
 Theme.experts = relationship(

@@ -3,21 +3,26 @@ import {
   getViewHeightByViewportHeight,
   ViewWidth,
   SizeType,
-} from '@vkontakte/vkui';
+} from "@vkontakte/vkui";
 
-export const transformVKBridgeAdaptivity = ({ type, viewportWidth, viewportHeight }) => {
+export const transformVKBridgeAdaptivity = ({
+  type,
+  viewportWidth,
+  viewportHeight,
+}) => {
   switch (type) {
-    case 'adaptive':
+    case "adaptive":
       return {
         viewWidth: getViewWidthByViewportWidth(viewportWidth),
         viewHeight: getViewHeightByViewportHeight(viewportHeight),
       };
-    case 'force_mobile':
-    case 'force_mobile_compact':
+    case "force_mobile":
+    case "force_mobile_compact":
       return {
         viewWidth: ViewWidth.MOBILE,
         sizeX: SizeType.COMPACT,
-        sizeY: type === 'force_mobile_compact' ? SizeType.COMPACT : SizeType.REGULAR,
+        sizeY:
+          type === "force_mobile_compact" ? SizeType.COMPACT : SizeType.REGULAR,
       };
     default:
       return {};

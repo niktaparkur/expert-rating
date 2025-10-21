@@ -32,34 +32,46 @@ TARIFF_VOTES_LIMITS = {
 
 @router.post("/create", response_model=event_schemas.EventRead)
 async def create_event(
-        event_data: event_schemas.EventCreate,
-        db: AsyncSession = Depends(get_db),
-        current_user: Dict = Depends(get_current_user),
-        notifier: Notifier = Depends(get_notifier),
+    event_data: event_schemas.EventCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: Dict = Depends(get_current_user),
+    notifier: Notifier = Depends(get_notifier),
 ):
-    logger.debug(f"Received event creation data: {event_data.model_dump_json(indent=2)}")
+    logger.debug(
+        f"Received event creation data: {event_data.model_dump_json(indent=2)}"
+    )
 
     if not current_user.get("is_expert"):
-        raise HTTPException(status_code=403, detail="Только одобренные эксперты могут создавать мероприятия.")
+        raise HTTPException(
+            status_code=403,
+            detail="Только одобренные эксперты могут создавать мероприятия.",
+        )
 
     user_tariff = current_user.get("tariff_plan", "Начальный")
     max_duration = TARIFF_DURATION_LIMITS.get(user_tariff, 60)
 
     if not current_user.get("is_admin") and event_data.duration_minutes > max_duration:
-        raise HTTPException(status_code=400,
-                            detail=f"Длительность превышает лимит для вашего тарифа '{user_tariff}'. Максимум: {max_duration} минут.")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Длительность превышает лимит для вашего тарифа '{user_tariff}'. Максимум: {max_duration} минут.",
+        )
 
     expert_id = current_user["vk_id"]
     try:
         if isinstance(event_data.event_link, str) and not event_data.event_link.strip():
             event_data.event_link = None
 
-        new_event = await event_crud.create_event(db=db, event_data=event_data, expert_id=expert_id)
+        new_event = await event_crud.create_event(
+            db=db, event_data=event_data, expert_id=expert_id
+        )
 
-        logger.success(f"Event '{new_event.event_name}' created successfully for expert {expert_id}.")
+        logger.success(
+            f"Event '{new_event.event_name}' created successfully for expert {expert_id}."
+        )
 
-        await notifier.send_new_event_to_admin(event_name=new_event.event_name,
-                                               expert_name=current_user.get("first_name"))
+        await notifier.send_new_event_to_admin(
+            event_name=new_event.event_name, expert_name=current_user.get("first_name")
+        )
         return new_event
     except ValueError as e:
         logger.warning(f"Value error during event creation: {e}")
@@ -71,7 +83,7 @@ async def create_event(
 
 @router.get("/my", response_model=List[event_schemas.EventRead])
 async def get_my_events(
-        db: AsyncSession = Depends(get_db), current_user: Dict = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db), current_user: Dict = Depends(get_current_user)
 ):
     if not current_user.get("is_expert"):
         raise HTTPException(
@@ -101,9 +113,9 @@ async def get_my_events(
 
 @router.post("/vote")
 async def submit_vote(
-        vote_data: event_schemas.VoteCreate,
-        db: AsyncSession = Depends(get_db),
-        notifier: Notifier = Depends(get_notifier),
+    vote_data: event_schemas.VoteCreate,
+    db: AsyncSession = Depends(get_db),
+    notifier: Notifier = Depends(get_notifier),
 ):
     event = await event_crud.get_event_by_promo(db, vote_data.promo_word)
     if not event or event.status != "approved":
@@ -137,9 +149,9 @@ async def submit_vote(
 
 @router.get("/status/{promo_word}", response_model=Dict)
 async def get_event_status_by_promo(
-        promo_word: str,
-        db: AsyncSession = Depends(get_db),
-        current_user: Dict = Depends(get_current_user),
+    promo_word: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Dict = Depends(get_current_user),
 ):
     event = await event_crud.get_event_by_promo(db, promo_word)
     if not event or event.status != "approved":
@@ -184,12 +196,12 @@ async def get_public_events(db: AsyncSession = Depends(get_db)):
 
 @router.get("/feed", response_model=event_schemas.PaginatedEventsResponse)
 async def get_events_feed(
-        db: AsyncSession = Depends(get_db),
-        page: int = 1,
-        size: int = 20,
-        search: Optional[str] = None,
-        region: Optional[str] = None,
-        category_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+    page: int = 1,
+    size: int = 20,
+    search: Optional[str] = None,
+    region: Optional[str] = None,
+    category_id: Optional[int] = None,
 ):
     events, total_count = await event_crud.get_public_events_feed(
         db=db,
@@ -234,9 +246,9 @@ async def get_pending_events_for_admin(db: AsyncSession = Depends(get_db)):
 
 @router.post("/admin/{event_id}/approve")
 async def approve_event(
-        event_id: int,
-        db: AsyncSession = Depends(get_db),
-        notifier: Notifier = Depends(get_notifier),
+    event_id: int,
+    db: AsyncSession = Depends(get_db),
+    notifier: Notifier = Depends(get_notifier),
 ):
     event = await event_crud.set_event_status(
         db=db, event_id=event_id, status="approved"
@@ -251,10 +263,10 @@ async def approve_event(
 
 @router.post("/admin/{event_id}/reject")
 async def reject_event(
-        event_id: int,
-        body: dict = Body(...),
-        db: AsyncSession = Depends(get_db),
-        notifier: Notifier = Depends(get_notifier),
+    event_id: int,
+    body: dict = Body(...),
+    db: AsyncSession = Depends(get_db),
+    notifier: Notifier = Depends(get_notifier),
 ):
     reason = body.get("reason", "Причина не указана")
     event = await event_crud.set_event_status(

@@ -20,10 +20,10 @@ router = APIRouter(prefix="/experts", tags=["Experts"])
 
 @router.post("/register", status_code=201)
 async def register_expert(
-    expert_data: expert_schemas.ExpertCreate,
-    db: AsyncSession = Depends(get_db),
-    notifier: Notifier = Depends(get_notifier),
-    cache: redis.Redis = Depends(get_redis),
+        expert_data: expert_schemas.ExpertCreate,
+        db: AsyncSession = Depends(get_db),
+        notifier: Notifier = Depends(get_notifier),
+        cache: redis.Redis = Depends(get_redis),
 ):
     try:
         vk_id = expert_data.user_data.vk_id
@@ -42,13 +42,20 @@ async def register_expert(
 
 @router.get("/top", response_model=expert_schemas.PaginatedUsersResponse)
 async def get_top_experts(
-    db: AsyncSession = Depends(get_db),
-    page: int = 1,
-    size: int = 20,
-    search: Optional[str] = None,
+        db: AsyncSession = Depends(get_db),
+        page: int = 1,
+        size: int = 20,
+        search: Optional[str] = None,
+        region: Optional[str] = None,
+        category_id: Optional[int] = None,
 ):
     experts_data, total_count = await expert_crud.get_top_experts_paginated(
-        db=db, page=page, size=size, search_query=search
+        db=db,
+        page=page,
+        size=size,
+        search_query=search,
+        region=region,
+        category_id=category_id
     )
     response_users = []
     for user, profile, stats_dict, topics in experts_data:
@@ -73,9 +80,9 @@ async def get_top_experts(
 
 @router.get("/{vk_id}", response_model=expert_schemas.UserAdminRead)
 async def get_expert_profile(
-    vk_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: Dict = Depends(get_current_user),
+        vk_id: int,
+        db: AsyncSession = Depends(get_db),
+        current_user: Dict = Depends(get_current_user),
 ):
     result = await expert_crud.get_full_user_profile_with_stats(db=db, vk_id=vk_id)
     if not result:
@@ -103,41 +110,58 @@ async def get_expert_profile(
 
 
 @router.post("/{vk_id}/vote", status_code=201)
-async def upsert_vote_for_expert_community(
-    vk_id: int,
-    vote_data: expert_schemas.CommunityVoteCreate,
-    db: AsyncSession = Depends(get_db),
-    cache: redis.Redis = Depends(get_redis),
-    notifier: Notifier = Depends(get_notifier),
+async def create_vote_for_expert(
+        vk_id: int,
+        vote_data: expert_schemas.CommunityVoteCreate,
+        db: AsyncSession = Depends(get_db),
+        cache: redis.Redis = Depends(get_redis),
+        notifier: Notifier = Depends(get_notifier),
 ):
     if vk_id == vote_data.voter_vk_id:
         raise HTTPException(status_code=400, detail="Вы не можете голосовать за себя.")
+
     is_comment_missing = (
-        (vote_data.vote_type == "trust" and not vote_data.comment_positive)
-        or (vote_data.vote_type == "distrust" and not vote_data.comment_negative)
-        or (vote_data.vote_type == "neutral" and not vote_data.comment_neutral)
+            (vote_data.vote_type == "trust" and not vote_data.comment_positive) or
+            (vote_data.vote_type == "distrust" and not vote_data.comment_negative)
     )
     if is_comment_missing:
-        raise HTTPException(
-            status_code=400,
-            detail="Комментарий является обязательным для этого действия.",
-        )
+        raise HTTPException(status_code=400, detail="Комментарий является обязательным для этого действия.")
+
     try:
-        await expert_crud.upsert_community_vote(
+        await expert_crud.create_community_vote(
             db=db, expert_vk_id=vk_id, vote_data=vote_data, notifier=notifier
         )
         await cache.delete(f"user_profile:{vk_id}")
         await cache.delete(f"user_profile:{vote_data.voter_vk_id}")
-        return {"status": "ok", "message": "Your vote action has been processed."}
+        return {"status": "ok", "message": "Your vote has been processed."}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.delete("/{vk_id}/vote", status_code=200)
+async def cancel_vote_for_expert(
+        vk_id: int,
+        current_user: Dict = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db),
+        cache: redis.Redis = Depends(get_redis),
+):
+    voter_vk_id = current_user["vk_id"]
+    success = await expert_crud.delete_community_vote(db=db, expert_vk_id=vk_id, voter_vk_id=voter_vk_id)
+
+    if not success:
+        raise HTTPException(status_code=404, detail="Активный голос для отмены не найден.")
+
+    await cache.delete(f"user_profile:{vk_id}")
+    await cache.delete(f"user_profile:{voter_vk_id}")
+
+    return {"status": "ok", "message": "Your vote has been cancelled."}
+
+
 @router.post("/withdraw", status_code=200)
 async def withdraw_expert_application(
-    current_user: Dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-    cache: redis.Redis = Depends(get_redis),
+        current_user: Dict = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db),
+        cache: redis.Redis = Depends(get_redis),
 ):
     vk_id = current_user["vk_id"]
     success = await expert_crud.withdraw_expert_request(db=db, vk_id=vk_id)
@@ -183,12 +207,12 @@ async def get_pending_experts(db: AsyncSession = Depends(get_db)):
     dependencies=[Depends(get_current_admin_user)],
 )
 async def get_all_users(
-    db: AsyncSession = Depends(get_db),
-    page: int = 1,
-    size: int = 50,
-    search: Optional[str] = None,
-    user_type: Optional[str] = Query(None, enum=["all", "user", "expert"]),
-    sort_by_date: Optional[str] = Query(None, enum=["asc", "desc"]),
+        db: AsyncSession = Depends(get_db),
+        page: int = 1,
+        size: int = 50,
+        search: Optional[str] = None,
+        user_type: Optional[str] = Query(None, enum=["all", "user", "expert"]),
+        sort_by_date: Optional[str] = Query(None, enum=["asc", "desc"]),
 ):
     users_with_profiles, total_count = await expert_crud.get_all_users_paginated(
         db=db,
@@ -221,10 +245,10 @@ async def get_all_users(
     dependencies=[Depends(get_current_admin_user)],
 )
 async def approve_expert(
-    vk_id: int,
-    db: AsyncSession = Depends(get_db),
-    notifier: Notifier = Depends(get_notifier),
-    cache: redis.Redis = Depends(get_redis),
+        vk_id: int,
+        db: AsyncSession = Depends(get_db),
+        notifier: Notifier = Depends(get_notifier),
+        cache: redis.Redis = Depends(get_redis),
 ):
     profile = await expert_crud.set_expert_status(db=db, vk_id=vk_id, status="approved")
     if not profile:
@@ -240,10 +264,10 @@ async def approve_expert(
     dependencies=[Depends(get_current_admin_user)],
 )
 async def reject_expert(
-    vk_id: int,
-    db: AsyncSession = Depends(get_db),
-    notifier: Notifier = Depends(get_notifier),
-    cache: redis.Redis = Depends(get_redis),
+        vk_id: int,
+        db: AsyncSession = Depends(get_db),
+        notifier: Notifier = Depends(get_notifier),
+        cache: redis.Redis = Depends(get_redis),
 ):
     profile = await expert_crud.set_expert_status(db=db, vk_id=vk_id, status="rejected")
     if not profile:
@@ -261,9 +285,9 @@ async def reject_expert(
     dependencies=[Depends(get_current_admin_user)],
 )
 async def delete_expert_endpoint(
-    vk_id: int,
-    db: AsyncSession = Depends(get_db),
-    cache: redis.Redis = Depends(get_redis),
+        vk_id: int,
+        db: AsyncSession = Depends(get_db),
+        cache: redis.Redis = Depends(get_redis),
 ):
     success = await expert_crud.delete_user_by_vk_id(db=db, vk_id=vk_id, cache=cache)
     if not success:

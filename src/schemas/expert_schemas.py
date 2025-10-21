@@ -42,7 +42,6 @@ class VotedExpertInfo(BaseModel):
 class UserVoteInfo(BaseModel):
     vote_type: str
     comment: Optional[str] = None
-    comment_neutral: Optional[str] = None
 
 
 class UserAdminRead(UserBase):
@@ -58,6 +57,8 @@ class UserAdminRead(UserBase):
     social_link: Optional[str] = None
     tariff_plan: Optional[str] = "Начальный"
     current_user_vote_info: Optional[UserVoteInfo] = None
+    allow_notifications: bool = True
+    allow_expert_mailings: bool = True
 
     class Config:
         from_attributes = True
@@ -109,11 +110,12 @@ class CommunityVoteCreate(BaseModel):
     vote_type: str
     comment_positive: Optional[str] = None
     comment_negative: Optional[str] = None
-    comment_neutral: Optional[str] = None
 
 
 class UserSettingsUpdate(BaseModel):
     show_community_rating: Optional[bool] = None
+    allow_notifications: Optional[bool] = None
+    allow_expert_mailings: Optional[bool] = None
 
 
 class PaginatedUsersResponse(BaseModel):

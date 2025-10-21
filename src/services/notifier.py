@@ -1,5 +1,3 @@
-# src/services/notifier.py
-
 from typing import Optional
 from aionvk import Bot, Button, KeyboardBuilder
 
@@ -85,11 +83,29 @@ class Notifier:
         await self._send_message(expert_id, message)
 
     async def send_vote_action_notification(
-        self, user_vk_id: int, expert_name: str, expert_vk_id: int, action: str
+        self,
+        user_vk_id: int,
+        expert_name: str,
+        expert_vk_id: int,
+        action: str,
+        vote_type: Optional[str] = None,  # 1. Добавляем аргумент
     ):
         """Уведомляет пользователя о его действии с народным голосом."""
+
+        # 2. Улучшаем текст сообщения
+        vote_map = {"trust": "«👍 Доверие»", "distrust": "«👎 Недоверие»"}
+        vote_text = vote_map.get(vote_type, "") if vote_type else ""
+
         if action == "submitted":
-            message = f"✅ Ваш голос за эксперта {expert_name} был успешно учтен."
+            message = (
+                f"✅ Ваш голос {vote_text} за эксперта {expert_name} был успешно учтен."
+            )
+        elif action == "updated":
+            message = (
+                f"🔄 Ваш голос за эксперта {expert_name} был изменен на {vote_text}."
+            )
+        elif action == "neutralized":
+            message = f"🗑️ Вы отменили свой голос за эксперта {expert_name}."
         elif action == "cancelled":
             message = f"🗑️ Ваш голос за эксперта {expert_name} был отменен."
         else:

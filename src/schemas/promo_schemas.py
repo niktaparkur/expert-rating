@@ -8,6 +8,8 @@ class PromoCodeBase(BaseModel):
     discount_percent: int = Field(..., gt=0, le=100)
     expires_at: Optional[datetime] = None
     is_active: bool = True
+    activations_limit: Optional[int] = Field(None, gt=0)
+    user_activations_limit: Optional[int] = Field(1, gt=0)
 
 
 class PromoCodeCreate(PromoCodeBase):
@@ -25,6 +27,7 @@ class PromoCodeRead(PromoCodeBase):
 class PromoCodeApply(BaseModel):
     code: str
     tariff_id: str
+    user_vk_id: int
 
 
 class PromoCodeApplyResponse(BaseModel):
