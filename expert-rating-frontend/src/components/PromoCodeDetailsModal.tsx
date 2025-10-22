@@ -6,6 +6,7 @@ import {
   SimpleCell,
   InfoRow,
   Header,
+  PanelHeaderBack,
 } from "@vkontakte/vkui";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -46,7 +47,12 @@ export const PromoCodeDetailsModal = ({
     <ModalPage
       id={id}
       onClose={onClose}
-      header={<ModalPageHeader>Детали промокода</ModalPageHeader>}
+      header={
+        <ModalPageHeader before={<PanelHeaderBack onClick={onClose} />}>
+          Детали промокода
+        </ModalPageHeader>
+      }
+      settlingHeight={100}
     >
       <Group header={<Header>Основная информация</Header>}>
         <SimpleCell multiline>

@@ -10,6 +10,7 @@ import {
   Button,
   DateInput,
   SimpleCell,
+  PanelHeaderBack,
 } from "@vkontakte/vkui";
 
 interface PromoCode {
@@ -107,7 +108,7 @@ export const PromoCodeEditModal = ({
       id={id}
       onClose={onClose}
       header={
-        <ModalPageHeader>
+        <ModalPageHeader before={<PanelHeaderBack onClick={onClose} />}>
           {isEditing ? "Редактировать" : "Создать"} промокод
         </ModalPageHeader>
       }
