@@ -34,8 +34,6 @@ async def handle_payment_notification(
 ):
     form_data = await request.form()
     params = dict(form_data)
-    logger.info("--- PAYMENT NOTIFICATION START ---")
-    logger.info(f"PARAMS: {params}")
 
     # if not check_vk_signature(params.copy(), settings.VK_APP_SECRET_KEY):
     #     logger.warning("Invalid signature for payment notification")

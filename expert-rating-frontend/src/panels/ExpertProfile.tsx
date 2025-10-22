@@ -205,7 +205,7 @@ export const ExpertProfile = ({
         <Header>{title}</Header>
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {group.map((event) => (
-            <EventInfoCard key={event.id} event={event} onClick={() => {}} />
+            <EventInfoCard key={event.id} event={event} />
           ))}
         </div>
       </React.Fragment>
@@ -259,7 +259,7 @@ export const ExpertProfile = ({
               onFutureFeatureClick={showFutureFeatureAlert}
             />
           </Group>
-          <Group>
+          <Group style={{ marginTop: "8px" }}>
             <SegmentedControl
               value={activeTab}
               onChange={(value) => setActiveTab(String(value))}
@@ -305,11 +305,7 @@ export const ExpertProfile = ({
                     }}
                   >
                     {events.past.map((event) => (
-                      <EventInfoCard
-                        key={event.id}
-                        event={event}
-                        onClick={() => {}}
-                      />
+                      <EventInfoCard key={event.id} event={event} />
                     ))}
                   </div>
                 ) : (

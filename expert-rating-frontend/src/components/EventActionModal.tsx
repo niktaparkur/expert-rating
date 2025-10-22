@@ -12,6 +12,7 @@ import {
   SimpleCell,
   InfoRow,
   Tooltip,
+  PanelHeaderBack,
 } from "@vkontakte/vkui";
 import { Icon28CalendarOutline } from "@vkontakte/icons";
 import { format } from "date-fns";
@@ -72,7 +73,11 @@ export const EventActionModal = ({
     <ModalPage
       id={id}
       onClose={onClose}
-      header={<ModalPageHeader>Действия</ModalPageHeader>}
+      header={
+        <ModalPageHeader before={<PanelHeaderBack onClick={onClose} />}>
+          Действия
+        </ModalPageHeader>
+      }
       settlingHeight={100}
     >
       <Group>

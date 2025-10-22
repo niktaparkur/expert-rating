@@ -8,7 +8,7 @@ import { EventData } from "../types";
 
 interface EventInfoCardProps {
   event: EventData;
-  onClick: (event: EventData) => void;
+  onClick?: (event: EventData) => void;
 }
 
 export const EventInfoCard = ({ event, onClick }: EventInfoCardProps) => {
@@ -44,9 +44,9 @@ export const EventInfoCard = ({ event, onClick }: EventInfoCardProps) => {
     <SimpleCell
       before={<Icon28CalendarOutline />}
       subtitle={<Footnote>{subtitleString}</Footnote>}
-      onClick={() => onClick(event)}
-      hoverMode="background"
-      activeMode="background"
+      onClick={onClick ? () => onClick(event) : undefined}
+      hoverMode={onClick ? "background" : undefined}
+      activeMode={onClick ? "background" : undefined}
     >
       <div style={{ display: "flex", alignItems: "center" }}>
         {isEventLive() && (
