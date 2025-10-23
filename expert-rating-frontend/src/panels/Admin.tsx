@@ -341,7 +341,7 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
         onClose={handleCloseSheet}
         iosCloseItem={<ActionSheetItem mode="cancel">Отмена</ActionSheetItem>}
         toggleRef={event.currentTarget}
-        style={{ paddingBottom: "var(--vkui_safe_area_inset_bottom)" }}
+        style={{ paddingBottom: "50px" }}
       >
         {user.is_expert && (
           <ActionSheetItem
@@ -419,7 +419,7 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
         onClose={handleCloseSheet}
         iosCloseItem={<ActionSheetItem mode="cancel">Отмена</ActionSheetItem>}
         toggleRef={event.currentTarget}
-        style={{ paddingBottom: "var(--vkui_safe_area_inset_bottom)" }}
+        style={{ paddingBottom: "50px" }}
       >
         <ActionSheetItem onClick={() => setActiveModal("promo-details-modal")}>
           Детали

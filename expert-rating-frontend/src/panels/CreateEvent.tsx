@@ -19,6 +19,10 @@ import {
   SimpleCell,
   DateInput,
   ModalCard,
+  HorizontalScroll,
+  ModalPage,
+  ModalPageHeader,
+  FixedLayout,
 } from "@vkontakte/vkui";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
 import { useApi } from "../hooks/useApi";
@@ -34,9 +38,17 @@ interface CreateEventProps {
   id: string;
   setPopout: (popout: React.ReactNode | null) => void;
   user: UserData | null;
+  onClose: () => void;
+  afterCreate: () => void;
 }
 
-export const CreateEvent = ({ id, setPopout, user }: CreateEventProps) => {
+export const CreateEvent = ({
+  id,
+  setPopout,
+  user,
+  onClose,
+  afterCreate,
+}: CreateEventProps) => {
   const routeNavigator = useRouteNavigator();
   const { apiPost, apiGet } = useApi();
   const [formData, setFormData] = useState({
@@ -65,15 +77,17 @@ export const CreateEvent = ({ id, setPopout, user }: CreateEventProps) => {
 
   const checkPromo = useCallback(
     debounce(async (word: string) => {
-      const normalizedWord = word.trim().toUpperCase();
-      if (!/^[A-Z0-9]{4,}$/.test(normalizedWord)) {
+      const normalizedWord = word.trim();
+      if (!/^[A-Z0-9А-ЯЁ]{4,}$/i.test(normalizedWord)) {
         setPromoStatus(normalizedWord.length > 0 ? "invalid" : null);
         setIsCheckingPromo(false);
         return;
       }
       setIsCheckingPromo(true);
       try {
-        const response = await apiGet(`/events/status/${normalizedWord}`);
+        const response = await apiGet(
+          `/events/status/${normalizedWord.toUpperCase()}`,
+        );
         setPromoStatus(response.status === "not_found" ? "available" : "taken");
       } catch {
         setPromoStatus("error");
@@ -104,7 +118,10 @@ export const CreateEvent = ({ id, setPopout, user }: CreateEventProps) => {
     setFormData((prev) => ({ ...prev, [name]: isCheckbox ? checked : value }));
   };
   const handleDateChange = (date: Date | null | undefined) =>
-    setFormData((prev) => ({ ...prev, event_date: date || null }));
+    setFormData((prev) => ({
+      ...prev,
+      event_date: date || null,
+    }));
   const setDuration = (minutes: string) => {
     setDurationError(null);
     setFormData((prev) => ({ ...prev, duration_minutes: minutes }));
@@ -125,37 +142,9 @@ export const CreateEvent = ({ id, setPopout, user }: CreateEventProps) => {
     };
     try {
       await apiPost("/events/create", finalData);
-      setPopout(
-        <ModalRoot activeModal="success-modal" onClose={() => setPopout(null)}>
-          <ModalCard
-            id="success-modal"
-            onClose={() => {
-              setPopout(null);
-              routeNavigator.back();
-            }}
-            icon={
-              <Icon56CheckCircleOutline
-                style={{ color: "var(--vkui--color_icon_positive)" }}
-              />
-            }
-            title="Мероприятие отправлено"
-            description="Оно появится в вашем профиле после прохождения модерации."
-            actions={
-              <Button
-                size="l"
-                mode="primary"
-                stretched
-                onClick={() => {
-                  setPopout(null);
-                  routeNavigator.back();
-                }}
-              >
-                Отлично
-              </Button>
-            }
-          />
-        </ModalRoot>,
-      );
+      setPopout(null);
+      onClose();
+      afterCreate();
     } catch (error) {
       setPopout(null);
       alert(
@@ -169,7 +158,7 @@ export const CreateEvent = ({ id, setPopout, user }: CreateEventProps) => {
   const getPromoBottomText = () => {
     if (isCheckingPromo) return "Проверка...";
     if (promoStatus === "invalid")
-      return "Минимум 4 символа, только латиница и цифры.";
+      return "Минимум 4 символа (кириллица, латиница, цифры).";
     if (promoStatus === "taken") return "Это слово уже занято";
     if (promoStatus === "available") return "Слово свободно!";
     if (promoStatus === "error") return "Ошибка проверки";
@@ -177,18 +166,18 @@ export const CreateEvent = ({ id, setPopout, user }: CreateEventProps) => {
   };
 
   return (
-    <Panel id={id}>
-      <PanelHeader
-        before={
-          <PanelHeaderBack
-            onClick={() => !isSubmitting && routeNavigator.back()}
-          />
-        }
-      >
-        Новое мероприятие
-      </PanelHeader>
-      <Group>
-        <form onSubmit={handleSubmit}>
+    <ModalPage
+      id={id}
+      onClose={onClose}
+      header={
+        <ModalPageHeader before={<PanelHeaderBack onClick={onClose} />}>
+          Новое мероприятие
+        </ModalPageHeader>
+      }
+      settlingHeight={100}
+    >
+      <form onSubmit={handleSubmit}>
+        <Group>
           <FormItem
             top="Название мероприятия"
             required
@@ -257,72 +246,80 @@ export const CreateEvent = ({ id, setPopout, user }: CreateEventProps) => {
                 />
               </FormField>
             </div>
-            <ButtonGroup mode="horizontal" gap="s" style={{ marginTop: 8 }}>
-              <Button
-                size="m"
-                mode="outline"
-                appearance="neutral"
-                onClick={() => setDuration("30")}
-              >
-                30 мин
-              </Button>
-              <Button
-                size="m"
-                mode="outline"
-                appearance="neutral"
-                onClick={() => setDuration("60")}
-              >
-                1 час
-              </Button>
-              {canUseStandardOptions && (
-                <>
-                  <Button
-                    size="m"
-                    mode="outline"
-                    appearance="neutral"
-                    onClick={() => setDuration("120")}
-                  >
-                    2 часа
-                  </Button>
-                  <Button
-                    size="m"
-                    mode="outline"
-                    appearance="neutral"
-                    onClick={() => setDuration("360")}
-                  >
-                    6 часов
-                  </Button>
-                  <Button
-                    size="m"
-                    mode="outline"
-                    appearance="neutral"
-                    onClick={() => setDuration("720")}
-                  >
-                    12 часов
-                  </Button>
-                </>
-              )}
-              {canUseProOptions && (
-                <Button
-                  size="m"
-                  mode="outline"
-                  appearance="neutral"
-                  onClick={() => setDuration("1440")}
+            <HorizontalScroll>
+              <div>
+                <ButtonGroup
+                  mode="horizontal"
+                  gap="s"
+                  style={{ marginTop: 8, alignItems: "flex-start" }}
                 >
-                  24 часа
-                </Button>
-              )}
-              {canUseAdminOptions && (
-                <Button
-                  size="m"
-                  mode="outline"
-                  appearance="neutral"
-                  onClick={() => setDuration("4320")}
-                >
-                  72 часа
-                </Button>
-              )}
-            </ButtonGroup>
+                  <Button
+                    size="m"
+                    mode="outline"
+                    appearance="neutral"
+                    onClick={() => setDuration("30")}
+                  >
+                    30 мин
+                  </Button>
+                  <Button
+                    size="m"
+                    mode="outline"
+                    appearance="neutral"
+                    onClick={() => setDuration("60")}
+                  >
+                    1 час
+                  </Button>
+                  {canUseStandardOptions && (
+                    <>
+                      <Button
+                        size="m"
+                        mode="outline"
+                        appearance="neutral"
+                        onClick={() => setDuration("120")}
+                      >
+                        2 часа
+                      </Button>
+                      <Button
+                        size="m"
+                        mode="outline"
+                        appearance="neutral"
+                        onClick={() => setDuration("360")}
+                      >
+                        6 часов
+                      </Button>
+                      <Button
+                        size="m"
+                        mode="outline"
+                        appearance="neutral"
+                        onClick={() => setDuration("720")}
+                      >
+                        12 часов
+                      </Button>
+                    </>
+                  )}
+                  {canUseProOptions && (
+                    <Button
+                      size="m"
+                      mode="outline"
+                      appearance="neutral"
+                      onClick={() => setDuration("1440")}
+                    >
+                      24 часа
+                    </Button>
+                  )}
+                  {canUseAdminOptions && (
+                    <Button
+                      size="m"
+                      mode="outline"
+                      appearance="neutral"
+                      onClick={() => setDuration("4320")}
+                    >
+                      72 часа
+                    </Button>
+                  )}
+                </ButtonGroup>
+              </div>
+            </HorizontalScroll>
           </FormItem>
           <Header>Дополнительные настройки</Header>
           <FormItem
@@ -367,23 +364,23 @@ export const CreateEvent = ({ id, setPopout, user }: CreateEventProps) => {
           >
             Напомнить о начале
           </SimpleCell>
-          <Div>
-            <Button
-              size="l"
-              stretched
-              type="submit"
-              disabled={
-                isSubmitting ||
-                !formData.event_date ||
-                promoStatus !== "available" ||
-                !!durationError
-              }
-            >
-              Отправить на модерацию
-            </Button>
-          </Div>
-        </form>
-      </Group>
-    </Panel>
+        </Group>
+        <Div>
+          <Button
+            size="l"
+            stretched
+            type="submit"
+            disabled={
+              isSubmitting ||
+              !formData.event_date ||
+              promoStatus !== "available" ||
+              !!durationError
+            }
+          >
+            Отправить на модерацию
+          </Button>
+        </Div>
+      </form>
+    </ModalPage>
   );
 };

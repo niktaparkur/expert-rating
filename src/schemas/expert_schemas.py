@@ -4,7 +4,6 @@ from typing import List, Optional, TYPE_CHECKING
 from pydantic import BaseModel, Field, HttpUrl
 from src.schemas.base_schemas import VotedExpertInfo
 
-
 if TYPE_CHECKING:
     from src.schemas.event_schemas import EventRead
 

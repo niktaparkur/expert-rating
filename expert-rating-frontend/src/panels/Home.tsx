@@ -75,9 +75,16 @@ export const Home = ({ id, user }: HomeProps) => {
             topPosition: (currentPage - 1) * PAGE_SIZE + index + 1,
           }),
         );
-        setExperts((prev) =>
-          isNewSearch ? expertsWithPosition : [...prev, ...expertsWithPosition],
-        );
+
+        setExperts((prev) => {
+          if (isNewSearch) return expertsWithPosition;
+          const existingIds = new Set(prev.map((e) => e.vk_id));
+          const uniqueNewExperts = expertsWithPosition.filter(
+            (e: any) => !existingIds.has(e.vk_id),
+          );
+          return [...prev, ...uniqueNewExperts];
+        });
+
         setHasMore(currentPage * PAGE_SIZE < data.total_count);
         setPage(isNewSearch ? 2 : (p) => p + 1);
       } catch (error) {

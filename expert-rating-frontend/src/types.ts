@@ -39,7 +39,6 @@ export interface EventData {
 export interface UserVoteInfo {
   vote_type: "trust" | "distrust";
   comment: string | null;
-  comment_neutral: string | null;
 }
 
 // Тип для данных пользователя
@@ -59,4 +58,6 @@ export interface UserData {
   current_user_vote_info?: UserVoteInfo;
   regalia?: string;
   social_link?: string;
+  allow_notifications: boolean;
+  allow_expert_mailings: boolean;
 }
