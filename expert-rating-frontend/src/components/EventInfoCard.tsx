@@ -1,5 +1,12 @@
 import React from "react";
-import { Footnote, SimpleCell, Text, Tooltip, Badge, IconButton } from "@vkontakte/vkui";
+import {
+  Footnote,
+  SimpleCell,
+  Text,
+  Tooltip,
+  Badge,
+  IconButton,
+} from "@vkontakte/vkui";
 import {
   Icon24InfoCircleOutline,
   Icon28CalendarOutline,
@@ -47,7 +54,11 @@ export const EventInfoCard = ({ event, onClick }: EventInfoCardProps) => {
     <SimpleCell
       before={<Icon28CalendarOutline />}
       subtitle={<Footnote>{subtitleString}</Footnote>}
-      after={<IconButton onClick={onClick ? () => onClick(event) : undefined}><Icon24InfoCircleOutline /></IconButton>}
+      after={
+        <IconButton onClick={onClick ? () => onClick(event) : undefined}>
+          <Icon24InfoCircleOutline />
+        </IconButton>
+      }
     >
       <div style={{ display: "flex", alignItems: "center" }}>
         {isEventLive() && (

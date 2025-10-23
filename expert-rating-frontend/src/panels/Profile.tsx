@@ -20,6 +20,7 @@ import {
   Switch,
   Separator,
   PanelHeaderBack,
+  ScreenSpinner,
 } from "@vkontakte/vkui";
 import {
   Icon56UsersOutline,
@@ -253,20 +254,28 @@ export const Profile = ({
   const handleShowQr = () => setActiveModal("qr-code-modal");
 
   const handleSettingsChange = async (fieldName: string, value: boolean) => {
-    const payload = { [fieldName]: value };
+    if (!user) return;
+
+    const updatedFields = { [fieldName]: value };
     if (fieldName === "allow_notifications" && !value) {
-      payload.allow_expert_mailings = false;
+      updatedFields.allow_expert_mailings = false;
     }
+
+    setPopout(<ScreenSpinner state="loading" />);
+
     try {
-      await apiPut("/users/me/settings", payload);
-      await refetchUser();
+      const updatedUser = await apiPut("/users/me/settings", updatedFields);
+
+      setCurrentUser(updatedUser);
     } catch (err) {
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
-          {(err as Error).message}
+          {(err as Error).message || "Не удалось сохранить настройки"}
         </Snackbar>,
       );
       await refetchUser();
+    } finally {
+      setPopout(null);
     }
   };
 

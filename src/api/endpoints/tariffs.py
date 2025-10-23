@@ -6,11 +6,9 @@ router = APIRouter(prefix="/tariffs", tags=["Tariffs"])
 TARIFFS_INFO: Dict[str, Dict] = {
     "tariff_standard": {
         "title": "Стандарт",
-        "price": 299,
     },
     "tariff_pro": {
         "title": "Профи",
-        "price": 729,
     },
 }
 

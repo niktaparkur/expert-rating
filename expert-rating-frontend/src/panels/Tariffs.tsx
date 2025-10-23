@@ -25,6 +25,7 @@ import {
   Spinner,
   FormField,
   PanelHeaderBack,
+  FormLayoutGroup,
 } from "@vkontakte/vkui";
 import {
   Icon16HelpOutline,
@@ -375,20 +376,26 @@ export const Tariffs = ({
         settlingHeight={100}
       >
         <Group>
-          <FormItem top="Промокод (если есть)">
-            <FormField
-              after={
-                <Button onClick={handleApplyPromo} disabled={isApplyingPromo}>
-                  {isApplyingPromo ? <Spinner size="s" /> : "Применить"}
-                </Button>
-              }
-            >
+          <FormLayoutGroup
+            mode="horizontal"
+            style={{ alignItems: "center", width: "100%" }}
+          >
+            <FormItem top="Промокод (если есть)" style={{ flexGrow: 1 }}>
               <Input
                 value={promoCode}
                 onChange={(e) => setPromoCode(e.target.value)}
               />
-            </FormField>
-          </FormItem>
+            </FormItem>
+            <FormItem>
+              <Button
+                onClick={handleApplyPromo}
+                disabled={isApplyingPromo}
+                style={{ width: "80%" }}
+              >
+                {isApplyingPromo ? <Spinner size="s" /> : "Применить"}
+              </Button>
+            </FormItem>
+          </FormLayoutGroup>
           {promoResult && (
             <SimpleCell disabled>
               Скидка {promoResult.discount_percent}% применена!

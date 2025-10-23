@@ -23,6 +23,7 @@ from src.schemas.expert_schemas import (
     UserVoteInfo,
 )
 from src.services.notifier import Notifier
+from loguru import logger
 
 
 async def create_expert_request(db: AsyncSession, expert_data: ExpertCreate) -> User:
@@ -400,19 +401,39 @@ async def get_user_vote_for_expert(
 
 async def update_user_settings(
     db: AsyncSession, vk_id: int, settings_data: UserSettingsUpdate
-) -> User:
-    result = await db.execute(select(User).filter(User.vk_id == vk_id))
-    db_user = result.scalars().first()
-    if not db_user:
-        raise ValueError("User not found.")
-
+) -> User | ExpertProfile | None:
     update_data = settings_data.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(db_user, key, value)
+    updated_object = None
 
-    await db.commit()
-    await db.refresh(db_user)
-    return db_user
+    if "show_community_rating" in update_data:
+        result = await db.execute(
+            select(ExpertProfile).filter(ExpertProfile.user_vk_id == vk_id)
+        )
+        db_profile = result.scalars().first()
+        if not db_profile:
+            raise ValueError("Expert profile not found.")
+        db_profile.show_community_rating = update_data["show_community_rating"]
+        updated_object = db_profile
+
+    if "allow_notifications" in update_data or "allow_expert_mailings" in update_data:
+        result = await db.execute(select(User).filter(User.vk_id == vk_id))
+        db_user = result.scalars().first()
+        if not db_user:
+            raise ValueError("User not found.")
+
+        if "allow_notifications" in update_data:
+            db_user.allow_notifications = update_data["allow_notifications"]
+        if "allow_expert_mailings" in update_data:
+            db_user.allow_expert_mailings = update_data["allow_expert_mailings"]
+
+        updated_object = db_user
+
+    if updated_object:
+        await db.commit()
+        await db.refresh(updated_object)
+        return updated_object
+
+    return None
 
 
 async def withdraw_expert_request(db: AsyncSession, vk_id: int) -> bool:

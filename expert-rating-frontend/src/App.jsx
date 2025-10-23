@@ -23,7 +23,7 @@ import {
   Search,
   Div,
   PanelHeaderBack,
-  Text
+  Text,
 } from "@vkontakte/vkui";
 import {
   useActiveVkuiLocation,
@@ -306,7 +306,7 @@ export const App = () => {
       >
         <FormItem
           top={
-            <Text style={{paddingBottom: "5px"}}>
+            <Text style={{ paddingBottom: "5px" }}>
               Введите промо-слово или наведите камеру на QR-код
             </Text>
           }
@@ -512,7 +512,9 @@ export const App = () => {
                 refetchUser={refetchUser}
                 setPopout={setPopout}
                 setSnackbar={setSnackbar}
-                onOpenCreateEventModal={() => setActiveModal("create-event-modal")}
+                onOpenCreateEventModal={() =>
+                  setActiveModal("create-event-modal")
+                }
               />
             </View>
           </Epic>
