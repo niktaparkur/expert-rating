@@ -2,7 +2,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import sentry_sdk
 
-from src.api.endpoints import experts, events, payment, tariffs, users, meta, promo, mailings
+from src.api.endpoints import (
+    experts,
+    events,
+    payment,
+    tariffs,
+    users,
+    meta,
+    promo,
+    mailings,
+)
 from src.core.config import settings
 
 if settings.SENTRY_DSN:

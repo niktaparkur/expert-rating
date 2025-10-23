@@ -6,7 +6,6 @@ from typing import Optional, Any, List
 from src.schemas.base_schemas import VotedExpertInfo
 
 
-
 class EventBase(BaseModel):
     promo_word: str
     duration_minutes: int

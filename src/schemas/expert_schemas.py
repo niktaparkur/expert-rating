@@ -5,7 +5,9 @@ from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field, HttpUrl
 from src.schemas.base_schemas import VotedExpertInfo
+
 # НЕ ИМПОРТИРУЕМ EventRead ЗДЕСЬ НАПРЯМУЮ
+
 
 class Stats(BaseModel):
     expert: int = 0
@@ -116,5 +118,6 @@ class PaginatedUsersResponse(BaseModel):
     size: int
 
 
-from src.schemas.event_schemas import EventRead # noqa: E402
+from src.schemas.event_schemas import EventRead  # noqa: E402
+
 MyVoteRead.model_rebuild()

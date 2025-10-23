@@ -2,8 +2,10 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
 
+
 class MailingCreate(BaseModel):
     message: str = Field(..., min_length=10, max_length=1024)
+
 
 class MailingRead(BaseModel):
     id: int
