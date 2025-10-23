@@ -15,7 +15,6 @@ from src.schemas.expert_schemas import (
     MyVoteRead,
     VotedExpertInfo,
 )
-from loguru import logger
 
 router = APIRouter(prefix="/users", tags=["Users"])
 

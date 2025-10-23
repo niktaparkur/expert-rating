@@ -23,7 +23,6 @@ from src.schemas.expert_schemas import (
     UserVoteInfo,
 )
 from src.services.notifier import Notifier
-from loguru import logger
 
 
 async def create_expert_request(db: AsyncSession, expert_data: ExpertCreate) -> User:
