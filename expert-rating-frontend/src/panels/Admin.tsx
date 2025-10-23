@@ -37,6 +37,7 @@ import {
   usePlatform,
   Platform,
   Text,
+  Cell,
 } from "@vkontakte/vkui";
 import {
   Icon16Cancel,
@@ -52,6 +53,13 @@ import { PromoCodeCard } from "../components/PromoCodeCard";
 import { PromoCodeEditModal } from "../components/PromoCodeEditModal";
 import { PromoCodeDetailsModal } from "../components/PromoCodeDetailsModal";
 import { UserData } from "../types";
+
+interface MailingRequest {
+  id: number;
+  expert_vk_id: number;
+  message: string;
+  created_at: string;
+}
 
 interface ExpertRequest {
   vk_id: number;
@@ -113,6 +121,24 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
   const [loadingPromoCodes, setLoadingPromoCodes] = useState(false);
   const [hasMorePromoCodes, setHasMorePromoCodes] = useState(true);
   const [selectedPromoCode, setSelectedPromoCode] = useState<any | null>(null);
+
+  const [mailingRequests, setMailingRequests] = useState<MailingRequest[]>([]);
+  const [loadingMailings, setLoadingMailings] = useState(true);
+  const [selectedMailing, setSelectedMailing] = useState<MailingRequest | null>(
+    null,
+  );
+
+  const fetchMailingData = useCallback(async () => {
+    setLoadingMailings(true);
+    try {
+      const mailingsData = await apiGet("/mailings/admin/pending");
+      setMailingRequests(mailingsData || []);
+    } catch (e) {
+      showErrorSnackbar((e as Error).message || "Ошибка загрузки рассылок");
+    } finally {
+      setLoadingMailings(false);
+    }
+  }, [apiGet]);
 
   const showErrorSnackbar = (message: string) =>
     setSnackbar(
@@ -205,7 +231,8 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
   }, [usersSearch, debouncedSetSearch]);
   useEffect(() => {
     if (selectedTab === "moderation") fetchModerationData();
-  }, [selectedTab, fetchModerationData]);
+    if (selectedTab === "mailings") fetchMailingData();
+  }, [selectedTab, fetchModerationData, fetchMailingData]);
   useEffect(() => {
     if (selectedTab === "users") {
       setUsers([]);
@@ -271,6 +298,23 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
       setSelectedExpert(null);
       setSelectedEvent(null);
     }, 200);
+  };
+
+  const handleMailingAction = async (
+    mailingId: number,
+    action: "approve" | "reject",
+  ) => {
+    setActiveModal(null);
+    setPopout(<ScreenSpinner state="loading" />);
+    try {
+      const body = action === "reject" ? { reason: "Нарушение правил" } : {};
+      await apiPost(`/mailings/admin/${mailingId}/${action}`, body);
+      setMailingRequests((prev) => prev.filter((req) => req.id !== mailingId));
+    } catch (err) {
+      showErrorSnackbar((err as Error).message);
+    } finally {
+      setPopout(null);
+    }
   };
 
   const handleExpertAction = async (
@@ -599,6 +643,45 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
         promoCode={selectedPromoCode}
         onClose={() => setActiveModal(null)}
       />
+      <ModalPage
+        id="mailing-details"
+        onClose={closeModal}
+        header={<ModalPageHeader>Проверка рассылки</ModalPageHeader>}
+        settlingHeight={100}
+      >
+        {selectedMailing && (
+          <>
+            <Group>
+              <Cell multiline subtitle="Текст сообщения">
+                <Text>{selectedMailing.message}</Text>
+              </Cell>
+              <Cell subtitle="ID эксперта">{selectedMailing.expert_vk_id}</Cell>
+            </Group>
+            <Div style={{ display: "flex", gap: "8px" }}>
+              <Button
+                size="l"
+                stretched
+                mode="primary"
+                onClick={() =>
+                  handleMailingAction(selectedMailing.id, "approve")
+                }
+              >
+                Одобрить и отправить
+              </Button>
+              <Button
+                size="l"
+                stretched
+                appearance="negative"
+                onClick={() =>
+                  handleMailingAction(selectedMailing.id, "reject")
+                }
+              >
+                Отклонить
+              </Button>
+            </Div>
+          </>
+        )}
+      </ModalPage>
     </ModalRoot>
   );
 
@@ -617,7 +700,14 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
           onClick={() => setSelectedTab("moderation")}
           id="tab-moderation"
         >
-          Модерация
+          Заявки
+        </TabsItem>
+        <TabsItem
+          selected={selectedTab === "mailings"}
+          onClick={() => setSelectedTab("mailings")}
+          id="tab-mailings"
+        >
+          Рассылки
         </TabsItem>
         <TabsItem
           selected={selectedTab === "users"}
@@ -793,6 +883,34 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
           )}
           {!loadingPromoCodes && promoCodes.length === 0 && (
             <Placeholder title="Промокоды не найдены" />
+          )}
+        </Group>
+      </div>
+      <div
+        style={{
+          display: selectedTab === "mailings" ? "block" : "none",
+          paddingBottom: 60,
+        }}
+      >
+        <Group header={<Header>Рассылки на модерацию</Header>}>
+          {loadingMailings ? (
+            <Spinner />
+          ) : mailingRequests.length === 0 ? (
+            <Placeholder title="Новых рассылок нет" />
+          ) : (
+            mailingRequests.map((req) => (
+              <SimpleCell
+                key={req.id}
+                multiline
+                onClick={() => {
+                  setSelectedMailing(req);
+                  setActiveModal("mailing-details");
+                }}
+                subtitle={`От эксперта ID: ${req.expert_vk_id}`}
+              >
+                {req.message.slice(0, 100)}...
+              </SimpleCell>
+            ))
           )}
         </Group>
       </div>

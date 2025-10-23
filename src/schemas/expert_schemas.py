@@ -1,12 +1,11 @@
+# src/schemas/expert_schemas.py
+
 from __future__ import annotations
 from datetime import datetime
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional
 from pydantic import BaseModel, Field, HttpUrl
 from src.schemas.base_schemas import VotedExpertInfo
-
-if TYPE_CHECKING:
-    from src.schemas.event_schemas import EventRead
-
+# НЕ ИМПОРТИРУЕМ EventRead ЗДЕСЬ НАПРЯМУЮ
 
 class Stats(BaseModel):
     expert: int = 0
@@ -61,7 +60,8 @@ class MyVoteRead(BaseModel):
     is_expert_vote: bool
     created_at: datetime
     expert: Optional[VotedExpertInfo] = None
-    event: Optional[EventRead] = None
+    # ИЗМЕНЕНИЕ: Используем строковую аннотацию для отложенного определения типа
+    event: Optional["EventRead"] = None
 
     class Config:
         from_attributes = True
@@ -116,7 +116,5 @@ class PaginatedUsersResponse(BaseModel):
     size: int
 
 
-if TYPE_CHECKING:
-    from src.schemas.event_schemas import EventRead
-
-    MyVoteRead.model_rebuild()
+from src.schemas.event_schemas import EventRead # noqa: E402
+MyVoteRead.model_rebuild()

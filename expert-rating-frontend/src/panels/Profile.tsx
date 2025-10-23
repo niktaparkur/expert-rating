@@ -19,7 +19,7 @@ import {
   SimpleCell,
   Switch,
   Separator,
-  PanelHeaderBack
+  PanelHeaderBack,
 } from "@vkontakte/vkui";
 import {
   Icon56UsersOutline,
@@ -39,8 +39,15 @@ import { useApi } from "../hooks/useApi";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
 import { EventData, UserData } from "../types";
 import { TabbedGroup } from "../components/TabbedGroup";
+import { CreateMailingModal } from "../components/CreateMailingModal";
 
 const GROUP_ID = Number(import.meta.env.VITE_VK_GROUP_ID);
+
+const TARIFF_MAILING_LIMITS: { [key: string]: number } = {
+  Начальный: 1,
+  Стандарт: 2,
+  Профи: 4,
+};
 
 interface ProfileProps {
   id: string;
@@ -63,6 +70,7 @@ export const Profile = ({
 }: ProfileProps) => {
   const routeNavigator = useRouteNavigator();
   const { apiGet, apiDelete, apiPost, apiPut } = useApi();
+  const [mailingsUsed, setMailingsUsed] = useState(0);
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [isFetching, setFetching] = useState(false);
   const [isWithdrawLoading, setIsWithdrawLoading] = useState(false);
@@ -73,6 +81,36 @@ export const Profile = ({
   const [myEvents, setMyEvents] = useState<EventData[]>([]);
   const [isLoadingMyEvents, setIsLoadingMyEvents] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<EventData | null>(null);
+
+  const handleSendMailing = async (message: string) => {
+    setPopout(<Spinner size="l" />);
+    try {
+      await apiPost("/mailings/create", { message });
+      setActiveModal(null);
+      setSnackbar(
+        <Snackbar
+          onClose={() => setSnackbar(null)}
+          before={<Icon16Done />}
+          duration={3000}
+        >
+          Рассылка отправлена на модерацию!
+        </Snackbar>,
+      );
+      setMailingsUsed((prev) => prev + 1);
+    } catch (err: any) {
+      setSnackbar(
+        <Snackbar
+          onClose={() => setSnackbar(null)}
+          before={<Icon16Cancel />}
+          duration={3000}
+        >
+          {err.message || "Ошибка при отправке"}
+        </Snackbar>,
+      );
+    } finally {
+      setPopout(null);
+    }
+  };
 
   const fetchVotes = useCallback(async () => {
     setIsLoadingVotes(true);
@@ -382,6 +420,15 @@ export const Profile = ({
         >
           + Добавить Мероприятие
         </Button>
+        <Button
+          stretched
+          size="l"
+          mode="secondary"
+          onClick={() => setActiveModal("create-mailing-modal")}
+          style={{ marginTop: "8px" }}
+        >
+          Создать рассылку
+        </Button>
       </Div>
       {isLoadingMyEvents ? (
         <Spinner size="l" />
@@ -477,6 +524,9 @@ export const Profile = ({
     archived,
   ]);
 
+  const userTariff = user?.tariff_plan || "Начальный";
+  const mailingLimit = TARIFF_MAILING_LIMITS[userTariff] || 1;
+
   const modal = (
     <ModalRoot activeModal={activeModal} onClose={() => setActiveModal(null)}>
       <EventActionModal
@@ -492,6 +542,12 @@ export const Profile = ({
         id="qr-code-modal"
         event={selectedEvent}
         onClose={() => setActiveModal(null)}
+      />
+      <CreateMailingModal
+        id="create-mailing-modal"
+        onClose={() => setActiveModal(null)}
+        onSend={handleSendMailing}
+        mailingLimits={{ used: mailingsUsed, limit: mailingLimit }}
       />
       <ModalPage
         id="profile-settings-modal"

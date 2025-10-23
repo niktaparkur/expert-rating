@@ -178,3 +178,19 @@ class PromoCodeActivation(Base):
 Theme.experts = relationship(
     "ExpertProfile", secondary="ExpertSelectedThemes", back_populates="selected_themes"
 )
+
+
+class Mailings(Base):
+    __tablename__ = "Mailings"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    expert_vk_id = Column(
+        BigInteger, ForeignKey("ExpertProfiles.user_vk_id", ondelete="CASCADE"), nullable=False
+    )
+    message = Column(Text, nullable=False)
+    status = Column(Enum("pending", "approved", "rejected", "sent"), default="pending", nullable=False)
+    rejection_reason = Column(Text, nullable=True)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    processed_at = Column(TIMESTAMP(timezone=True), nullable=True)
+
+    expert = relationship("ExpertProfile")
+
