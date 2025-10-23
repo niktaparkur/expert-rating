@@ -1,12 +1,10 @@
 from __future__ import annotations
 from datetime import datetime
 from pydantic import BaseModel, model_validator, HttpUrl, field_serializer
-from typing import Optional, Any, List, TYPE_CHECKING
+from typing import Optional, Any, List
 
 from src.schemas.base_schemas import VotedExpertInfo
 
-if TYPE_CHECKING:
-    pass
 
 
 class EventBase(BaseModel):

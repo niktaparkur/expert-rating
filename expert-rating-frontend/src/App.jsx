@@ -23,6 +23,7 @@ import {
   Search,
   Div,
   PanelHeaderBack,
+  Text
 } from "@vkontakte/vkui";
 import {
   useActiveVkuiLocation,
@@ -60,7 +61,6 @@ import {
   PANEL_HOME,
   PANEL_REGISTRATION,
   PANEL_AFISHA,
-  PANEL_CREATE_EVENT,
   PANEL_ADMIN,
   PANEL_VOTING,
   PANEL_EXPERT_PROFILE,
@@ -305,7 +305,11 @@ export const App = () => {
         header="Голосование"
       >
         <FormItem
-          top="Введите промо-слово или наведите камеру на QR-код"
+          top={
+            <Text style={{paddingBottom: "5px"}}>
+              Введите промо-слово или наведите камеру на QR-код
+            </Text>
+          }
           bottom={getPromoBottomText()}
           status={
             promoStatus?.status === "not_found" ||
@@ -337,25 +341,21 @@ export const App = () => {
           <ModalPageHeader
             before={<PanelHeaderBack onClick={() => setActiveModal(null)} />}
           >
-            {" "}
             <div style={{ padding: "0 8px", width: "100%" }}>
-              {" "}
               <Search
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Поиск по темам"
-              />{" "}
-            </div>{" "}
+              />
+            </div>
           </ModalPageHeader>
         }
         footer={
           isTopicSelectionValid && (
             <Div>
-              {" "}
               <Button size="l" stretched onClick={() => setActiveModal(null)}>
-                {" "}
-                Сохранить{" "}
-              </Button>{" "}
+                Сохранить
+              </Button>
             </Div>
           )
         }
@@ -383,6 +383,13 @@ export const App = () => {
           {filteredTopics.length === 0 && <Div>Ничего не найдено</Div>}
         </Group>
       </ModalPage>
+      <CreateEvent
+        id="create-event-modal"
+        user={currentUser}
+        setPopout={setPopout}
+        onClose={() => setActiveModal(null)}
+        afterCreate={() => refetchUser()}
+      />
     </ModalRoot>
   );
 
@@ -414,6 +421,9 @@ export const App = () => {
             background: "var(--vkui--color_background_accent)",
             borderRadius: "12px",
             color: "white",
+            whiteSpace: "normal",
+            lineHeight: 1.2,
+            fontSize: "10px",
           }}
           label="Голосовать"
         >
@@ -484,11 +494,6 @@ export const App = () => {
             </View>
             <View id={VIEW_AFISHA} activePanel={activePanel}>
               <Afisha id={PANEL_AFISHA} user={currentUser} />
-              <CreateEvent
-                id={PANEL_CREATE_EVENT}
-                setPopout={setPopout}
-                user={currentUser}
-              />
             </View>
             <View id={VIEW_TARIFFS} activePanel={activePanel}>
               <Tariffs
@@ -507,6 +512,7 @@ export const App = () => {
                 refetchUser={refetchUser}
                 setPopout={setPopout}
                 setSnackbar={setSnackbar}
+                onOpenCreateEventModal={() => setActiveModal("create-event-modal")}
               />
             </View>
           </Epic>

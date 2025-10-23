@@ -14,8 +14,7 @@ import {
   RichCell,
   Placeholder,
   Spinner,
-  Tabs,
-  TabsItem,
+  SegmentedControl,
 } from "@vkontakte/vkui";
 import {
   Icon20FavoriteCircleFillYellow,
@@ -34,19 +33,14 @@ interface UserProfileProps {
   onSettingsClick: () => void;
   onWithdraw: () => void;
   isWithdrawLoading: boolean;
-  isExpert: boolean;
-  activeTab: "votes" | "events";
-  onTabChange: (tab: "votes" | "events") => void;
 }
+
 
 export const UserProfile = ({
   user,
   onSettingsClick,
   onWithdraw,
   isWithdrawLoading,
-  isExpert,
-  activeTab,
-  onTabChange,
 }: UserProfileProps) => {
   if (!user) return null;
   const routeNavigator = useRouteNavigator();
@@ -61,6 +55,7 @@ export const UserProfile = ({
   const isApprovedExpert = user.is_expert && user.status === "approved";
 
   return (
+    <>
     <Group>
       <Card mode="shadow">
         <RichCell
@@ -210,28 +205,8 @@ export const UserProfile = ({
             </Button>
           </Div>
         )}
-
-        {isExpert && (
-          <>
-            <Tabs mode="accent" layoutFillMode="stretched">
-              <TabsItem
-                selected={activeTab === "votes"}
-                onClick={() => onTabChange("votes")}
-                id="profile-tab-votes"
-              >
-                Мои голоса
-              </TabsItem>
-              <TabsItem
-                selected={activeTab === "events"}
-                onClick={() => onTabChange("events")}
-                id="profile-tab-events"
-              >
-                Мои мероприятия
-              </TabsItem>
-            </Tabs>
-          </>
-        )}
       </Card>
     </Group>
+  </>
   );
 };

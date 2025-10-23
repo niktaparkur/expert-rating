@@ -18,6 +18,8 @@ import {
   ModalPageHeader,
   SimpleCell,
   Switch,
+  Separator,
+  PanelHeaderBack,
 } from "@vkontakte/vkui";
 import {
   Icon56UsersOutline,
@@ -36,8 +38,16 @@ import { groupPlannedEvents } from "../utils/groupEventsByDate";
 import { useApi } from "../hooks/useApi";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
 import { EventData, UserData } from "../types";
+import { TabbedGroup } from "../components/TabbedGroup";
+import { CreateMailingModal } from "../components/CreateMailingModal";
 
 const GROUP_ID = Number(import.meta.env.VITE_VK_GROUP_ID);
+
+const TARIFF_MAILING_LIMITS: { [key: string]: number } = {
+  Начальный: 1,
+  Стандарт: 2,
+  Профи: 4,
+};
 
 interface ProfileProps {
   id: string;
@@ -46,6 +56,7 @@ interface ProfileProps {
   refetchUser: () => void;
   setPopout: (popout: React.ReactNode | null) => void;
   setSnackbar: (snackbar: React.ReactNode | null) => void;
+  onOpenCreateEventModal: () => void; // <-- Добавить эту строку
 }
 
 export const Profile = ({
@@ -55,19 +66,51 @@ export const Profile = ({
   refetchUser,
   setPopout,
   setSnackbar,
+  onOpenCreateEventModal,
 }: ProfileProps) => {
   const routeNavigator = useRouteNavigator();
   const { apiGet, apiDelete, apiPost, apiPut } = useApi();
+  const [mailingsUsed, setMailingsUsed] = useState(0);
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [isFetching, setFetching] = useState(false);
   const [isWithdrawLoading, setIsWithdrawLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"votes" | "events">("votes");
+  const [activeTab, setActiveTab] = useState<string>("votes");
   const [votes, setVotes] = useState<any[]>([]);
   const [isLoadingVotes, setIsLoadingVotes] = useState(true);
   const [searchQueryVotes, setSearchQueryVotes] = useState("");
   const [myEvents, setMyEvents] = useState<EventData[]>([]);
   const [isLoadingMyEvents, setIsLoadingMyEvents] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<EventData | null>(null);
+
+  const handleSendMailing = async (message: string) => {
+    setPopout(<Spinner size="l" />);
+    try {
+      await apiPost("/mailings/create", { message });
+      setActiveModal(null);
+      setSnackbar(
+        <Snackbar
+          onClose={() => setSnackbar(null)}
+          before={<Icon16Done />}
+          duration={3000}
+        >
+          Рассылка отправлена на модерацию!
+        </Snackbar>,
+      );
+      setMailingsUsed((prev) => prev + 1);
+    } catch (err: any) {
+      setSnackbar(
+        <Snackbar
+          onClose={() => setSnackbar(null)}
+          before={<Icon16Cancel />}
+          duration={3000}
+        >
+          {err.message || "Ошибка при отправке"}
+        </Snackbar>,
+      );
+    } finally {
+      setPopout(null);
+    }
+  };
 
   const fetchVotes = useCallback(async () => {
     setIsLoadingVotes(true);
@@ -242,23 +285,18 @@ export const Profile = ({
     }
 
     if (fieldName === "allow_notifications" && value === true) {
-      // Если мы не в браузере для разработки, а внутри VK
       if (bridge.isWebView()) {
         try {
-          // Сразу пытаемся запросить разрешение. Если оно уже есть, метод вернет { result: true }
           const result = await bridge.send("VKWebAppAllowMessagesFromGroup", {
             group_id: GROUP_ID,
           });
           if (result.result) {
-            // Права есть или были успешно получены
             await handleSettingsChange(fieldName, value);
           } else {
-            // Пользователь отказался давать права
-            await refetchUser(); // Откатываем UI
+            await refetchUser();
           }
         } catch (error) {
-          // Произошла ошибка VK Bridge (например, на платформе, где это не поддерживается)
-          await refetchUser(); // Откатываем UI
+          await refetchUser();
           setSnackbar(
             <Snackbar
               onClose={() => setSnackbar(null)}
@@ -269,14 +307,12 @@ export const Profile = ({
           );
         }
       } else {
-        // Если мы в браузере, просто сохраняем настройку для отладки
         console.log(
           "DEV BROWSER: Skipping VK Bridge call, saving settings directly.",
         );
         await handleSettingsChange(fieldName, value);
       }
     } else {
-      // Для всех остальных случаев (выключение allow_notifications или изменение allow_expert_mailings)
       await handleSettingsChange(fieldName, value);
     }
   };
@@ -371,8 +407,65 @@ export const Profile = ({
         </div>
       </React.Fragment>
     );
+
+  const renderEventsContent = () => (
+    <div style={{ paddingBottom: "60px" }}>
+      <Header indicator={`${planned.length}`}>Запланированные</Header>
+      <Div>
+        <Button
+          stretched
+          size="l"
+          mode="secondary"
+          onClick={onOpenCreateEventModal}
+        >
+          + Добавить Мероприятие
+        </Button>
+        <Button
+          stretched
+          size="l"
+          mode="secondary"
+          onClick={() => setActiveModal("create-mailing-modal")}
+          style={{ marginTop: "8px" }}
+        >
+          Создать рассылку
+        </Button>
+      </Div>
+      {isLoadingMyEvents ? (
+        <Spinner size="l" />
+      ) : planned.length === 0 ? (
+        <Placeholder title="Нет запланированных мероприятий." />
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {renderGroupedEvents(groupedPlannedEvents.today, "Сегодня")}
+          {renderGroupedEvents(groupedPlannedEvents.tomorrow, "Завтра")}
+          {renderGroupedEvents(
+            groupedPlannedEvents.next7Days,
+            "Ближайшие 7 дней",
+          )}
+          {renderGroupedEvents(groupedPlannedEvents.later, "Позже")}
+        </div>
+      )}
+
+      {archived.length > 0 && (
+        <>
+          <Separator style={{ margin: "12px 0" }} />
+          <Header>Архив</Header>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {archived.map((event) => (
+              <EventInfoCard
+                key={event.id}
+                event={event}
+                onClick={handleEventClick}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
   const renderVotesContent = () => (
-    <Group>
+    <>
       <Search
         value={searchQueryVotes}
         onChange={(e) => setSearchQueryVotes(e.target.value)}
@@ -403,60 +496,36 @@ export const Profile = ({
           title="Вы еще не голосовали."
         />
       )}
-    </Group>
+    </>
   );
-  const renderEventsContent = () => (
-    <div style={{ paddingBottom: "60px" }}>
-      <Group>
-        <Header indicator={`${planned.length}`}>Запланированные</Header>
-        <Div>
-          <Button
-            stretched
-            size="l"
-            mode="secondary"
-            onClick={() => routeNavigator.push("/create-event")}
-          >
-            + Добавить Мероприятие
-          </Button>
-        </Div>
-        {isLoadingMyEvents ? (
-          <Spinner size="l" />
-        ) : planned.length === 0 ? (
-          <Placeholder title="Нет запланированных мероприятий." />
-        ) : (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px",
-            }}
-          >
-            {renderGroupedEvents(groupedPlannedEvents.today, "Сегодня")}
-            {renderGroupedEvents(groupedPlannedEvents.tomorrow, "Завтра")}
-            {renderGroupedEvents(
-              groupedPlannedEvents.next7Days,
-              "Ближайшие 7 дней",
-            )}
-            {renderGroupedEvents(groupedPlannedEvents.later, "Позже")}
-          </div>
-        )}
-      </Group>
-      {archived.length > 0 && (
-        <Group>
-          <Header>Архив</Header>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {archived.map((event) => (
-              <EventInfoCard
-                key={event.id}
-                event={event}
-                onClick={handleEventClick}
-              />
-            ))}
-          </div>
-        </Group>
-      )}
-    </div>
-  );
+
+  const tabsConfig = useMemo(() => {
+    const tabs = [
+      {
+        id: "votes",
+        title: "Мои голоса",
+        content: renderVotesContent(),
+      },
+    ];
+    if (user?.is_expert) {
+      tabs.push({
+        id: "events",
+        title: "Мои мероприятия",
+        content: renderEventsContent(),
+      });
+    }
+    return tabs;
+  }, [
+    user?.is_expert,
+    isLoadingVotes,
+    filteredVotes,
+    isLoadingMyEvents,
+    planned,
+    archived,
+  ]);
+
+  const userTariff = user?.tariff_plan || "Начальный";
+  const mailingLimit = TARIFF_MAILING_LIMITS[userTariff] || 1;
 
   const modal = (
     <ModalRoot activeModal={activeModal} onClose={() => setActiveModal(null)}>
@@ -474,10 +543,22 @@ export const Profile = ({
         event={selectedEvent}
         onClose={() => setActiveModal(null)}
       />
+      <CreateMailingModal
+        id="create-mailing-modal"
+        onClose={() => setActiveModal(null)}
+        onSend={handleSendMailing}
+        mailingLimits={{ used: mailingsUsed, limit: mailingLimit }}
+      />
       <ModalPage
         id="profile-settings-modal"
         onClose={() => setActiveModal(null)}
-        header={<ModalPageHeader>Настройки</ModalPageHeader>}
+        header={
+          <ModalPageHeader
+            before={<PanelHeaderBack onClick={() => setActiveModal(null)} />}
+          >
+            Настройки
+          </ModalPageHeader>
+        }
         settlingHeight={100}
       >
         {user?.is_expert && (
@@ -531,6 +612,7 @@ export const Profile = ({
                     e.target.checked,
                   )
                 }
+                disabled={!user?.allow_notifications}
               />
             }
           >
@@ -551,21 +633,13 @@ export const Profile = ({
           onSettingsClick={() => setActiveModal("profile-settings-modal")}
           onWithdraw={() => {}}
           isWithdrawLoading={isWithdrawLoading}
-          isExpert={user?.is_expert || false}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
         />
-        {user?.is_expert ? (
-          <>
-            {activeTab === "votes" && renderVotesContent()}
-            {activeTab === "events" && renderEventsContent()}
-          </>
-        ) : (
-          <Group>
-            <Header>Мои голоса</Header>
-            {renderVotesContent()}
-          </Group>
-        )}
+
+        <TabbedGroup
+          tabs={tabsConfig}
+          activeTab={activeTab}
+          onTabChange={(id) => setActiveTab(id)}
+        />
       </PullToRefresh>
     </Panel>
   );

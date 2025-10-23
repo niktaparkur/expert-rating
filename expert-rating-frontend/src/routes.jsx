@@ -18,7 +18,6 @@ export const PANEL_HOME = "panel_home";
 export const PANEL_REGISTRATION = "panel_registration";
 export const PANEL_EXPERT_PROFILE = "panel_expert_profile";
 export const PANEL_AFISHA = "panel_afisha";
-export const PANEL_CREATE_EVENT = "panel_create_event";
 export const PANEL_ADMIN = "panel_admin";
 export const PANEL_VOTING = "panel_voting";
 export const PANEL_TARIFFS = "tariffs-panel";
@@ -33,10 +32,7 @@ export const routes = RoutesConfig.create([
       createPanel(PANEL_VOTING, "/vote/:promo", []),
       createPanel(PANEL_ADMIN, "/admin", []),
     ]),
-    createView(VIEW_AFISHA, [
-      createPanel(PANEL_AFISHA, "/afisha", []),
-      createPanel(PANEL_CREATE_EVENT, "/create-event", []),
-    ]),
+    createView(VIEW_AFISHA, [createPanel(PANEL_AFISHA, "/afisha", [])]),
     createView(VIEW_TARIFFS, [createPanel(PANEL_TARIFFS, "/tariffs", [])]),
     createView(VIEW_PROFILE, [createPanel(PANEL_PROFILE, "/profile", [])]),
   ]),
