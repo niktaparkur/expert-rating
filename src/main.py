@@ -29,7 +29,9 @@ if settings.SENTRY_DSN:
 
 scheduler = AsyncIOScheduler()
 engine_bg = create_async_engine(settings.DATABASE_URL_ASYNC)
-AsyncSessionLocal_bg = sessionmaker(engine_bg, class_=AsyncSession, expire_on_commit=False)
+AsyncSessionLocal_bg = sessionmaker(
+    engine_bg, class_=AsyncSession, expire_on_commit=False
+)
 notifier_bg = Notifier(token=settings.VK_BOT_TOKEN)
 
 

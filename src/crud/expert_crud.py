@@ -125,7 +125,7 @@ async def get_pending_experts(db: AsyncSession):
 
 
 async def set_expert_status(
-        db: AsyncSession, vk_id: int, status: str
+    db: AsyncSession, vk_id: int, status: str
 ) -> Optional[ExpertProfile]:
     result = await db.execute(
         select(ExpertProfile).filter(ExpertProfile.user_vk_id == vk_id)
@@ -144,12 +144,12 @@ async def set_expert_status(
 
 
 async def get_all_users_paginated(
-        db: AsyncSession,
-        page: int,
-        size: int,
-        search_query: Optional[str] = None,
-        user_type_filter: Optional[str] = None,
-        date_sort_order: Optional[str] = None,
+    db: AsyncSession,
+    page: int,
+    size: int,
+    search_query: Optional[str] = None,
+    user_type_filter: Optional[str] = None,
+    date_sort_order: Optional[str] = None,
 ):
     query = select(User, ExpertProfile).outerjoin(
         ExpertProfile, User.vk_id == ExpertProfile.user_vk_id
@@ -181,7 +181,7 @@ async def get_all_users_paginated(
 
 
 async def delete_user_by_vk_id(
-        db: AsyncSession, vk_id: int, cache: redis.Redis
+    db: AsyncSession, vk_id: int, cache: redis.Redis
 ) -> bool:
     result = await db.execute(select(User).filter(User.vk_id == vk_id))
     db_user = result.scalars().first()
@@ -198,12 +198,12 @@ async def delete_user_by_vk_id(
 
 
 async def get_top_experts_paginated(
-        db: AsyncSession,
-        page: int,
-        size: int,
-        search_query: Optional[str] = None,
-        region: Optional[str] = None,
-        category_id: Optional[int] = None,
+    db: AsyncSession,
+    page: int,
+    size: int,
+    search_query: Optional[str] = None,
+    region: Optional[str] = None,
+    category_id: Optional[int] = None,
 ):
     expert_rating = (
         select(Vote.expert_vk_id, func.count(Vote.id).label("expert_rating"))
@@ -306,10 +306,10 @@ async def create_user(db: AsyncSession, user_data: UserCreate) -> User:
 
 
 async def create_community_vote(
-        db: AsyncSession,
-        expert_vk_id: int,
-        vote_data: CommunityVoteCreate,
-        notifier: Notifier,
+    db: AsyncSession,
+    expert_vk_id: int,
+    vote_data: CommunityVoteCreate,
+    notifier: Notifier,
 ):
     expert_profile_res = await db.execute(
         select(ExpertProfile)
@@ -359,7 +359,7 @@ async def create_community_vote(
 
 
 async def delete_community_vote(
-        db: AsyncSession, expert_vk_id: int, voter_vk_id: int
+    db: AsyncSession, expert_vk_id: int, voter_vk_id: int
 ) -> bool:
     query = select(Vote).where(
         Vote.voter_vk_id == voter_vk_id,
@@ -377,7 +377,7 @@ async def delete_community_vote(
 
 
 async def get_user_vote_for_expert(
-        db: AsyncSession, expert_vk_id: int, voter_vk_id: int
+    db: AsyncSession, expert_vk_id: int, voter_vk_id: int
 ) -> Optional[UserVoteInfo]:
     if not voter_vk_id:
         return None
@@ -399,13 +399,15 @@ async def get_user_vote_for_expert(
 
 
 async def update_user_settings(
-        db: AsyncSession, vk_id: int, settings_data: UserSettingsUpdate
+    db: AsyncSession, vk_id: int, settings_data: UserSettingsUpdate
 ) -> User | ExpertProfile | None:
     update_data = settings_data.model_dump(exclude_unset=True)
     object_to_return = None
 
     if "show_community_rating" in update_data:
-        result = await db.execute(select(ExpertProfile).filter(ExpertProfile.user_vk_id == vk_id))
+        result = await db.execute(
+            select(ExpertProfile).filter(ExpertProfile.user_vk_id == vk_id)
+        )
         db_profile = result.scalars().first()
         if not db_profile:
             raise ValueError("Expert profile not found.")

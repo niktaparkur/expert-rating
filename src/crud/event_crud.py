@@ -289,7 +289,7 @@ async def get_events_for_reminding(db: AsyncSession):
             Event.status == "approved",
             Event.send_reminder.is_(True),
             Event.reminder_sent.is_(False),
-            Event.event_date.between(now, start_time_threshold)
+            Event.event_date.between(now, start_time_threshold),
         )
     )
     result = await db.execute(query)
@@ -303,4 +303,3 @@ async def mark_reminder_as_sent(db: AsyncSession, event_id: int):
     if event:
         event.reminder_sent = True
         await db.commit()
-
