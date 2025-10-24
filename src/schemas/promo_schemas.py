@@ -35,3 +35,4 @@ class PromoCodeApplyResponse(BaseModel):
     discount_percent: int
     final_price: int
     code: str
+    order_context_id: str
