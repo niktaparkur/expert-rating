@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Panel,
   PanelHeader,
@@ -282,6 +282,11 @@ export const Tariffs = ({ id }: TariffsProps) => {
     setActiveModal("promo-modal");
   };
 
+  useEffect(() => {
+    setPromoResult(null);
+  }, [promoCode]);
+
+
   const handleApplyPromo = async () => {
     if (!promoCode || !selectedTariff || !user) return;
     setIsApplyingPromo(true);
@@ -312,11 +317,16 @@ export const Tariffs = ({ id }: TariffsProps) => {
       ? promoResult.final_price
       : selectedTariff.price_votes;
 
-    const orderParams = {
+    const orderParams: any = {
       type: "item",
       item: selectedTariff.id,
       item_price: finalPrice,
     };
+
+    if (promoResult && promoResult.order_context_id) {
+      orderParams.merchant_data = promoResult.order_context_id;
+    }
+
     try {
       await bridge.send("VKWebAppShowOrderBox", orderParams as any);
       setSnackbar(
@@ -360,7 +370,7 @@ export const Tariffs = ({ id }: TariffsProps) => {
     });
     if (isDesktop)
       return (
-        <CardScroll size="s" padding padding>
+        <CardScroll size="s" padding>
           {tariffCards}
         </CardScroll>
       );
@@ -395,10 +405,11 @@ export const Tariffs = ({ id }: TariffsProps) => {
                 <Input
                   value={promoCode}
                   onChange={(e) => setPromoCode(e.target.value)}
+                  disabled={!!promoResult}
                 />
               </FormItem>
               <FormItem>
-                <Button onClick={handleApplyPromo} disabled={isApplyingPromo}>
+                <Button onClick={handleApplyPromo} disabled={isApplyingPromo || !!promoResult}>
                   {isApplyingPromo ? <Spinner size="s" /> : "Применить"}
                 </Button>
               </FormItem>

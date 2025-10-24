@@ -1,7 +1,9 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from src.core.dependencies import get_db, get_current_admin_user
+import redis.asyncio as redis
+from src.core.dependencies import get_db, get_current_admin_user, get_redis
 from src.crud import promo_crud
 from src.schemas import promo_schemas
 from .tariffs import TARIFFS_DATA_LIST
@@ -14,7 +16,8 @@ router = APIRouter(prefix="/promo", tags=["Promo Codes"])
 
 @router.post("/apply", response_model=promo_schemas.PromoCodeApplyResponse)
 async def apply_promo_code(
-    apply_data: promo_schemas.PromoCodeApply, db: AsyncSession = Depends(get_db)
+    apply_data: promo_schemas.PromoCodeApply, db: AsyncSession = Depends(get_db),
+        cache: redis.Redis = Depends(get_redis),
 ):
     promo_code = await promo_crud.validate_and_get_promo_code(
         db, code=apply_data.code, user_vk_id=apply_data.user_vk_id
@@ -45,11 +48,21 @@ async def apply_promo_code(
     discount = promo_code.discount_percent
     final_price = round(original_price * (100 - discount) / 100)
 
+    order_context_id = str(uuid.uuid4())
+
+    cache_key = f"order_context:{order_context_id}"
+    await cache.set(
+        cache_key,
+        f'{{"final_price": {final_price}, "user_id": {apply_data.user_vk_id}}}',
+        ex=600  # 10 минут
+    )
+
     return {
         "original_price": original_price,
         "discount_percent": discount,
         "final_price": final_price,
         "code": promo_code.code,
+        "order_context_id": order_context_id,
     }
 
 

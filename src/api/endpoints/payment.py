@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 from typing import Dict
+import json
 
 import redis.asyncio as redis
 from fastapi import APIRouter, Depends, Request
@@ -44,12 +45,24 @@ async def handle_payment_notification(
     if notification_type in ["get_item", "get_item_test"]:
         logger.info(f"Processing '{notification_type}'...")
         item_id = params.get("item")
-        if item_id in TARIFFS_INFO:
-            logger.success(f"Found item '{item_id}'. Sending item info to VK.")
-            return {"response": TARIFFS_INFO[item_id]}
-        else:
+        order_context_id = params.get("merchant_data")
+
+        response_item = TARIFFS_INFO.get(item_id)
+        if not response_item:
             logger.error(f"Unknown item_id requested: {item_id}")
             return {"error": {"error_code": 20, "error_msg": "Item not found."}}
+
+        if order_context_id:
+            cache_key = f"order_context:{order_context_id}"
+            context_data_str = await cache.get(cache_key)
+            if context_data_str:
+                context_data = json.loads(context_data_str)
+                final_price = context_data.get("final_price")
+                logger.success(f"Found discounted price {final_price} in Redis for context {order_context_id}")
+                response_item["price"] = final_price
+
+        logger.success(f"Sending item info to VK: {response_item}")
+        return {"response": response_item}
 
     elif notification_type in ["order_status_change", "order_status_change_test"]:
         logger.info("Processing 'order_status_change'...")
