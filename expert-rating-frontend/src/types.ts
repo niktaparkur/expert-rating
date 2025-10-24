@@ -38,7 +38,7 @@ export interface EventData {
 
 export interface UserVoteInfo {
   vote_type: "trust" | "distrust";
-  comment: string | null;
+  comment?: string;
 }
 
 // Тип для данных пользователя

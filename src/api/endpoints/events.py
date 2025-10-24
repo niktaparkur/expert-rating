@@ -47,6 +47,7 @@ async def create_event(
         new_event = await event_crud.create_event(
             db=db, event_data=event_data, expert_id=expert_id
         )
+
         await notifier.send_new_event_to_admin(
             event_name=new_event.event_name, expert_name=current_user.get("first_name")
         )

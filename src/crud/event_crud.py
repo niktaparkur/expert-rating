@@ -277,3 +277,30 @@ async def delete_event_vote(db: AsyncSession, vote_id: int, voter_vk_id: int) ->
         await db.commit()
         return True
     return False
+
+
+async def get_events_for_reminding(db: AsyncSession):
+    """Находит мероприятия, которые скоро начнутся и для которых не было отправлено напоминание."""
+    now = datetime.now(timezone.utc)
+    start_time_threshold = now + timedelta(minutes=15)
+
+    query = select(Event).where(
+        and_(
+            Event.status == "approved",
+            Event.send_reminder.is_(True),
+            Event.reminder_sent.is_(False),
+            Event.event_date.between(now, start_time_threshold)
+        )
+    )
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
+async def mark_reminder_as_sent(db: AsyncSession, event_id: int):
+    """Отмечает, что напоминание для мероприятия было отправлено."""
+    result = await db.execute(select(Event).where(Event.id == event_id))
+    event = result.scalars().first()
+    if event:
+        event.reminder_sent = True
+        await db.commit()
+

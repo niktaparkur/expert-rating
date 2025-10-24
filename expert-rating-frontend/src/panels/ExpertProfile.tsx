@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Panel,
   PanelHeader,
@@ -7,11 +7,11 @@ import {
   Spinner,
   Placeholder,
   SegmentedControl,
-  Snackbar,
   Header,
   ModalRoot,
   ModalPage,
   ModalPageHeader,
+  Snackbar,
 } from "@vkontakte/vkui";
 import { useRouteNavigator, useParams } from "@vkontakte/vk-mini-apps-router";
 import {
@@ -19,23 +19,22 @@ import {
   Icon16Done,
   Icon16Cancel,
 } from "@vkontakte/icons";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useApi } from "../hooks/useApi";
+import { useUserStore } from "../store/userStore";
+import { useUiStore } from "../store/uiStore";
 import {
   ExpertProfileCard,
   ExpertProfileData,
-} from "../components/ExpertProfileCard";
-import { VoteCard } from "../components/VoteCard";
-import { EventInfoCard } from "../components/EventInfoCard";
+} from "../components/Expert/ExpertProfileCard";
+import { VoteCard } from "../components/Vote/VoteCard";
+import { EventInfoCard } from "../components/Event/EventInfoCard";
 import { groupPlannedEvents } from "../utils/groupEventsByDate";
 import { UserData, EventData } from "../types";
 
 interface ExpertProfileProps {
   id: string;
-  user: UserData | null;
-  setPopout: (popout: React.ReactNode | null) => void;
-  setSnackbar: (snackbar: React.ReactNode | null) => void;
-  refetchUser: () => void;
 }
 
 interface ExpertEventsState {
@@ -45,86 +44,57 @@ interface ExpertEventsState {
 
 const mapUserDataToExpertProfileData = (
   userData: UserData,
-): ExpertProfileData => {
-  return {
-    first_name: userData.first_name,
-    last_name: userData.last_name,
-    photo_url: userData.photo_url,
-    regalia: userData.regalia,
-    social_link: userData.social_link,
-    topics: userData.topics,
-    stats: userData.stats
-      ? {
-          expert: userData.stats.expert ?? 0,
-          community: userData.stats.community ?? 0,
-          events_count: userData.stats.events_count ?? 0,
-        }
-      : { expert: 0, community: 0, events_count: 0 },
-    show_community_rating: userData.show_community_rating,
-  };
-};
+): ExpertProfileData => ({
+  first_name: userData.first_name,
+  last_name: userData.last_name,
+  photo_url: userData.photo_url,
+  regalia: userData.regalia,
+  social_link: userData.social_link,
+  topics: userData.topics,
+  stats: userData.stats
+    ? {
+        expert: userData.stats.expert ?? 0,
+        community: userData.stats.community ?? 0,
+        events_count: userData.stats.events_count ?? 0,
+      }
+    : { expert: 0, community: 0, events_count: 0 },
+  show_community_rating: userData.show_community_rating,
+});
 
-export const ExpertProfile = ({
-  id,
-  user,
-  setPopout,
-  setSnackbar,
-  refetchUser,
-}: ExpertProfileProps) => {
+export const ExpertProfile = ({ id }: ExpertProfileProps) => {
   const routeNavigator = useRouteNavigator();
   const params = useParams<"expertId">();
   const expertId = params?.expertId;
+
   const { apiGet, apiPost, apiDelete } = useApi();
+  const { currentUser: user } = useUserStore();
+  const { setPopout, setSnackbar, activeModal, setActiveModal } = useUiStore();
+  const queryClient = useQueryClient();
 
-  const [expert, setExpert] = useState<UserData | null>(null);
-  const [events, setEvents] = useState<ExpertEventsState>({
-    current: [],
-    past: [],
-  });
-  const [loading, setLoading] = useState({ profile: true, events: true });
-  const [error, setError] = useState<string | null>(null);
-  const [activeModal, setActiveModal] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("current");
-
   const isSelf = user?.vk_id === Number(expertId);
-  const initialVote = expert?.current_user_vote_info;
 
-  const refetchExpert = useCallback(async () => {
-    if (!expertId) return;
-    try {
-      const profileData = await apiGet(`/experts/${expertId}`);
-      setExpert(profileData);
-    } catch (err: any) {
-      setSnackbar(
-        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
-          Не удалось обновить профиль.
-        </Snackbar>,
-      );
-    }
-  }, [apiGet, expertId, setSnackbar]);
+  const {
+    data: expert,
+    isLoading: isProfileLoading,
+    isError: isProfileError,
+  } = useQuery({
+    queryKey: ["expertProfile", expertId],
+    queryFn: async () => {
+      if (!expertId) return null;
+      return apiGet<UserData>(`/experts/${expertId}`);
+    },
+    enabled: !!expertId,
+  });
 
-  useEffect(() => {
-    if (!expertId) return;
-
-    async function fetchData() {
-      setLoading({ profile: true, events: true });
-      setError(null);
-      try {
-        const [profileData, eventsData] = await Promise.all([
-          apiGet(`/experts/${expertId}`),
-          apiGet(`/events/expert/${expertId}`),
-        ]);
-        setExpert(profileData);
-        setEvents(eventsData);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading({ profile: false, events: false });
-      }
-    }
-
-    fetchData();
-  }, [expertId, apiGet]);
+  const { data: events, isLoading: areEventsLoading } = useQuery({
+    queryKey: ["expertEvents", expertId],
+    queryFn: async () => {
+      if (!expertId) return { current: [], past: [] };
+      return apiGet<ExpertEventsState>(`/events/expert/${expertId}`);
+    },
+    enabled: !!expertId,
+  });
 
   const handleVoteClick = () => {
     if (isSelf) {
@@ -149,7 +119,12 @@ export const ExpertProfile = ({
 
     try {
       await apiPost(`/experts/${expertId}/vote`, finalData);
-      await Promise.all([refetchExpert(), refetchUser()]);
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["expertProfile", expertId],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["user", "me"] }),
+      ]);
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
           Спасибо, ваше действие учтено!
@@ -172,7 +147,12 @@ export const ExpertProfile = ({
 
     try {
       await apiDelete(`/experts/${expertId}/vote`);
-      await Promise.all([refetchExpert(), refetchUser()]);
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["expertProfile", expertId],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["user", "me"] }),
+      ]);
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
           Ваш голос отменен.
@@ -198,7 +178,7 @@ export const ExpertProfile = ({
     );
   };
 
-  const groupedPlannedEvents = groupPlannedEvents(events.current);
+  const groupedPlannedEvents = groupPlannedEvents(events?.current || []);
   const renderGroupedEvents = (group: EventData[], title: string) =>
     group.length > 0 && (
       <React.Fragment key={title}>
@@ -222,23 +202,25 @@ export const ExpertProfile = ({
         <VoteCard
           onSubmit={handleVoteAction}
           onCancelVote={handleCancelVoteAction}
-          initialVote={initialVote}
+          initialVote={expert?.current_user_vote_info}
           setPopout={setPopout}
         />
       </ModalPage>
     </ModalRoot>
   );
 
-  if (loading.profile)
+  if (isProfileLoading)
     return (
       <Panel id={id}>
-        <Spinner size="l" />
+        <Spinner size="xl" />
       </Panel>
     );
-  if (error)
+  if (isProfileError)
     return (
       <Panel id={id}>
-        <Placeholder title="Ошибка">{error}</Placeholder>
+        <Placeholder title="Ошибка">
+          Не удалось загрузить профиль эксперта.
+        </Placeholder>
       </Panel>
     );
 
@@ -265,17 +247,14 @@ export const ExpertProfile = ({
               onChange={(value) => setActiveTab(String(value))}
               options={[
                 { label: "Предстоящие", value: "current" },
-                {
-                  label: "Завершенные",
-                  value: "past",
-                },
+                { label: "Завершенные", value: "past" },
               ]}
             />
             <div style={{ paddingBottom: "60px" }}>
-              {loading.events && <Spinner size="l" />}
-              {!loading.events &&
+              {areEventsLoading && <Spinner size="l" />}
+              {!areEventsLoading &&
                 activeTab === "current" &&
-                (events.current.length > 0 ? (
+                ((events?.current.length || 0) > 0 ? (
                   <>
                     {renderGroupedEvents(groupedPlannedEvents.today, "Сегодня")}
                     {renderGroupedEvents(
@@ -294,9 +273,9 @@ export const ExpertProfile = ({
                     title="Нет предстоящих мероприятий"
                   />
                 ))}
-              {!loading.events &&
+              {!areEventsLoading &&
                 activeTab === "past" &&
-                (events.past.length > 0 ? (
+                ((events?.past.length || 0) > 0 ? (
                   <div
                     style={{
                       display: "flex",
@@ -304,7 +283,7 @@ export const ExpertProfile = ({
                       gap: "8px",
                     }}
                   >
-                    {events.past.map((event) => (
+                    {events?.past.map((event) => (
                       <EventInfoCard key={event.id} event={event} />
                     ))}
                   </div>

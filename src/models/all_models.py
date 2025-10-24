@@ -60,6 +60,7 @@ class Event(Base):
 
     voter_thank_you_message = Column(Text, nullable=True)
     send_reminder = Column(Boolean, default=False, server_default="0", nullable=False)
+    reminder_sent = Column(Boolean, default=False, server_default="0", nullable=False)
 
     expert = relationship("ExpertProfile", back_populates="events")
 

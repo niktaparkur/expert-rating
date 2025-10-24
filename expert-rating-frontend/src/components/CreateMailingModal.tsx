@@ -54,7 +54,7 @@ export const CreateMailingModal: React.FC<CreateMailingModalProps> = ({
       settlingHeight={100}
     >
       <Div>
-        <FormStatus header="Как это работает" mode="default">
+        <FormStatus title="Как это работает" mode="default">
           Сообщение будет отправлено всем пользователям, которые проголосовали
           за вас «Доверяю». Рассылка сперва отправляется на модерацию.
         </FormStatus>

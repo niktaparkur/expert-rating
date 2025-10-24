@@ -11,7 +11,6 @@ import {
   Group,
   Header,
   Button,
-  ScreenSpinner,
   Div,
   Spinner,
   ModalRoot,
@@ -38,6 +37,7 @@ import {
   Platform,
   Text,
   Cell,
+  ScreenSpinner,
 } from "@vkontakte/vkui";
 import {
   Icon16Cancel,
@@ -47,13 +47,15 @@ import {
 } from "@vkontakte/icons";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
 import { useApi } from "../hooks/useApi";
-import { debounce } from "lodash";
-import { RequestCard } from "../components/RequestCard";
-import { PromoCodeCard } from "../components/PromoCodeCard";
-import { PromoCodeEditModal } from "../components/PromoCodeEditModal";
-import { PromoCodeDetailsModal } from "../components/PromoCodeDetailsModal";
+import { useUiStore } from "../store/uiStore";
+import debounce from "lodash.debounce";
+import { RequestCard } from "../components/Admin/RequestCard";
+import { PromoCodeCard } from "../components/Admin/PromoCodeCard";
+import { PromoCodeEditModal } from "../components/Admin/PromoCodeEditModal";
+import { PromoCodeDetailsModal } from "../components/Admin/PromoCodeDetailsModal";
 import { UserData } from "../types";
 
+// Определяем типы для данных, получаемых от API
 interface MailingRequest {
   id: number;
   expert_vk_id: number;
@@ -85,13 +87,12 @@ interface EventRequest {
 
 interface AdminPanelProps {
   id: string;
-  setPopout: (popout: React.ReactNode | null) => void;
-  setSnackbar: (snackbar: React.ReactNode | null) => void;
 }
 
-export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
+export const Admin = ({ id }: AdminPanelProps) => {
   const routeNavigator = useRouteNavigator();
   const { apiGet, apiPost, apiPut, apiDelete } = useApi();
+  const { setPopout, setSnackbar } = useUiStore();
   const platform = usePlatform();
   const usersObserverRef = useRef<HTMLDivElement>(null);
   const promoObserverRef = useRef<HTMLDivElement>(null);
@@ -128,18 +129,6 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
     null,
   );
 
-  const fetchMailingData = useCallback(async () => {
-    setLoadingMailings(true);
-    try {
-      const mailingsData = await apiGet("/mailings/admin/pending");
-      setMailingRequests(mailingsData || []);
-    } catch (e) {
-      showErrorSnackbar((e as Error).message || "Ошибка загрузки рассылок");
-    } finally {
-      setLoadingMailings(false);
-    }
-  }, [apiGet]);
-
   const showErrorSnackbar = (message: string) =>
     setSnackbar(
       <Snackbar
@@ -151,12 +140,26 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
       </Snackbar>,
     );
 
+  const fetchMailingData = useCallback(async () => {
+    setLoadingMailings(true);
+    try {
+      const mailingsData = await apiGet<MailingRequest[]>(
+        "/mailings/admin/pending",
+      );
+      setMailingRequests(mailingsData || []);
+    } catch (e) {
+      showErrorSnackbar((e as Error).message || "Ошибка загрузки рассылок");
+    } finally {
+      setLoadingMailings(false);
+    }
+  }, [apiGet, setSnackbar]);
+
   const fetchModerationData = useCallback(async () => {
     setLoadingModeration(true);
     try {
       const [expertsData, eventsData] = await Promise.all([
-        apiGet("/experts/admin/pending"),
-        apiGet("/events/admin/pending"),
+        apiGet<ExpertRequest[]>("/experts/admin/pending"),
+        apiGet<EventRequest[]>("/events/admin/pending"),
       ]);
       setExpertRequests(expertsData || []);
       setEventRequests(eventsData || []);
@@ -165,7 +168,7 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
     } finally {
       setLoadingModeration(false);
     }
-  }, [apiGet]);
+  }, [apiGet, setSnackbar]);
 
   const fetchUsersData = useCallback(
     async (isNewSearch = false) => {
@@ -180,7 +183,7 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
         sort_by_date: usersFilter.date,
       });
       try {
-        const usersData = await apiGet(
+        const usersData = await apiGet<any>(
           `/experts/admin/all_users?${params.toString()}`,
         );
         setUsers((prev) =>
@@ -197,7 +200,14 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
         setLoadingUsers(false);
       }
     },
-    [apiGet, loadingUsers, usersPage, debouncedSearch, usersFilter],
+    [
+      apiGet,
+      loadingUsers,
+      usersPage,
+      debouncedSearch,
+      usersFilter,
+      setSnackbar,
+    ],
   );
 
   const fetchPromoCodes = useCallback(
@@ -206,7 +216,9 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
       setLoadingPromoCodes(true);
       const currentPage = isNewSearch ? 1 : promoCodesPage;
       try {
-        const data = await apiGet(`/promo/admin?page=${currentPage}&size=50`);
+        const data = await apiGet<any>(
+          `/promo/admin?page=${currentPage}&size=50`,
+        );
         setPromoCodes((prev) =>
           isNewSearch ? data.items : [...prev, ...data.items],
         );
@@ -219,20 +231,23 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
         setLoadingPromoCodes(false);
       }
     },
-    [apiGet, loadingPromoCodes, promoCodesPage],
+    [apiGet, loadingPromoCodes, promoCodesPage, setSnackbar],
   );
 
   const debouncedSetSearch = useMemo(
     () => debounce((query: string) => setDebouncedSearch(query), 500),
     [],
   );
+
   useEffect(() => {
     debouncedSetSearch(usersSearch);
   }, [usersSearch, debouncedSetSearch]);
+
   useEffect(() => {
     if (selectedTab === "moderation") fetchModerationData();
     if (selectedTab === "mailings") fetchMailingData();
   }, [selectedTab, fetchModerationData, fetchMailingData]);
+
   useEffect(() => {
     if (selectedTab === "users") {
       setUsers([]);
@@ -241,6 +256,7 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
       fetchUsersData(true);
     }
   }, [selectedTab, debouncedSearch, usersFilter]);
+
   useEffect(() => {
     if (selectedTab === "promo") {
       setPromoCodes([]);
@@ -249,6 +265,7 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
       fetchPromoCodes(true);
     }
   }, [selectedTab]);
+
   useEffect(() => {
     if (selectedTab !== "users") return;
     const observer = new IntersectionObserver(
@@ -264,6 +281,7 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
       if (currentObserverRef) observer.unobserve(currentObserverRef);
     };
   }, [selectedTab, hasMoreUsers, loadingUsers, fetchUsersData]);
+
   useEffect(() => {
     if (selectedTab !== "promo") return;
     const observer = new IntersectionObserver(
@@ -288,15 +306,18 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
     setSelectedExpert(request);
     setActiveModal("expert-details");
   };
+
   const openEventRequest = (event: EventRequest) => {
     setSelectedEvent(event);
     setActiveModal("event-details");
   };
+
   const closeModal = () => {
     setActiveModal(null);
     setTimeout(() => {
       setSelectedExpert(null);
       setSelectedEvent(null);
+      setSelectedMailing(null);
     }, 200);
   };
 
@@ -324,7 +345,7 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
     closeModal();
     setPopout(<ScreenSpinner state="loading" />);
     try {
-      await apiPost(`/experts/admin/${vkId}/${action}`);
+      await apiPost(`/experts/admin/${vkId}/${action}`, {});
       setExpertRequests((prev) => prev.filter((req) => req.vk_id !== vkId));
     } catch (err) {
       showErrorSnackbar((err as Error).message);
@@ -354,7 +375,7 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
     const performDelete = async () => {
       setPopout(<ScreenSpinner state="loading" />);
       try {
-        await apiPost(`/experts/admin/${userToDelete.vk_id}/delete`);
+        await apiPost(`/experts/admin/${userToDelete.vk_id}/delete`, {});
         setUsers((prev) => prev.filter((u) => u.vk_id !== userToDelete.vk_id));
       } catch (err) {
         showErrorSnackbar((err as Error).message);
@@ -366,7 +387,11 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
       <Alert
         actions={[
           { title: "Отмена", mode: "cancel" },
-          { title: "Удалить", mode: "destructive", action: performDelete },
+          {
+            title: "Удалить",
+            mode: "destructive",
+            action: performDelete,
+          },
         ]}
         onClose={() => setPopout(null)}
         title="Подтверждение действия"
@@ -385,18 +410,27 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
         onClose={handleCloseSheet}
         iosCloseItem={<ActionSheetItem mode="cancel">Отмена</ActionSheetItem>}
         toggleRef={event.currentTarget}
-        style={{ paddingBottom: "50px" }}
+        style={{
+          zIndex: 1001,
+          paddingBottom: "var(--vkui_safe_area_inset_bottom)",
+        }}
       >
         {user.is_expert && (
           <ActionSheetItem
-            onClick={() => routeNavigator.push(`/expert/${user.vk_id}`)}
+            onClick={() => {
+              handleCloseSheet();
+              routeNavigator.push(`/expert/${user.vk_id}`);
+            }}
           >
             Посмотреть профиль
           </ActionSheetItem>
         )}
         <ActionSheetItem
           mode="destructive"
-          onClick={() => handleDeleteUser(user)}
+          onClick={() => {
+            handleCloseSheet();
+            handleDeleteUser(user);
+          }}
         >
           Удалить
         </ActionSheetItem>
@@ -446,7 +480,11 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
       <Alert
         actions={[
           { title: "Отмена", mode: "cancel" },
-          { title: "Удалить", mode: "destructive", action: performDelete },
+          {
+            title: "Удалить",
+            mode: "destructive",
+            action: performDelete,
+          },
         ]}
         onClose={() => setPopout(null)}
         title="Подтверждение"
@@ -463,12 +501,25 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
         onClose={handleCloseSheet}
         iosCloseItem={<ActionSheetItem mode="cancel">Отмена</ActionSheetItem>}
         toggleRef={event.currentTarget}
-        style={{ paddingBottom: "50px" }}
+        style={{
+          zIndex: 1001,
+          paddingBottom: "var(--vkui_safe_area_inset_bottom)",
+        }}
       >
-        <ActionSheetItem onClick={() => setActiveModal("promo-details-modal")}>
+        <ActionSheetItem
+          onClick={() => {
+            handleCloseSheet();
+            setActiveModal("promo-details-modal");
+          }}
+        >
           Детали
         </ActionSheetItem>
-        <ActionSheetItem onClick={() => setActiveModal("promo-edit-modal")}>
+        <ActionSheetItem
+          onClick={() => {
+            handleCloseSheet();
+            setActiveModal("promo-edit-modal");
+          }}
+        >
           Редактировать
         </ActionSheetItem>
         {platform !== Platform.IOS && (
@@ -481,7 +532,6 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
   const modal = (
     <ModalRoot activeModal={activeModal} onClose={closeModal}>
       <ModalPage
-        settlingHeight={100}
         id="expert-details"
         onClose={closeModal}
         header={
@@ -495,6 +545,7 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
             Заявка эксперта
           </ModalPageHeader>
         }
+        settlingHeight={100}
       >
         {selectedExpert && (
           <>
@@ -631,18 +682,6 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
           </>
         )}
       </ModalPage>
-      <PromoCodeEditModal
-        id="promo-edit-modal"
-        promoCode={selectedPromoCode}
-        onClose={() => setActiveModal(null)}
-        onSave={handleSavePromoCode}
-        onDelete={handleDeletePromoCode}
-      />
-      <PromoCodeDetailsModal
-        id="promo-details-modal"
-        promoCode={selectedPromoCode}
-        onClose={() => setActiveModal(null)}
-      />
       <ModalPage
         id="mailing-details"
         onClose={closeModal}
@@ -682,6 +721,18 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
           </>
         )}
       </ModalPage>
+      <PromoCodeEditModal
+        id="promo-edit-modal"
+        promoCode={selectedPromoCode}
+        onClose={() => setActiveModal(null)}
+        onSave={handleSavePromoCode}
+        onDelete={handleDeletePromoCode}
+      />
+      <PromoCodeDetailsModal
+        id="promo-details-modal"
+        promoCode={selectedPromoCode}
+        onClose={() => setActiveModal(null)}
+      />
     </ModalRoot>
   );
 
@@ -724,7 +775,6 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
           Промокоды
         </TabsItem>
       </Tabs>
-
       <div
         style={{
           display: selectedTab === "moderation" ? "block" : "none",
@@ -766,6 +816,34 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
       </div>
       <div
         style={{
+          display: selectedTab === "mailings" ? "block" : "none",
+          paddingBottom: 60,
+        }}
+      >
+        <Group header={<Header>Рассылки на модерацию</Header>}>
+          {loadingMailings ? (
+            <Spinner />
+          ) : mailingRequests.length === 0 ? (
+            <Placeholder title="Новых рассылок нет" />
+          ) : (
+            mailingRequests.map((req) => (
+              <SimpleCell
+                key={req.id}
+                multiline
+                onClick={() => {
+                  setSelectedMailing(req);
+                  setActiveModal("mailing-details");
+                }}
+                subtitle={`От эксперта ID: ${req.expert_vk_id}`}
+              >
+                {req.message.slice(0, 100)}...
+              </SimpleCell>
+            ))
+          )}
+        </Group>
+      </div>
+      <div
+        style={{
           display: selectedTab === "users" ? "block" : "none",
           paddingBottom: 60,
         }}
@@ -781,21 +859,15 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
               <Select
                 value={usersFilter.type}
                 onChange={(e) =>
-                  setUsersFilter((prev) => ({
-                    ...prev,
-                    type: e.target.value,
-                  }))
+                  setUsersFilter((prev) => ({ ...prev, type: e.target.value }))
                 }
                 options={[
+                  { label: "Все", value: "all" },
                   {
-                    label: "Все",
-                    value: "all",
+                    label: "Только эксперты",
+                    value: "expert",
                   },
-                  { label: "Только эксперты", value: "expert" },
-                  {
-                    label: "Только пользователи",
-                    value: "user",
-                  },
+                  { label: "Только пользователи", value: "user" },
                 ]}
               />
             </FormItem>
@@ -803,17 +875,14 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
               <Select
                 value={usersFilter.date}
                 onChange={(e) =>
-                  setUsersFilter((prev) => ({
-                    ...prev,
-                    date: e.target.value,
-                  }))
+                  setUsersFilter((prev) => ({ ...prev, date: e.target.value }))
                 }
                 options={[
+                  { label: "Сначала новые", value: "desc" },
                   {
-                    label: "Сначала новые",
-                    value: "desc",
+                    label: "Сначала старые",
+                    value: "asc",
                   },
-                  { label: "Сначала старые", value: "asc" },
                 ]}
               />
             </FormItem>
@@ -883,34 +952,6 @@ export const Admin = ({ id, setPopout, setSnackbar }: AdminPanelProps) => {
           )}
           {!loadingPromoCodes && promoCodes.length === 0 && (
             <Placeholder title="Промокоды не найдены" />
-          )}
-        </Group>
-      </div>
-      <div
-        style={{
-          display: selectedTab === "mailings" ? "block" : "none",
-          paddingBottom: 60,
-        }}
-      >
-        <Group header={<Header>Рассылки на модерацию</Header>}>
-          {loadingMailings ? (
-            <Spinner />
-          ) : mailingRequests.length === 0 ? (
-            <Placeholder title="Новых рассылок нет" />
-          ) : (
-            mailingRequests.map((req) => (
-              <SimpleCell
-                key={req.id}
-                multiline
-                onClick={() => {
-                  setSelectedMailing(req);
-                  setActiveModal("mailing-details");
-                }}
-                subtitle={`От эксперта ID: ${req.expert_vk_id}`}
-              >
-                {req.message.slice(0, 100)}...
-              </SimpleCell>
-            ))
           )}
         </Group>
       </div>

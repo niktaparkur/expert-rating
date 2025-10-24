@@ -7,7 +7,6 @@ import {
   Div,
   Text,
   Button,
-  Header,
   Title,
   SimpleCell,
   Card,
@@ -15,7 +14,6 @@ import {
   ViewWidth,
   CardGrid,
   Tooltip,
-  ScreenSpinner,
   Snackbar,
   ModalRoot,
   ModalPage,
@@ -23,8 +21,7 @@ import {
   FormItem,
   Input,
   Spinner,
-  FormField,
-  PanelHeaderBack,
+  FormLayoutGroup,
 } from "@vkontakte/vkui";
 import {
   Icon16HelpOutline,
@@ -35,15 +32,21 @@ import {
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
 import bridge from "@vkontakte/vk-bridge";
 import { useApi } from "../hooks/useApi";
-import { UserData } from "../types";
+import { useUserStore } from "../store/userStore";
+import { useUiStore } from "../store/uiStore";
+
+interface TariffFeature {
+  text: string;
+  tooltip: string;
+}
 
 interface Tariff {
   id: string;
   name: string;
   price_str: string;
   price_votes: number;
-  features: { text: string; tooltip?: string }[];
-  feature_headers: {}[];
+  features: TariffFeature[];
+  feature_headers: string[];
 }
 
 const TARIFF_LEVELS: { [key: string]: number } = {
@@ -51,6 +54,7 @@ const TARIFF_LEVELS: { [key: string]: number } = {
   Стандарт: 1,
   Профи: 2,
 };
+
 const tariffsData: Tariff[] = [
   {
     id: "tariff_start",
@@ -59,7 +63,7 @@ const tariffsData: Tariff[] = [
     price_votes: 0,
     features: [
       {
-        text: "До 1 часа",
+        text: "до 1 часа",
         tooltip:
           "Сколько времени действует слово для голосования с момента начала мероприятия.",
       },
@@ -93,7 +97,7 @@ const tariffsData: Tariff[] = [
     price_votes: 299,
     features: [
       {
-        text: "До 12 часов",
+        text: "до 12 часов",
         tooltip:
           "Сколько времени действует слово для голосования с момента начала мероприятия.",
       },
@@ -127,7 +131,7 @@ const tariffsData: Tariff[] = [
     price_votes: 729,
     features: [
       {
-        text: "До 24 часов",
+        text: "до 24 часов",
         tooltip:
           "Сколько времени действует слово для голосования с момента начала мероприятия.",
       },
@@ -155,6 +159,7 @@ const tariffsData: Tariff[] = [
     ],
   },
 ];
+
 const getExpiryDate = () => {
   const date = new Date();
   date.setDate(date.getDate() + 30);
@@ -195,7 +200,7 @@ const TariffCardComponent = ({
       )}
     </Div>
     <Group mode="plain">
-      {tariff.features.map((feature: any, index: number) => (
+      {tariff.features.map((feature: TariffFeature, index: number) => (
         <SimpleCell
           key={feature.text}
           multiline
@@ -249,24 +254,19 @@ const TariffCardComponent = ({
   </Card>
 );
 
-export const Tariffs = ({
-  id,
-  user,
-  setPopout,
-  setSnackbar,
-  refetchUser,
-}: {
+interface TariffsProps {
   id: string;
-  user: UserData | null;
-  setPopout: (popout: React.ReactNode | null) => void;
-  setSnackbar: (snackbar: React.ReactNode | null) => void;
-  refetchUser: () => void;
-}) => {
+}
+
+export const Tariffs = ({ id }: TariffsProps) => {
   const routeNavigator = useRouteNavigator();
   const { viewWidth } = useAdaptivity();
   const { apiPost } = useApi();
+  const { currentUser: user } = useUserStore();
+  const { setPopout, setSnackbar } = useUiStore();
+
   const isDesktop = viewWidth >= ViewWidth.TABLET;
-  const loading = !user;
+  const isLoading = !user;
 
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [selectedTariff, setSelectedTariff] = useState<Tariff | null>(null);
@@ -306,17 +306,18 @@ export const Tariffs = ({
   const handleInitiatePayment = async () => {
     if (!selectedTariff) return;
     setActiveModal(null);
-    setPopout(<ScreenSpinner state="loading" />);
+    setPopout(<Spinner size="xl" />);
     const finalPrice = promoResult
       ? promoResult.final_price
       : selectedTariff.price_votes;
+
     const orderParams = {
       type: "item",
       item: selectedTariff.id,
       item_price: finalPrice,
     };
     try {
-      await bridge.send("VKWebAppShowOrderBox", orderParams);
+      await bridge.send("VKWebAppShowOrderBox", orderParams as any);
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
           После успешной оплаты ваш тариф будет обновлен.
@@ -339,7 +340,7 @@ export const Tariffs = ({
   const getCurrentTariffName = () => user?.tariff_plan || "Начальный";
 
   const renderContent = () => {
-    if (loading) return <ScreenSpinner />;
+    if (isLoading) return <Spinner size="xl" />;
     const currentTariffName = getCurrentTariffName();
     const currentUserLevel = TARIFF_LEVELS[currentTariffName] ?? 0;
     const tariffCards = tariffsData.map((tariff) => {
@@ -356,7 +357,12 @@ export const Tariffs = ({
         />
       );
     });
-    if (isDesktop) return <CardScroll size="s">{tariffCards}</CardScroll>;
+    if (isDesktop)
+      return (
+        <CardScroll size="s" padding padding>
+          {tariffCards}
+        </CardScroll>
+      );
     return (
       <CardGrid size="l" style={{ padding: 0 }}>
         {tariffCards}
@@ -375,31 +381,34 @@ export const Tariffs = ({
         settlingHeight={100}
       >
         <Group>
-          <FormItem top="Промокод (если есть)">
-            <FormField
-              after={
-                <Button onClick={handleApplyPromo} disabled={isApplyingPromo}>
-                  {isApplyingPromo ? <Spinner size="s" /> : "Применить"}
-                </Button>
-              }
-            >
+          <FormLayoutGroup
+            mode="horizontal"
+            style={{ alignItems: "flex-end", padding: "0 16px" }}
+          >
+            <FormItem top="Промокод (если есть)" style={{ flexGrow: 1 }}>
               <Input
                 value={promoCode}
                 onChange={(e) => setPromoCode(e.target.value)}
               />
-            </FormField>
-          </FormItem>
+            </FormItem>
+            <FormItem>
+              <Button onClick={handleApplyPromo} disabled={isApplyingPromo}>
+                {isApplyingPromo ? <Spinner size="s" /> : "Применить"}
+              </Button>
+            </FormItem>
+          </FormLayoutGroup>
           {promoResult && (
             <SimpleCell disabled>
               Скидка {promoResult.discount_percent}% применена!
             </SimpleCell>
           )}
         </Group>
-
         <Div>
-          <Button size="l" stretched onClick={handleInitiatePayment}>
-            {`Оплатить ${promoResult ? promoResult.final_price : selectedTariff?.price_votes} голосов`}
-          </Button>
+          <Button
+            size="l"
+            stretched
+            onClick={handleInitiatePayment}
+          >{`Оплатить ${promoResult ? promoResult.final_price : selectedTariff?.price_votes} голосов`}</Button>
         </Div>
       </ModalPage>
     </ModalRoot>

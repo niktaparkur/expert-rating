@@ -1,10 +1,4 @@
-import React, {
-  useState,
-  useEffect,
-  useMemo,
-  useCallback,
-  useRef,
-} from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Panel,
   PanelHeader,
@@ -17,121 +11,94 @@ import {
 } from "@vkontakte/vkui";
 import { Icon56UsersOutline } from "@vkontakte/icons";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
-import { ExpertCard } from "../components/ExpertCard";
-import { useApi } from "../hooks/useApi";
-import { UserData } from "../types";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInView } from "react-intersection-observer";
 import debounce from "lodash.debounce";
-import { AfishaFilters } from "../components/AfishaFilters";
+
+import { ExpertCard } from "../components/Expert/ExpertCard";
+import { AfishaFilters } from "../components/Afisha/AfishaFilters";
+import { useApi } from "../hooks/useApi";
 
 interface HomeProps {
   id: string;
-  user: UserData | null;
+}
+
+interface CategoryData {
+  id: number;
+  name: string;
+  items: { id: number; name: string }[];
 }
 
 const PAGE_SIZE = 10;
 
-export const Home = ({ id, user }: HomeProps) => {
+export const Home = ({ id }: HomeProps) => {
   const routeNavigator = useRouteNavigator();
   const { apiGet } = useApi();
-  const observerRef = useRef<HTMLDivElement>(null);
-
-  const [experts, setExperts] = useState<any[]>([]);
-  const [page, setPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+  const { ref, inView } = useInView({ threshold: 0.5 });
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-
   const [filters, setFilters] = useState({ region: "", category_id: "" });
   const [regions, setRegions] = useState<string[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<CategoryData[]>([]);
 
   useEffect(() => {
-    apiGet("/meta/regions").then(setRegions);
-    apiGet("/meta/themes").then(setCategories);
+    apiGet<string[]>("/meta/regions").then(setRegions);
+    apiGet<CategoryData[]>("/meta/themes").then(setCategories);
   }, [apiGet]);
-
-  const fetchExperts = useCallback(
-    async (isNewSearch = false) => {
-      if (isLoading) return;
-      setIsLoading(true);
-
-      const currentPage = isNewSearch ? 1 : page;
-      const params = new URLSearchParams({
-        page: String(currentPage),
-        size: String(PAGE_SIZE),
-      });
-      if (debouncedSearch) params.append("search", debouncedSearch);
-      if (filters.region) params.append("region", filters.region);
-      if (filters.category_id)
-        params.append("category_id", filters.category_id);
-
-      try {
-        const data = await apiGet(`/experts/top?${params.toString()}`);
-        const expertsWithPosition = data.items.map(
-          (expert: any, index: number) => ({
-            ...expert,
-            topPosition: (currentPage - 1) * PAGE_SIZE + index + 1,
-          }),
-        );
-
-        setExperts((prev) => {
-          if (isNewSearch) return expertsWithPosition;
-          const existingIds = new Set(prev.map((e) => e.vk_id));
-          const uniqueNewExperts = expertsWithPosition.filter(
-            (e: any) => !existingIds.has(e.vk_id),
-          );
-          return [...prev, ...uniqueNewExperts];
-        });
-
-        setHasMore(currentPage * PAGE_SIZE < data.total_count);
-        setPage(isNewSearch ? 2 : (p) => p + 1);
-      } catch (error) {
-        console.error("Failed to fetch experts:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [apiGet, isLoading, page, debouncedSearch, filters],
-  );
 
   const debouncedSetSearch = useMemo(
     () => debounce(setDebouncedSearch, 500),
     [],
   );
-
   useEffect(() => {
     debouncedSetSearch(searchQuery);
     return () => debouncedSetSearch.cancel();
   }, [searchQuery, debouncedSetSearch]);
 
-  useEffect(() => {
-    setExperts([]);
-    setPage(1);
-    setHasMore(true);
-    fetchExperts(true);
-  }, [debouncedSearch, filters]);
+  const fetchExperts = async ({ pageParam = 1 }) => {
+    const params = new URLSearchParams({
+      page: String(pageParam),
+      size: String(PAGE_SIZE),
+    });
+    if (debouncedSearch) params.append("search", debouncedSearch);
+    if (filters.region) params.append("region", filters.region);
+    if (filters.category_id) params.append("category_id", filters.category_id);
+
+    const data = await apiGet<any>(`/experts/top?${params.toString()}`);
+    return data;
+  };
+
+  const { data, fetchNextPage, hasNextPage, isLoading, isFetchingNextPage } =
+    useInfiniteQuery({
+      queryKey: ["experts", debouncedSearch, filters],
+      queryFn: fetchExperts,
+      initialPageParam: 1,
+      getNextPageParam: (lastPage, allPages) => {
+        const currentPage = allPages.length;
+        const totalCount = lastPage.total_count;
+        return currentPage * PAGE_SIZE < totalCount
+          ? currentPage + 1
+          : undefined;
+      },
+    });
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !isLoading) {
-          fetchExperts();
-        }
-      },
-      { threshold: 1.0 },
-    );
-    const currentObserverRef = observerRef.current;
-    if (currentObserverRef) {
-      observer.observe(currentObserverRef);
+    if (inView && hasNextPage) {
+      fetchNextPage();
     }
-    return () => {
-      if (currentObserverRef) {
-        observer.unobserve(currentObserverRef);
-      }
-    };
-  }, [hasMore, isLoading, fetchExperts]);
+  }, [inView, hasNextPage, fetchNextPage]);
+
+  const allExperts = useMemo(() => {
+    return (
+      data?.pages.flatMap((page, pageIndex) =>
+        page.items.map((expert: any, itemIndex: number) => ({
+          ...expert,
+          topPosition: pageIndex * PAGE_SIZE + itemIndex + 1,
+        })),
+      ) || []
+    );
+  }, [data]);
 
   return (
     <Panel id={id}>
@@ -149,12 +116,14 @@ export const Home = ({ id, user }: HomeProps) => {
         />
       </Group>
       <Group header={<Header>Топ экспертов</Header>}>
-        {experts.length > 0 && (
+        {isLoading && allExperts.length === 0 ? (
+          <Spinner size="xl" style={{ margin: "20px 0" }} />
+        ) : allExperts.length > 0 ? (
           <CardGrid
             size="l"
             style={{ padding: 0, margin: "0 8px", paddingBottom: "60px" }}
           >
-            {experts.map((expert) => (
+            {allExperts.map((expert) => (
               <ExpertCard
                 key={expert.vk_id}
                 expert={expert}
@@ -163,19 +132,19 @@ export const Home = ({ id, user }: HomeProps) => {
               />
             ))}
           </CardGrid>
-        )}
-
-        <div ref={observerRef} style={{ height: "1px" }} />
-
-        {isLoading && <Spinner size="l" style={{ margin: "20px 0" }} />}
-
-        {!isLoading && experts.length === 0 && (
+        ) : (
           <Placeholder
             icon={<Icon56UsersOutline />}
             title="Эксперты не найдены"
           >
             Попробуйте изменить поисковый запрос или фильтры.
           </Placeholder>
+        )}
+
+        <div ref={ref} style={{ height: "1px" }} />
+
+        {isFetchingNextPage && (
+          <Spinner size="l" style={{ margin: "20px 0" }} />
         )}
       </Group>
     </Panel>

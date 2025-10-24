@@ -17,21 +17,26 @@ import {
 } from "@vkontakte/vkui";
 import { Icon28CalendarOutline, Icon56NewsfeedOutline } from "@vkontakte/icons";
 import { useApi } from "../hooks/useApi";
-import { EventData, UserData } from "../types";
-import { AfishaFilters } from "../components/AfishaFilters";
-import { AfishaEventModal } from "../components/AfishaEventModal";
+import { EventData } from "../types";
+import { AfishaFilters } from "../components/Afisha/AfishaFilters";
+import { AfishaEventModal } from "../components/Afisha/AfishaEventModal";
 import debounce from "lodash.debounce";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 
 interface AfishaProps {
   id: string;
-  user: UserData | null;
+}
+
+interface CategoryData {
+  id: number;
+  name: string;
+  items: { id: number; name: string }[];
 }
 
 const PAGE_SIZE = 10;
 
-export const Afisha = ({ id, user }: AfishaProps) => {
+export const Afisha = ({ id }: AfishaProps) => {
   const { apiGet } = useApi();
   const observerRef = useRef<HTMLDivElement>(null);
 
@@ -48,11 +53,11 @@ export const Afisha = ({ id, user }: AfishaProps) => {
   const [selectedEvent, setSelectedEvent] = useState<EventData | null>(null);
 
   const [regions, setRegions] = useState<string[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<CategoryData[]>([]);
 
   useEffect(() => {
-    apiGet("/meta/regions").then(setRegions);
-    apiGet("/meta/themes").then(setCategories);
+    apiGet<string[]>("/meta/regions").then(setRegions);
+    apiGet<CategoryData[]>("/meta/themes").then(setCategories);
   }, [apiGet]);
 
   const fetchEvents = useCallback(
@@ -70,7 +75,7 @@ export const Afisha = ({ id, user }: AfishaProps) => {
         params.append("category_id", filters.category_id);
 
       try {
-        const data = await apiGet(`/events/feed?${params.toString()}`);
+        const data = await apiGet<any>(`/events/feed?${params.toString()}`);
         setEvents((prev) =>
           isNewSearch ? data.items : [...prev, ...data.items],
         );
@@ -90,6 +95,7 @@ export const Afisha = ({ id, user }: AfishaProps) => {
     () => debounce(setDebouncedSearch, 500),
     [],
   );
+
   useEffect(() => {
     debouncedSetSearch(searchQuery);
     return () => debouncedSetSearch.cancel();

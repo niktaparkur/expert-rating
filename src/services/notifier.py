@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 from aionvk import Bot, Button, KeyboardBuilder
 
@@ -116,6 +117,19 @@ class Notifier:
         kb.add(Button.open_link("Перейти к профилю", link=deep_link))
         await self._send_message(user_vk_id, message, kb.build())
 
+    async def send_event_reminder(self, expert_id: int, event_name: str, event_date: datetime):
+        time_str = event_date.strftime("%H:%M")
+        message = (
+            f"⏰ Напоминание!\n\n"
+            f"Ваше мероприятие «{event_name}» начнется сегодня в {time_str}."
+        )
+        # Можно добавить кнопку для перехода в приложение
+        await self._send_message(expert_id, message)
+
+
     async def close(self):
         if self.bot:
             await self.bot.close()
+
+
+
