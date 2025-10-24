@@ -360,7 +360,7 @@ export const Tariffs = ({ id }: TariffsProps) => {
     });
     if (isDesktop)
       return (
-        <CardScroll size="s" padding padding>
+        <CardScroll size="s" padding>
           {tariffCards}
         </CardScroll>
       );
