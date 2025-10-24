@@ -411,8 +411,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
         iosCloseItem={<ActionSheetItem mode="cancel">Отмена</ActionSheetItem>}
         toggleRef={event.currentTarget}
         style={{
-          zIndex: 1001,
-          paddingBottom: "var(--vkui_safe_area_inset_bottom)",
+          paddingBottom: "60px",
         }}
       >
         {user.is_expert && (
@@ -502,8 +501,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
         iosCloseItem={<ActionSheetItem mode="cancel">Отмена</ActionSheetItem>}
         toggleRef={event.currentTarget}
         style={{
-          zIndex: 1001,
-          paddingBottom: "var(--vkui_safe_area_inset_bottom)",
+          paddingBottom: "60px",
         }}
       >
         <ActionSheetItem
@@ -536,6 +534,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
         onClose={closeModal}
         header={
           <ModalPageHeader
+            before={<PanelHeaderBack onClick={closeModal} />}
             after={
               <PanelHeaderButton onClick={closeModal}>
                 <Icon24Cancel />
@@ -614,6 +613,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
         onClose={closeModal}
         header={
           <ModalPageHeader
+            before={<PanelHeaderBack onClick={closeModal} />}
             after={
               <PanelHeaderButton onClick={closeModal}>
                 <Icon24Cancel />
@@ -623,6 +623,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
             Заявка на мероприятие
           </ModalPageHeader>
         }
+        settlingHeight={100}
       >
         {selectedEvent && (
           <>

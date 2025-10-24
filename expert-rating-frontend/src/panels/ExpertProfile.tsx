@@ -11,13 +11,13 @@ import {
   ModalRoot,
   ModalPage,
   ModalPageHeader,
-  Snackbar,
+  Snackbar
 } from "@vkontakte/vkui";
 import { useRouteNavigator, useParams } from "@vkontakte/vk-mini-apps-router";
 import {
   Icon56CalendarOutline,
   Icon16Done,
-  Icon16Cancel,
+  Icon16Cancel
 } from "@vkontakte/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -26,7 +26,7 @@ import { useUserStore } from "../store/userStore";
 import { useUiStore } from "../store/uiStore";
 import {
   ExpertProfileCard,
-  ExpertProfileData,
+  ExpertProfileData
 } from "../components/Expert/ExpertProfileCard";
 import { VoteCard } from "../components/Vote/VoteCard";
 import { EventInfoCard } from "../components/Event/EventInfoCard";
@@ -43,7 +43,7 @@ interface ExpertEventsState {
 }
 
 const mapUserDataToExpertProfileData = (
-  userData: UserData,
+  userData: UserData
 ): ExpertProfileData => ({
   first_name: userData.first_name,
   last_name: userData.last_name,
@@ -53,12 +53,12 @@ const mapUserDataToExpertProfileData = (
   topics: userData.topics,
   stats: userData.stats
     ? {
-        expert: userData.stats.expert ?? 0,
-        community: userData.stats.community ?? 0,
-        events_count: userData.stats.events_count ?? 0,
-      }
+      expert: userData.stats.expert ?? 0,
+      community: userData.stats.community ?? 0,
+      events_count: userData.stats.events_count ?? 0
+    }
     : { expert: 0, community: 0, events_count: 0 },
-  show_community_rating: userData.show_community_rating,
+  show_community_rating: userData.show_community_rating
 });
 
 export const ExpertProfile = ({ id }: ExpertProfileProps) => {
@@ -77,14 +77,14 @@ export const ExpertProfile = ({ id }: ExpertProfileProps) => {
   const {
     data: expert,
     isLoading: isProfileLoading,
-    isError: isProfileError,
+    isError: isProfileError
   } = useQuery({
     queryKey: ["expertProfile", expertId],
     queryFn: async () => {
       if (!expertId) return null;
       return apiGet<UserData>(`/experts/${expertId}`);
     },
-    enabled: !!expertId,
+    enabled: !!expertId
   });
 
   const { data: events, isLoading: areEventsLoading } = useQuery({
@@ -93,7 +93,7 @@ export const ExpertProfile = ({ id }: ExpertProfileProps) => {
       if (!expertId) return { current: [], past: [] };
       return apiGet<ExpertEventsState>(`/events/expert/${expertId}`);
     },
-    enabled: !!expertId,
+    enabled: !!expertId
   });
 
   const handleVoteClick = () => {
@@ -101,7 +101,7 @@ export const ExpertProfile = ({ id }: ExpertProfileProps) => {
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
           Вы не можете голосовать за себя.
-        </Snackbar>,
+        </Snackbar>
       );
       return;
     }
@@ -121,20 +121,20 @@ export const ExpertProfile = ({ id }: ExpertProfileProps) => {
       await apiPost(`/experts/${expertId}/vote`, finalData);
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: ["expertProfile", expertId],
+          queryKey: ["expertProfile", expertId]
         }),
-        queryClient.invalidateQueries({ queryKey: ["user", "me"] }),
+        queryClient.invalidateQueries({ queryKey: ["user", "me"] })
       ]);
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
           Спасибо, ваше действие учтено!
-        </Snackbar>,
+        </Snackbar>
       );
     } catch (err: any) {
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
           {err.message}
-        </Snackbar>,
+        </Snackbar>
       );
     } finally {
       setPopout(null);
@@ -149,20 +149,20 @@ export const ExpertProfile = ({ id }: ExpertProfileProps) => {
       await apiDelete(`/experts/${expertId}/vote`);
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: ["expertProfile", expertId],
+          queryKey: ["expertProfile", expertId]
         }),
-        queryClient.invalidateQueries({ queryKey: ["user", "me"] }),
+        queryClient.invalidateQueries({ queryKey: ["user", "me"] })
       ]);
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
           Ваш голос отменен.
-        </Snackbar>,
+        </Snackbar>
       );
     } catch (err: any) {
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
           {err.message}
-        </Snackbar>,
+        </Snackbar>
       );
     } finally {
       setPopout(null);
@@ -174,7 +174,7 @@ export const ExpertProfile = ({ id }: ExpertProfileProps) => {
     setSnackbar(
       <Snackbar onClose={() => setSnackbar(null)}>
         Функция в разработке
-      </Snackbar>,
+      </Snackbar>
     );
   };
 
@@ -196,7 +196,8 @@ export const ExpertProfile = ({ id }: ExpertProfileProps) => {
       <ModalPage
         id="narod-vote-modal"
         onClose={() => setActiveModal(null)}
-        header={<ModalPageHeader>Народное голосование</ModalPageHeader>}
+        header={<ModalPageHeader before={<PanelHeaderBack onClick={() => setActiveModal(null)} />}>Народное
+          голосование</ModalPageHeader>}
         settlingHeight={100}
       >
         <VoteCard
@@ -247,7 +248,7 @@ export const ExpertProfile = ({ id }: ExpertProfileProps) => {
               onChange={(value) => setActiveTab(String(value))}
               options={[
                 { label: "Предстоящие", value: "current" },
-                { label: "Завершенные", value: "past" },
+                { label: "Завершенные", value: "past" }
               ]}
             />
             <div style={{ paddingBottom: "60px" }}>
@@ -259,11 +260,11 @@ export const ExpertProfile = ({ id }: ExpertProfileProps) => {
                     {renderGroupedEvents(groupedPlannedEvents.today, "Сегодня")}
                     {renderGroupedEvents(
                       groupedPlannedEvents.tomorrow,
-                      "Завтра",
+                      "Завтра"
                     )}
                     {renderGroupedEvents(
                       groupedPlannedEvents.next7Days,
-                      "Ближайшие 7 дней",
+                      "Ближайшие 7 дней"
                     )}
                     {renderGroupedEvents(groupedPlannedEvents.later, "Позже")}
                   </>
@@ -280,7 +281,7 @@ export const ExpertProfile = ({ id }: ExpertProfileProps) => {
                     style={{
                       display: "flex",
                       flexDirection: "column",
-                      gap: "8px",
+                      gap: "8px"
                     }}
                   >
                     {events?.past.map((event) => (

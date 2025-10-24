@@ -3,8 +3,6 @@ import {
   ModalPage,
   ModalPageHeader,
   Group,
-  RichCell,
-  Avatar,
   Text,
   Div,
   Button,
@@ -13,8 +11,10 @@ import {
   InfoRow,
   Tooltip,
   PanelHeaderBack,
+  Placeholder,
+  RichCell,
 } from "@vkontakte/vkui";
-import { Icon28CalendarOutline } from "@vkontakte/icons";
+import { Icon28CalendarOutline, Icon56ArchiveOutline } from "@vkontakte/icons";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { EventData } from "../../types";
@@ -103,29 +103,29 @@ export const EventActionModal = ({
           </FormStatus>
         )}
       </Group>
-      <Div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-        <Button size="l" mode="secondary" stretched onClick={onShare}>
-          Поделиться
-        </Button>
-        <Button size="l" mode="secondary" stretched onClick={onShowQr}>
-          Показать QR-код
-        </Button>
-        {isLive ? (
-          <Button size="l" appearance="negative" stretched onClick={onStop}>
-            Остановить голосование
+      {!isFinished ? (
+        <Div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <Button size="l" mode="secondary" stretched onClick={onShare}>
+            Поделиться
           </Button>
-        ) : !isFinished ? (
-          <Button size="l" appearance="negative" stretched onClick={onDelete}>
-            Удалить
+          <Button size="l" mode="secondary" stretched onClick={onShowQr}>
+            Показать QR-код
           </Button>
-        ) : (
-          <Tooltip description="Нельзя удалить или остановить завершенное мероприятие">
-            <Button size="l" appearance="negative" stretched disabled>
+          {isLive ? (
+            <Button size="l" appearance="negative" stretched onClick={onStop}>
+              Остановить голосование
+            </Button>
+          ) : (
+            <Button size="l" appearance="negative" stretched onClick={onDelete}>
               Удалить
             </Button>
-          </Tooltip>
-        )}
-      </Div>
+          )}
+        </Div>
+      ) : (
+        <Placeholder icon={<Icon56ArchiveOutline />} title="Мероприятие в архиве">
+          Действия с завершенным мероприятием недоступны.
+        </Placeholder>
+      )}
     </ModalPage>
   );
 };

@@ -231,6 +231,7 @@ export const Profile = ({
               key={event.id}
               event={event}
               onClick={handleEventClick}
+              showActions={true}
             />
           ))}
         </div>
@@ -286,6 +287,7 @@ export const Profile = ({
                 key={event.id}
                 event={event}
                 onClick={handleEventClick}
+                showActions={true}
               />
             ))}
           </div>

@@ -8,10 +8,12 @@ import {
   Spinner,
   Search,
   Placeholder,
+  PullToRefresh,
+  PanelHeaderButton,
 } from "@vkontakte/vkui";
-import { Icon56UsersOutline } from "@vkontakte/icons";
+import { Icon56UsersOutline, Icon28RefreshOutline } from "@vkontakte/icons";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useInView } from "react-intersection-observer";
 import debounce from "lodash.debounce";
 
@@ -39,13 +41,15 @@ export const Home = ({ id }: HomeProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filters, setFilters] = useState({ region: "", category_id: "" });
-  const [regions, setRegions] = useState<string[]>([]);
-  const [categories, setCategories] = useState<CategoryData[]>([]);
 
-  useEffect(() => {
-    apiGet<string[]>("/meta/regions").then(setRegions);
-    apiGet<CategoryData[]>("/meta/themes").then(setCategories);
-  }, [apiGet]);
+  const { data: regions = [] } = useQuery({
+    queryKey: ["metaRegions"],
+    queryFn: () => apiGet<string[]>("/meta/regions"),
+  });
+  const { data: categories = [] } = useQuery({
+    queryKey: ["metaThemes"],
+    queryFn: () => apiGet<CategoryData[]>("/meta/themes"),
+  });
 
   const debouncedSetSearch = useMemo(
     () => debounce(setDebouncedSearch, 500),
@@ -65,29 +69,33 @@ export const Home = ({ id }: HomeProps) => {
     if (filters.region) params.append("region", filters.region);
     if (filters.category_id) params.append("category_id", filters.category_id);
 
-    const data = await apiGet<any>(`/experts/top?${params.toString()}`);
-    return data;
+    return await apiGet<any>(`/experts/top?${params.toString()}`);
   };
 
-  const { data, fetchNextPage, hasNextPage, isLoading, isFetchingNextPage } =
-    useInfiniteQuery({
-      queryKey: ["experts", debouncedSearch, filters],
-      queryFn: fetchExperts,
-      initialPageParam: 1,
-      getNextPageParam: (lastPage, allPages) => {
-        const currentPage = allPages.length;
-        const totalCount = lastPage.total_count;
-        return currentPage * PAGE_SIZE < totalCount
-          ? currentPage + 1
-          : undefined;
-      },
-    });
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isLoading,
+    isFetchingNextPage,
+    isFetching,
+    refetch,
+  } = useInfiniteQuery({
+    queryKey: ["experts", debouncedSearch, filters],
+    queryFn: fetchExperts,
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      const currentPage = allPages.length;
+      const totalCount = lastPage.total_count;
+      return currentPage * PAGE_SIZE < totalCount ? currentPage + 1 : undefined;
+    },
+  });
 
   useEffect(() => {
-    if (inView && hasNextPage) {
+    if (inView && hasNextPage && !isFetchingNextPage) {
       fetchNextPage();
     }
-  }, [inView, hasNextPage, fetchNextPage]);
+  }, [inView, hasNextPage, fetchNextPage, isFetchingNextPage]);
 
   const allExperts = useMemo(() => {
     return (
@@ -100,53 +108,71 @@ export const Home = ({ id }: HomeProps) => {
     );
   }, [data]);
 
+  const onRefresh = async () => {
+    await refetch();
+  };
+
   return (
     <Panel id={id}>
-      <PanelHeader>Рейтинг Экспертов</PanelHeader>
-      <Group>
-        <Search
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Поиск по имени или направлению"
-        />
-        <AfishaFilters
-          regions={regions}
-          categories={categories}
-          onFiltersChange={setFilters}
-        />
-      </Group>
-      <Group header={<Header>Топ экспертов</Header>}>
-        {isLoading && allExperts.length === 0 ? (
-          <Spinner size="xl" style={{ margin: "20px 0" }} />
-        ) : allExperts.length > 0 ? (
-          <CardGrid
-            size="l"
-            style={{ padding: 0, margin: "0 8px", paddingBottom: "60px" }}
+      <PanelHeader
+        after={
+          <PanelHeaderButton
+            onClick={() => onRefresh()}
+            aria-label="Обновить"
+            className="hide-on-mobile"
           >
-            {allExperts.map((expert) => (
-              <ExpertCard
-                key={expert.vk_id}
-                expert={expert}
-                topPosition={expert.topPosition}
-                onClick={() => routeNavigator.push(`/expert/${expert.vk_id}`)}
-              />
-            ))}
-          </CardGrid>
-        ) : (
-          <Placeholder
-            icon={<Icon56UsersOutline />}
-            title="Эксперты не найдены"
-          >
-            Попробуйте изменить поисковый запрос или фильтры.
-          </Placeholder>
-        )}
+            <Icon28RefreshOutline />
+          </PanelHeaderButton>
+        }
+      >
+        Рейтинг Экспертов
+      </PanelHeader>
+      <PullToRefresh onRefresh={onRefresh} isFetching={isFetching}>
+        <Group>
+          <Search
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Поиск по имени или направлению"
+          />
+          <AfishaFilters
+            regions={regions}
+            categories={categories}
+            onFiltersChange={setFilters}
+          />
+        </Group>
+        <Group header={<Header>Топ экспертов</Header>}>
+          {isLoading && allExperts.length === 0 ? (
+            <Spinner size="xl" style={{ margin: "20px 0" }} />
+          ) : allExperts.length > 0 ? (
+            <CardGrid
+              size="l"
+              style={{ padding: 0, margin: "0 8px", paddingBottom: "60px" }}
+            >
+              {allExperts.map((expert) => (
+                <ExpertCard
+                  key={expert.vk_id}
+                  expert={expert}
+                  topPosition={expert.topPosition}
+                  onClick={() => routeNavigator.push(`/expert/${expert.vk_id}`)}
+                />
+              ))}
+            </CardGrid>
+          ) : (
+            <Placeholder
+              icon={<Icon56UsersOutline />}
+              title="Эксперты не найдены"
+            >
+              Попробуйте изменить поисковый запрос или фильтры.
+            </Placeholder>
+          )}
 
-        <div ref={ref} style={{ height: "1px" }} />
+          <div ref={ref} style={{ height: "1px" }} />
 
-        {isFetchingNextPage && (
-          <Spinner size="l" style={{ margin: "20px 0" }} />
-        )}
-      </Group>
+          {isFetchingNextPage && (
+            <Spinner size="l" style={{ margin: "20px 0" }} />
+          )}
+        </Group>
+      </PullToRefresh>
     </Panel>
   );
 };

@@ -22,6 +22,7 @@ import {
   Input,
   Spinner,
   FormLayoutGroup,
+  PanelHeaderBack,
 } from "@vkontakte/vkui";
 import {
   Icon16HelpOutline,
@@ -376,27 +377,38 @@ export const Tariffs = ({ id }: TariffsProps) => {
         id="promo-modal"
         onClose={() => setActiveModal(null)}
         header={
-          <ModalPageHeader>Тариф "{selectedTariff?.name}"</ModalPageHeader>
+          <ModalPageHeader
+            before={<PanelHeaderBack onClick={() => setActiveModal(null)} />}
+          >
+            Тариф "{selectedTariff?.name}"
+          </ModalPageHeader>
         }
         settlingHeight={100}
       >
         <Group>
-          <FormLayoutGroup
-            mode="horizontal"
-            style={{ alignItems: "flex-end", padding: "0 16px" }}
-          >
-            <FormItem top="Промокод (если есть)" style={{ flexGrow: 1 }}>
-              <Input
-                value={promoCode}
-                onChange={(e) => setPromoCode(e.target.value)}
-              />
-            </FormItem>
-            <FormItem>
-              <Button onClick={handleApplyPromo} disabled={isApplyingPromo}>
-                {isApplyingPromo ? <Spinner size="s" /> : "Применить"}
-              </Button>
-            </FormItem>
-          </FormLayoutGroup>
+          <Group>
+            <FormLayoutGroup
+              mode="horizontal"
+              style={{ alignItems: "flex-end", padding: "0 16px" }}
+            >
+              <FormItem top="Промокод (если есть)" style={{ flexGrow: 1 }}>
+                <Input
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value)}
+                />
+              </FormItem>
+              <FormItem>
+                <Button onClick={handleApplyPromo} disabled={isApplyingPromo}>
+                  {isApplyingPromo ? <Spinner size="s" /> : "Применить"}
+                </Button>
+              </FormItem>
+            </FormLayoutGroup>
+            {promoResult && (
+              <SimpleCell disabled>
+                Скидка {promoResult.discount_percent}% применена!
+              </SimpleCell>
+            )}
+          </Group>
           {promoResult && (
             <SimpleCell disabled>
               Скидка {promoResult.discount_percent}% применена!

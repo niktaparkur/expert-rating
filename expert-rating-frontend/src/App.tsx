@@ -63,6 +63,7 @@ import { QrCodeModal } from "./components/Event/QrCodeModal";
 import { useApi } from "./hooks/useApi";
 import { useUserStore } from "./store/userStore";
 import { useUiStore } from "./store/uiStore";
+import "./styles/global.css";
 
 import {
   Home,
@@ -158,13 +159,16 @@ export const App = () => {
 
   const handleShare = () => {
     if (!selectedEvent) return;
-    const link = `https://vk.com/app${import.meta.env.VITE_VK_APP_ID}#/vote/${
-      selectedEvent.promo_word
-    }`;
-    bridge.send("VKWebAppShare", { link }).catch((e) => {
-      if (e.error_data?.error_code !== 4) {
-        // Не показываем ошибку, если пользователь просто закрыл окно
-        console.error(e);
+    const link = `https://vk.com/app${import.meta.env.VITE_VK_APP_ID}#/vote/${selectedEvent.promo_word}`;
+    
+    bridge.send("VKWebAppShare", { link }).catch((error) => {
+      if (error.error_data?.error_code !== 4) {
+        console.error("VKWebAppShare error:", error);
+        setSnackbar(
+          <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+            Ошибка при попытке поделиться.
+          </Snackbar>,
+        );
       }
     });
     setActiveModal(null);

@@ -19,9 +19,10 @@ import { EventData } from "../../types";
 interface EventInfoCardProps {
   event: EventData;
   onClick?: (event: EventData) => void;
+  showActions?: boolean;
 }
 
-export const EventInfoCard = ({ event, onClick }: EventInfoCardProps) => {
+export const EventInfoCard = ({ event, onClick, showActions = false }: EventInfoCardProps) => {
   const isoDateString = event.event_date.endsWith("Z")
     ? event.event_date
     : event.event_date + "Z";
@@ -55,9 +56,11 @@ export const EventInfoCard = ({ event, onClick }: EventInfoCardProps) => {
       before={<Icon28CalendarOutline />}
       subtitle={<Footnote>{subtitleString}</Footnote>}
       after={
-        <IconButton onClick={onClick ? () => onClick(event) : undefined}>
-          <Icon24InfoCircleOutline />
-        </IconButton>
+        showActions && onClick ? (
+          <IconButton onClick={() => onClick(event)}>
+            <Icon24InfoCircleOutline />
+          </IconButton>
+        ) : null
       }
     >
       <div style={{ display: "flex", alignItems: "center" }}>

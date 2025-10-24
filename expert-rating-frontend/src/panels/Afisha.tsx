@@ -1,10 +1,4 @@
-import React, {
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
-  useMemo,
-} from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Panel,
   PanelHeader,
@@ -12,15 +6,24 @@ import {
   Spinner,
   Placeholder,
   Search,
-  SimpleCell,
   ModalRoot,
+  PullToRefresh,
+  PanelHeaderButton,
+  SimpleCell,
 } from "@vkontakte/vkui";
-import { Icon28CalendarOutline, Icon56NewsfeedOutline } from "@vkontakte/icons";
+import {
+  Icon28CalendarOutline,
+  Icon28RefreshOutline,
+  Icon56NewsfeedOutline,
+} from "@vkontakte/icons";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInView } from "react-intersection-observer";
+import debounce from "lodash.debounce";
 import { useApi } from "../hooks/useApi";
 import { EventData } from "../types";
 import { AfishaFilters } from "../components/Afisha/AfishaFilters";
 import { AfishaEventModal } from "../components/Afisha/AfishaEventModal";
-import debounce from "lodash.debounce";
+import { usePlatform } from "@vkontakte/vkui";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 
@@ -38,12 +41,8 @@ const PAGE_SIZE = 10;
 
 export const Afisha = ({ id }: AfishaProps) => {
   const { apiGet } = useApi();
-  const observerRef = useRef<HTMLDivElement>(null);
-
-  const [events, setEvents] = useState<EventData[]>([]);
-  const [page, setPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+  const { ref, inView } = useInView({ threshold: 0.5 });
+  const platform = usePlatform();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -52,87 +51,71 @@ export const Afisha = ({ id }: AfishaProps) => {
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<EventData | null>(null);
 
-  const [regions, setRegions] = useState<string[]>([]);
-  const [categories, setCategories] = useState<CategoryData[]>([]);
-
-  useEffect(() => {
-    apiGet<string[]>("/meta/regions").then(setRegions);
-    apiGet<CategoryData[]>("/meta/themes").then(setCategories);
-  }, [apiGet]);
-
-  const fetchEvents = useCallback(
-    async (isNewSearch = false) => {
-      if (isLoading) return;
-      setIsLoading(true);
-      const currentPage = isNewSearch ? 1 : page;
-      const params = new URLSearchParams({
-        page: String(currentPage),
-        size: String(PAGE_SIZE),
-      });
-      if (debouncedSearch) params.append("search", debouncedSearch);
-      if (filters.region) params.append("region", filters.region);
-      if (filters.category_id)
-        params.append("category_id", filters.category_id);
-
-      try {
-        const data = await apiGet<any>(`/events/feed?${params.toString()}`);
-        setEvents((prev) =>
-          isNewSearch ? data.items : [...prev, ...data.items],
-        );
-        setHasMore(currentPage * PAGE_SIZE < data.total_count);
-        if (isNewSearch) setPage(2);
-        else setPage((p) => p + 1);
-      } catch (error) {
-        console.error("Failed to fetch events feed:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [apiGet, isLoading, page, debouncedSearch, filters],
-  );
+  const { data: regions = [] } = useQuery({
+    queryKey: ["metaRegions"],
+    queryFn: () => apiGet<string[]>("/meta/regions"),
+  });
+  const { data: categories = [] } = useQuery({
+    queryKey: ["metaThemes"],
+    queryFn: () => apiGet<CategoryData[]>("/meta/themes"),
+  });
 
   const debouncedSetSearch = useMemo(
     () => debounce(setDebouncedSearch, 500),
     [],
   );
-
   useEffect(() => {
     debouncedSetSearch(searchQuery);
     return () => debouncedSetSearch.cancel();
   }, [searchQuery, debouncedSetSearch]);
 
-  useEffect(() => {
-    setEvents([]);
-    setPage(1);
-    setHasMore(true);
-    fetchEvents(true);
-  }, [debouncedSearch, filters]);
+  const fetchEvents = async ({ pageParam = 1 }) => {
+    const params = new URLSearchParams({
+      page: String(pageParam),
+      size: String(PAGE_SIZE),
+    });
+    if (debouncedSearch) params.append("search", debouncedSearch);
+    if (filters.region) params.append("region", filters.region);
+    if (filters.category_id) params.append("category_id", filters.category_id);
+    return await apiGet<any>(`/events/feed?${params.toString()}`);
+  };
+
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isLoading,
+    isFetchingNextPage,
+    isFetching,
+    refetch,
+  } = useInfiniteQuery({
+    queryKey: ["eventsFeed", debouncedSearch, filters],
+    queryFn: fetchEvents,
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      const currentPage = allPages.length;
+      const totalCount = lastPage.total_count;
+      return currentPage * PAGE_SIZE < totalCount ? currentPage + 1 : undefined;
+    },
+  });
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !isLoading) {
-          fetchEvents();
-        }
-      },
-      { threshold: 1.0 },
-    );
-
-    const currentObserverRef = observerRef.current;
-    if (currentObserverRef) {
-      observer.observe(currentObserverRef);
+    if (inView && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
     }
+  }, [inView, hasNextPage, fetchNextPage, isFetchingNextPage]);
 
-    return () => {
-      if (currentObserverRef) {
-        observer.unobserve(currentObserverRef);
-      }
-    };
-  }, [hasMore, isLoading, fetchEvents]);
+  const allEvents = useMemo(() => {
+    return data?.pages.flatMap((page) => page.items) || [];
+  }, [data]);
 
   const handleEventClick = (event: EventData) => {
     setSelectedEvent(event);
     setActiveModal("afisha-event-details");
+  };
+
+  const onRefresh = async () => {
+    await refetch();
   };
 
   const modal = (
@@ -148,54 +131,77 @@ export const Afisha = ({ id }: AfishaProps) => {
   return (
     <Panel id={id}>
       {modal}
-      <PanelHeader>Афиша</PanelHeader>
-      <Group>
-        <Search
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Поиск по мероприятиям"
-        />
-        <AfishaFilters
-          regions={regions}
-          categories={categories}
-          onFiltersChange={setFilters}
-        />
-      </Group>
-
-      <Group style={{ paddingBottom: "60px" }}>
-        {events.map((event) => {
-          const isoDateString = event.event_date.endsWith("Z")
-            ? event.event_date
-            : event.event_date + "Z";
-          const eventDate = new Date(isoDateString);
-          const dateString = format(eventDate, "d MMMM, HH:mm", { locale: ru });
-
-          return (
-            <SimpleCell
-              key={event.id}
-              before={<Icon28CalendarOutline />}
-              subtitle={dateString}
-              onClick={() => handleEventClick(event)}
-              hoverMode="background"
-              activeMode="background"
-              multiline
-            >
-              {event.name}
-            </SimpleCell>
-          );
-        })}
-
-        <div ref={observerRef} style={{ height: "1px" }} />
-        {isLoading && <Spinner size="l" style={{ margin: "20px 0" }} />}
-        {!isLoading && events.length === 0 && (
-          <Placeholder
-            icon={<Icon56NewsfeedOutline />}
-            title="Мероприятия не найдены"
+      <PanelHeader
+        after={
+          <PanelHeaderButton
+            onClick={() => onRefresh()}
+            aria-label="Обновить"
+            className="hide-on-mobile"
           >
-            Попробуйте изменить фильтры или поисковый запрос.
-          </Placeholder>
-        )}
-      </Group>
+            <Icon28RefreshOutline />
+          </PanelHeaderButton>
+        }
+      >
+        Афиша
+      </PanelHeader>
+
+      <PullToRefresh onRefresh={onRefresh} isFetching={isFetching}>
+        <Group>
+          <Search
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Поиск по мероприятиям"
+          />
+          <AfishaFilters
+            regions={regions}
+            categories={categories}
+            onFiltersChange={setFilters}
+          />
+        </Group>
+
+        <Group style={{ paddingBottom: "60px" }}>
+          {isLoading && allEvents.length === 0 ? (
+            <Spinner size="xl" />
+          ) : allEvents.length > 0 ? (
+            allEvents.map((event) => {
+              const isoDateString = event.event_date.endsWith("Z")
+                ? event.event_date
+                : event.event_date + "Z";
+              const eventDate = new Date(isoDateString);
+              const dateString = format(eventDate, "d MMMM, HH:mm", {
+                locale: ru,
+              });
+
+              return (
+                <SimpleCell
+                  key={event.id}
+                  before={<Icon28CalendarOutline />}
+                  subtitle={dateString}
+                  onClick={() => handleEventClick(event)}
+                  hoverMode="background"
+                  activeMode="background"
+                  multiline
+                >
+                  {event.name}
+                </SimpleCell>
+              );
+            })
+          ) : (
+            <Placeholder
+              icon={<Icon56NewsfeedOutline />}
+              title="Мероприятия не найдены"
+            >
+              Попробуйте изменить фильтры или поисковый запрос.
+            </Placeholder>
+          )}
+
+          <div ref={ref} style={{ height: "1px" }} />
+
+          {isFetchingNextPage && (
+            <Spinner size="l" style={{ margin: "20px 0" }} />
+          )}
+        </Group>
+      </PullToRefresh>
     </Panel>
   );
 };

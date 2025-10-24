@@ -14,7 +14,6 @@ import {
   RichCell,
   Placeholder,
   Spinner,
-  SegmentedControl,
 } from "@vkontakte/vkui";
 import {
   Icon20FavoriteCircleFillYellow,
@@ -170,21 +169,19 @@ export const UserProfile = ({
                   <Title level="3">{user.stats?.expert || 0}</Title>
                 </div>
               </Tooltip>
-              {user.show_community_rating && (
-                <Tooltip description="Народный рейтинг">
-                  <div
-                    className="stat-item"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "4px",
-                    }}
-                  >
-                    <Icon20FavoriteCircleFillYellow />
-                    <Title level="3">{user.stats?.community || 0}</Title>
-                  </div>
-                </Tooltip>
-              )}
+              <Tooltip description="Народный рейтинг">
+                <div
+                  className="stat-item"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                  }}
+                >
+                  <Icon20FavoriteCircleFillYellow />
+                  <Title level="3">{user.stats?.community || 0}</Title>
+                </div>
+              </Tooltip>
               <Tooltip description="Проведено мероприятий">
                 <div
                   className="stat-item"
