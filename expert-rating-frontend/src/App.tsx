@@ -1,5 +1,3 @@
-// expert-rating-frontend/src/App.tsx
-
 import React, {
   useState,
   useEffect,
@@ -64,6 +62,7 @@ import { useApi } from "./hooks/useApi";
 import { useUserStore } from "./store/userStore";
 import { useUiStore } from "./store/uiStore";
 import "./styles/global.css";
+import { useQuery } from "@tanstack/react-query";
 
 import {
   Home,
@@ -148,19 +147,30 @@ export const App = () => {
   const [allThemes, setAllThemes] = useState<any[]>([]);
   const [selectedThemeIds, setSelectedThemeIds] = useState<number[]>([]);
 
-  // --- ЛОГИКА, ПОДНЯТАЯ ИЗ PROFILE.TSX ---
+
   const [selectedEvent, setSelectedEvent] = useState<EventData | null>(null);
-  const [mailingsUsed, setMailingsUsed] = useState(0); // TODO: fetch this from user data
+  const [mailingsUsed, setMailingsUsed] = useState(0);
 
   const handleEventClick = (event: EventData) => {
     setSelectedEvent(event);
     setActiveModal("event-actions-modal");
   };
 
+  const { data: allRegions = [] } = useQuery({
+    queryKey: ["metaRegions"],
+    queryFn: () => apiGet<string[]>("/meta/regions"),
+  });
+
+  useEffect(() => {
+    apiGet<any[]>("/meta/themes")
+      .then(setAllThemes)
+      .catch((e) => console.error("Failed to load themes", e));
+  }, [apiGet]);
+
   const handleShare = () => {
     if (!selectedEvent) return;
     const link = `https://vk.com/app${import.meta.env.VITE_VK_APP_ID}#/vote/${selectedEvent.promo_word}`;
-    
+
     bridge.send("VKWebAppShare", { link }).catch((error) => {
       if (error.error_data?.error_code !== 4) {
         console.error("VKWebAppShare error:", error);
@@ -314,7 +324,6 @@ export const App = () => {
       await handleSettingsChange(fieldName, value);
     }
   };
-  // --- КОНЕЦ ЛОГИКИ ИЗ PROFILE.TSX ---
 
   const refetchUser = useCallback(async () => {
     try {
@@ -325,11 +334,6 @@ export const App = () => {
     }
   }, [apiGet, setCurrentUser]);
 
-  useEffect(() => {
-    apiGet<any[]>("/meta/themes")
-      .then(setAllThemes)
-      .catch((e) => console.error("Failed to load themes", e));
-  }, [apiGet]);
 
   const handleTopicChange = (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -613,6 +617,8 @@ export const App = () => {
                 id={PANEL_REGISTRATION}
                 selectedThemeIds={selectedThemeIds}
                 onOpenTopicsModal={() => setActiveModal("topics-modal")}
+                allThemes={allThemes}
+                allRegions={allRegions}
               />
               <Voting id={PANEL_VOTING} />
               <ExpertProfile id={PANEL_EXPERT_PROFILE} />

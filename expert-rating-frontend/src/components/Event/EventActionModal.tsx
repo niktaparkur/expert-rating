@@ -122,7 +122,10 @@ export const EventActionModal = ({
           )}
         </Div>
       ) : (
-        <Placeholder icon={<Icon56ArchiveOutline />} title="Мероприятие в архиве">
+        <Placeholder
+          icon={<Icon56ArchiveOutline />}
+          title="Мероприятие в архиве"
+        >
           Действия с завершенным мероприятием недоступны.
         </Placeholder>
       )}

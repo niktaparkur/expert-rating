@@ -21,7 +21,11 @@ import {
 } from "@vkontakte/vkui";
 import { Icon16Cancel, Icon56CheckCircleOutline } from "@vkontakte/icons";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+
 import { useApi } from "../hooks/useApi";
+import { useUserStore } from "../store/userStore";
+import { useUiStore } from "../store/uiStore";
 import { UserData } from "../types";
 
 // Определяем типы для данных, получаемых от API
@@ -48,28 +52,26 @@ interface FormData {
 // Определяем интерфейс для пропсов компонента
 interface RegistrationProps {
   id: string;
-  user: UserData | null;
-  refetchUser: () => void;
   selectedThemeIds: number[];
+  allThemes: ThemeCategory[];
   onOpenTopicsModal: () => void;
+  allRegions: string[];
 }
 
 export const Registration = ({
   id,
-  user,
-  refetchUser,
   selectedThemeIds,
+  allThemes,
   onOpenTopicsModal,
+  allRegions,
 }: RegistrationProps) => {
   const routeNavigator = useRouteNavigator();
   const { apiPost, apiGet } = useApi();
+  const queryClient = useQueryClient();
 
-  // Типизируем состояния
-  const [popout, setPopout] = useState<ReactNode | null>(null);
-  const [snackbar, setSnackbar] = useState<ReactNode | null>(null);
-  const [allThemes, setAllThemes] = useState<ThemeCategory[]>([]);
-  const [allRegions, setAllRegions] = useState<string[]>([]);
-  const [isLoadingMeta, setIsLoadingMeta] = useState<boolean>(true);
+  const { currentUser: user } = useUserStore();
+  const { setPopout, setSnackbar } = useUiStore();
+
   const [formData, setFormData] = useState<FormData>({
     region: "",
     social_link: "",
@@ -80,37 +82,10 @@ export const Registration = ({
   const [useVkProfile, setUseVkProfile] = useState<boolean>(true);
 
   useEffect(() => {
-    const fetchMetaData = async () => {
-      setIsLoadingMeta(true);
-      try {
-        const [themesData, regionsData] = await Promise.all([
-          apiGet<ThemeCategory[]>("/meta/themes"),
-          apiGet<string[]>("/meta/regions"),
-        ]);
-
-        setAllThemes(themesData);
-        setAllRegions(regionsData);
-
-        if (regionsData.length > 0) {
-          setFormData((prev) => ({
-            ...prev,
-            region: prev.region || regionsData[0],
-          }));
-        }
-      } catch (error) {
-        console.error("Failed to fetch initial data for registration", error);
-        setSnackbar(
-          <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
-            Не удалось загрузить данные для регистрации.
-          </Snackbar>,
-        );
-      } finally {
-        setIsLoadingMeta(false);
-      }
-    };
-
-    fetchMetaData();
-  }, [apiGet]);
+    if (allRegions.length > 0 && !formData.region) {
+      setFormData((prev) => ({...prev, region: allRegions[0]}));
+    }
+  }, [allRegions, formData.region]);
 
   useEffect(() => {
     if (useVkProfile && user?.vk_id) {
@@ -165,17 +140,21 @@ export const Registration = ({
       profile_data: {
         ...formData,
         theme_ids: selectedThemeIds,
-        referrer: formData.referrer,
+        referrer_info: formData.referrer,
       },
     };
 
     try {
       await apiPost("/experts/register", finalData);
-      await refetchUser();
+      await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
+
       setPopout(
         <ModalCard
           id="success-modal"
-          onClose={() => setPopout(null)}
+          onClose={() => {
+            setPopout(null);
+            routeNavigator.back();
+          }}
           icon={
             <Icon56CheckCircleOutline
               style={{ color: "var(--vkui--color_icon_positive)" }}
@@ -208,6 +187,7 @@ export const Registration = ({
 
   const getSelectedThemeNames = (): string[] => {
     const names: string[] = [];
+    if (!allThemes) return [];
     for (const category of allThemes) {
       for (const theme of category.items) {
         if (selectedThemeIds.includes(theme.id)) {
@@ -218,22 +198,19 @@ export const Registration = ({
     return names;
   };
 
-  if (isLoadingMeta) {
-    return (
-      <Panel id={id}>
-        <ScreenSpinner />
-      </Panel>
-    );
-  }
+  // if (isLoadingMeta) {
+  //   return (
+  //     <Panel id={id}>
+  //       <PanelHeader before={<PanelHeaderBack />} />
+  //       <ScreenSpinner />
+  //     </Panel>
+  //   );
+  // }
 
   return (
-    <Panel id={id} popout={popout}>
+    <Panel id={id}>
       <PanelHeader
-        before={
-          <PanelHeaderBack
-            onClick={() => popout === null && routeNavigator.back()}
-          />
-        }
+        before={<PanelHeaderBack onClick={() => routeNavigator.back()} />}
       >
         Стать экспертом
       </PanelHeader>
@@ -242,6 +219,7 @@ export const Registration = ({
           <FormItem
             top="Темы экспертизы"
             bottom={`Выбрано: ${selectedThemeIds.length} из 3`}
+            status={!isTopicSelectionValid ? "error" : "default"}
           >
             <Button
               mode="secondary"
@@ -258,6 +236,9 @@ export const Registration = ({
                   flexWrap: "wrap",
                   gap: 6,
                   paddingTop: 10,
+                  paddingBottom: 0,
+                  paddingLeft: 0,
+                  paddingRight: 0,
                 }}
               >
                 {getSelectedThemeNames().map((name) => (
@@ -280,6 +261,7 @@ export const Registration = ({
                 }))}
                 required
                 searchable
+                placeholder="Не выбран"
               />
             </FormField>
           </FormItem>
@@ -302,7 +284,7 @@ export const Registration = ({
               Использовать мой профиль VK
             </Checkbox>
           </FormItem>
-          <FormItem top="Регалии">
+          <FormItem top="Регалии" bottom={`${formData.regalia.length} / 200`}>
             <FormField>
               <Textarea
                 name="regalia"
@@ -314,14 +296,17 @@ export const Registration = ({
               />
             </FormField>
           </FormItem>
-          <FormItem top="Ссылка на пример выступления (показывается только для организаторов мероприятий)">
+          <FormItem
+            top="Ссылка на пример выступления"
+            bottom="Эта ссылка будет видна только администраторам и организаторам"
+          >
             <FormField>
               <Input
                 type="url"
                 name="performance_link"
                 value={formData.performance_link}
                 onChange={handleChange}
-                placeholder="https://vk.com/..."
+                placeholder="https://vk.com/video..."
                 required
               />
             </FormField>
@@ -333,23 +318,22 @@ export const Registration = ({
                 name="referrer"
                 value={formData.referrer}
                 onChange={handleChange}
-                placeholder="Логин или ID пригласившего"
+                placeholder="Промокод или ID пригласившего"
               />
             </FormField>
           </FormItem>
-          <FormItem>
+          <Div>
             <Button
               size="l"
               stretched
               type="submit"
-              disabled={popout !== null || !isTopicSelectionValid}
+              disabled={!isTopicSelectionValid}
             >
               Отправить на модерацию
             </Button>
-          </FormItem>
+          </Div>
         </form>
       </Group>
-      {snackbar}
     </Panel>
   );
 };

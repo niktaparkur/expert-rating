@@ -23,6 +23,7 @@ import {
   Spinner,
   FormLayoutGroup,
   PanelHeaderBack,
+  usePlatform,
 } from "@vkontakte/vkui";
 import {
   Icon16HelpOutline,
@@ -83,19 +84,31 @@ const tariffsData: Tariff[] = [
         tooltip:
           "Сколько новых голосов может получить эксперт на одно мероприятие. Ранее голосовавшие пользователи не учитываются в лимите.",
       },
+      {
+        text: "2 отклика на оплачиваемые мероприятия",
+        tooltip:
+          "Сколько раз эксперт может откликнуться на запросы от организаторов, где указан гонорар.",
+      },
+      {
+        text: "10 откликов на неоплачиваемые мероприятия",
+        tooltip:
+          "Сколько раз эксперт может откликнуться на запросы от организаторов, где участие не оплачивается.",
+      },
     ],
     feature_headers: [
       "Срок активности слова",
-      "Бесплатная рассылка",
-      "Кол-во мероприятий в месяц",
+      "Рассылки в месяц",
+      "Мероприятия в месяц",
       "Голосов на мероприятии",
+      "Платные отклики",
+      "Бесплатные отклики",
     ],
   },
   {
     id: "tariff_standard",
     name: "Стандарт",
-    price_str: "299 голосов",
-    price_votes: 299,
+    price_str: "999 ₽",
+    price_votes: 999,
     features: [
       {
         text: "до 12 часов",
@@ -117,19 +130,31 @@ const tariffsData: Tariff[] = [
         tooltip:
           "Сколько новых голосов может получить эксперт на одно мероприятие. Ранее голосовавшие пользователи не учитываются в лимите.",
       },
+      {
+        text: "7 откликов на оплачиваемые мероприятия",
+        tooltip:
+          "Сколько раз эксперт может откликнуться на запросы от организаторов, где указан гонорар.",
+      },
+      {
+        text: "20 откликов на неоплачиваемые мероприятия",
+        tooltip:
+          "Сколько раз эксперт может откликнуться на запросы от организаторов, где участие не оплачивается.",
+      },
     ],
     feature_headers: [
       "Срок активности слова",
-      "Бесплатная рассылка",
-      "Кол-во мероприятий в месяц",
+      "Рассылки в месяц",
+      "Мероприятия в месяц",
       "Голосов на мероприятии",
+      "Платные отклики",
+      "Бесплатные отклики",
     ],
   },
   {
     id: "tariff_pro",
     name: "Профи",
-    price_str: "729 голосов",
-    price_votes: 729,
+    price_str: "3999 ₽",
+    price_votes: 3999,
     features: [
       {
         text: "до 24 часов",
@@ -151,12 +176,24 @@ const tariffsData: Tariff[] = [
         tooltip:
           "Сколько новых голосов может получить эксперт на одно мероприятие. Ранее голосовавшие пользователи не учитываются в лимите.",
       },
+      {
+        text: "15 откликов на оплачиваемые мероприятия",
+        tooltip:
+          "Сколько раз эксперт может откликнуться на запросы от организаторов, где указан гонорар.",
+      },
+      {
+        text: "40 откликов на неоплачиваемые мероприятия",
+        tooltip:
+          "Сколько раз эксперт может откликнуться на запросы от организаторов, где участие не оплачивается.",
+      },
     ],
     feature_headers: [
       "Срок активности слова",
-      "Бесплатная рассылка",
-      "Кол-во мероприятий в месяц",
+      "Рассылки в месяц",
+      "Мероприятия в месяц",
       "Голосов на мероприятии",
+      "Платные отклики",
+      "Бесплатные отклики",
     ],
   },
 ];
@@ -260,6 +297,8 @@ interface TariffsProps {
 }
 
 export const Tariffs = ({ id }: TariffsProps) => {
+  const platform = usePlatform();
+  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const routeNavigator = useRouteNavigator();
   const { viewWidth } = useAdaptivity();
   const { apiPost } = useApi();
@@ -286,7 +325,6 @@ export const Tariffs = ({ id }: TariffsProps) => {
     setPromoResult(null);
   }, [promoCode]);
 
-
   const handleApplyPromo = async () => {
     if (!promoCode || !selectedTariff || !user) return;
     setIsApplyingPromo(true);
@@ -310,42 +348,59 @@ export const Tariffs = ({ id }: TariffsProps) => {
   };
 
   const handleInitiatePayment = async () => {
-    if (!selectedTariff) return;
+    if (!selectedTariff || !user) return;
+    if (paymentUrl) return;
+
     setActiveModal(null);
     setPopout(<Spinner size="xl" />);
+
     const finalPrice = promoResult
       ? promoResult.final_price
       : selectedTariff.price_votes;
 
-    const orderParams: any = {
-      type: "item",
-      item: selectedTariff.id,
-      item_price: finalPrice,
-    };
-
-    if (promoResult && promoResult.order_context_id) {
-      orderParams.merchant_data = promoResult.order_context_id;
-    }
-
     try {
-      await bridge.send("VKWebAppShowOrderBox", orderParams as any);
-      setSnackbar(
-        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
-          После успешной оплаты ваш тариф будет обновлен.
-        </Snackbar>,
+      // 1. Обращаемся к нашему бэкенду для создания платежа в ЮKassa
+      const response = await apiPost<{ confirmation_url: string }>(
+        "/payment/yookassa/create-payment",
+        {
+          tariff_id: selectedTariff.id,
+          final_price: finalPrice,
+        },
       );
-    } catch (error: any) {
-      if (error.error_data?.error_code !== 4) {
+
+      const confirmationUrl = response.confirmation_url;
+      if (!confirmationUrl) {
+        throw new Error("Не удалось получить ссылку на оплату.");
+      }
+
+      setPopout(null);
+
+      const isDesktop = platform === "vkcom";
+
+      if (isDesktop) {
+        setPaymentUrl(confirmationUrl);
+      } else {
+        window.open(confirmationUrl, "_blank");
         setSnackbar(
-          <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
-            Ошибка окна покупки.
+          <Snackbar duration={5000} onClose={() => setSnackbar(null)}>
+            После успешной оплаты тариф будет обновлен. Уведомление придет в
+            личные сообщения.
           </Snackbar>,
         );
       }
-    } finally {
+    } catch (error: any) {
       setPopout(null);
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+          {error.message || "Ошибка подготовки платежа."}
+        </Snackbar>,
+      );
     }
   };
+
+  useEffect(() => {
+    setPaymentUrl(null);
+  }, [selectedTariff, promoResult]);
 
   const handleRegister = () => routeNavigator.push("/registration");
   const getCurrentTariffName = () => user?.tariff_plan || "Начальный";
@@ -370,7 +425,7 @@ export const Tariffs = ({ id }: TariffsProps) => {
     });
     if (isDesktop)
       return (
-        <CardScroll size="s" padding>
+        <CardScroll size="s" padding padding>
           {tariffCards}
         </CardScroll>
       );
@@ -409,7 +464,10 @@ export const Tariffs = ({ id }: TariffsProps) => {
                 />
               </FormItem>
               <FormItem>
-                <Button onClick={handleApplyPromo} disabled={isApplyingPromo || !!promoResult}>
+                <Button
+                  onClick={handleApplyPromo}
+                  disabled={isApplyingPromo || !!promoResult}
+                >
                   {isApplyingPromo ? <Spinner size="s" /> : "Применить"}
                 </Button>
               </FormItem>
@@ -422,11 +480,15 @@ export const Tariffs = ({ id }: TariffsProps) => {
           </Group>
         </Group>
         <Div>
-          <Button
-            size="l"
-            stretched
-            onClick={handleInitiatePayment}
-          >{`Оплатить ${promoResult ? promoResult.final_price : selectedTariff?.price_votes} голосов`}</Button>
+          {paymentUrl ? (
+            <Button size="l" stretched href={paymentUrl} target="_blank">
+              Перейти к оплате
+            </Button>
+          ) : (
+            <Button size="l" stretched onClick={handleInitiatePayment}>
+              {`Оплатить ${promoResult ? promoResult.final_price : selectedTariff?.price_votes} ₽`}
+            </Button>
+          )}
         </Div>
       </ModalPage>
     </ModalRoot>

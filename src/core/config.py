@@ -18,5 +18,8 @@ class Settings:
     REDIS_URL: str = os.environ.get("REDIS_URL")
     SENTRY_DSN: str | None = os.environ.get("SENTRY_DSN", None)
 
+    YOOKASSA_SHOP_ID: str = os.environ.get("YOOKASSA_SHOP_ID")
+    YOOKASSA_SECRET_KEY: str = os.environ.get("YOOKASSA_SECRET_KEY")
+
 
 settings = Settings()
