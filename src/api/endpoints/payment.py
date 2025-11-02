@@ -28,11 +28,11 @@ router = APIRouter(prefix="/payment", tags=["Payment"])
 
 @router.post("/yookassa/webhook", status_code=status.HTTP_200_OK)
 async def yookassa_webhook(
-        notification: payment_schemas.YooKassaNotification,
-        request: Request,
-        db: AsyncSession = Depends(get_db),
-        cache: redis.Redis = Depends(get_redis),
-        notifier: Notifier = Depends(get_notifier),
+    notification: payment_schemas.YooKassaNotification,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    cache: redis.Redis = Depends(get_redis),
+    notifier: Notifier = Depends(get_notifier),
 ):
     """
     Принимает HTTP-уведомления от ЮKassa.
@@ -60,10 +60,13 @@ async def yookassa_webhook(
         processed_key = f"yookassa_processed:{internal_order_id}"
         if await cache.get(processed_key):
             logger.warning(
-                f"Payment {payment_object.id} (order {internal_order_id}) has already been processed. Skipping.")
+                f"Payment {payment_object.id} (order {internal_order_id}) has already been processed. Skipping."
+            )
             return Response(status_code=status.HTTP_200_OK)
 
-        logger.success(f"Processing successful payment {payment_object.id} for user {metadata.user_vk_id}")
+        logger.success(
+            f"Processing successful payment {payment_object.id} for user {metadata.user_vk_id}"
+        )
 
         try:
             # 4. Применяем тариф
@@ -87,17 +90,22 @@ async def yookassa_webhook(
             await cache.delete(f"user_profile:{metadata.user_vk_id}")
             await notifier.send_message(  # Используем базовый метод для простоты
                 peer_id=metadata.user_vk_id,
-                message=f"✅ Оплата прошла успешно! Ваш тариф обновлен до '{tariff_name}'. Спасибо!"
+                message=f"✅ Оплата прошла успешно! Ваш тариф обновлен до '{tariff_name}'. Спасибо!",
             )
 
             # 6. Помечаем платеж как обработанный
             await cache.set(processed_key, "1", ex=timedelta(days=3))
-            logger.success(f"Successfully processed payment for user {metadata.user_vk_id}, tariff '{tariff_name}'.")
+            logger.success(
+                f"Successfully processed payment for user {metadata.user_vk_id}, tariff '{tariff_name}'."
+            )
 
         except Exception as e:
             logger.error(f"Error processing payment {payment_object.id}: {e}")
             # В случае ошибки мы не отвечаем 200, чтобы ЮKassa попробовала прислать уведомление еще раз
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal processing error")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Internal processing error",
+            )
 
     # 7. Подтверждаем получение уведомления
     return Response(status_code=status.HTTP_200_OK)
@@ -105,15 +113,17 @@ async def yookassa_webhook(
 
 @router.post("/yookassa/create-payment")
 async def create_yookassa_payment(
-        payment_data: dict,  # Просто для примера, потом сделаем Pydantic модель
-        current_user: dict = Depends(get_current_user),
-        cache: redis.Redis = Depends(get_redis),
+    payment_data: dict,  # Просто для примера, потом сделаем Pydantic модель
+    current_user: dict = Depends(get_current_user),
+    cache: redis.Redis = Depends(get_redis),
 ):
     tariff_id = payment_data.get("tariff_id")
     final_price = payment_data.get("final_price")
 
     if not tariff_id or not final_price:
-        raise HTTPException(status_code=400, detail="tariff_id and final_price are required.")
+        raise HTTPException(
+            status_code=400, detail="tariff_id and final_price are required."
+        )
 
     # Создаем уникальный idempotence_key для ЮKassa
     idempotence_key = str(uuid.uuid4())
@@ -121,42 +131,49 @@ async def create_yookassa_payment(
     # Создаем наш внутренний order_id для отслеживания
     internal_order_id = str(uuid.uuid4())
 
-    payment_description = f"Оплата тарифа '{tariff_id}' для пользователя VK ID {current_user['vk_id']}"
+    payment_description = (
+        f"Оплата тарифа '{tariff_id}' для пользователя VK ID {current_user['vk_id']}"
+    )
 
     try:
-        payment = Payment.create({
-            "amount": {
-                "value": str(final_price),  # Цена в рублях, как строка
-                "currency": "RUB"
+        payment = Payment.create(
+            {
+                "amount": {
+                    "value": str(final_price),  # Цена в рублях, как строка
+                    "currency": "RUB",
+                },
+                "confirmation": {
+                    "type": "redirect",
+                    # ВАЖНО: Этот URL должен быть страницей-заглушкой
+                    # на вашем фронтенде, которая просто закроется.
+                    "return_url": f"https://vk.com/app{settings.VK_APP_ID}",
+                },
+                "capture": True,
+                "description": payment_description,
+                "metadata": {
+                    "internal_order_id": internal_order_id,
+                    "user_vk_id": current_user["vk_id"],
+                    "tariff_id": tariff_id,
+                },
             },
-            "confirmation": {
-                "type": "redirect",
-                # ВАЖНО: Этот URL должен быть страницей-заглушкой
-                # на вашем фронтенде, которая просто закроется.
-                "return_url": f"https://vk.com/app{settings.VK_APP_ID}"
-            },
-            "capture": True,
-            "description": payment_description,
-            "metadata": {
-                "internal_order_id": internal_order_id,
-                "user_vk_id": current_user['vk_id'],
-                "tariff_id": tariff_id
-            }
-        }, idempotence_key)
+            idempotence_key,
+        )
 
         # Сохраняем информацию о заказе в Redis для последующей проверки через webhook
-        await cache.set(f"yookassa_order:{internal_order_id}", payment.id, ex=86400)  # Храним сутки
+        await cache.set(
+            f"yookassa_order:{internal_order_id}", payment.id, ex=86400
+        )  # Храним сутки
 
         confirmation_url = payment.confirmation.confirmation_url
         logger.success(
-            f"Created YooKassa payment {payment.id} for user {current_user['vk_id']}. URL: {confirmation_url}")
+            f"Created YooKassa payment {payment.id} for user {current_user['vk_id']}. URL: {confirmation_url}"
+        )
 
         return {"confirmation_url": confirmation_url}
 
     except Exception as e:
         logger.error(f"YooKassa payment creation failed: {e}")
         raise HTTPException(status_code=500, detail="Ошибка при создании платежа.")
-
 
 
 def check_vk_signature(params: Dict, secret_key: str) -> bool:

@@ -31,6 +31,7 @@ class User(Base):
     allow_expert_mailings = Column(
         Boolean, default=True, nullable=False, server_default="1"
     )
+    email = Column(String(255), nullable=True, unique=True)
 
     expert_profile = relationship(
         "ExpertProfile",

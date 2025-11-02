@@ -468,3 +468,14 @@ async def get_user_votes(db: AsyncSession, vk_id: int) -> list[Vote]:
     )
     result = await db.execute(query)
     return result.scalars().all()
+
+
+async def update_user_email(db: AsyncSession, vk_id: int, email: str) -> Optional[User]:
+    result = await db.execute(select(User).filter(User.vk_id == vk_id))
+    db_user = result.scalars().first()
+    if db_user:
+        db_user.email = email
+        await db.commit()
+        await db.refresh(db_user)
+        return db_user
+    return None

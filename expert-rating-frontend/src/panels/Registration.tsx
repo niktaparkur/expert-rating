@@ -83,7 +83,7 @@ export const Registration = ({
 
   useEffect(() => {
     if (allRegions.length > 0 && !formData.region) {
-      setFormData((prev) => ({...prev, region: allRegions[0]}));
+      setFormData((prev) => ({ ...prev, region: allRegions[0] }));
     }
   }, [allRegions, formData.region]);
 

@@ -147,7 +147,6 @@ export const App = () => {
   const [allThemes, setAllThemes] = useState<any[]>([]);
   const [selectedThemeIds, setSelectedThemeIds] = useState<number[]>([]);
 
-
   const [selectedEvent, setSelectedEvent] = useState<EventData | null>(null);
   const [mailingsUsed, setMailingsUsed] = useState(0);
 
@@ -333,7 +332,6 @@ export const App = () => {
       console.error("Failed to refetch user:", error);
     }
   }, [apiGet, setCurrentUser]);
-
 
   const handleTopicChange = (
     e: React.ChangeEvent<HTMLInputElement>,
