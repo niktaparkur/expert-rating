@@ -16,8 +16,9 @@ router = APIRouter(prefix="/promo", tags=["Promo Codes"])
 
 @router.post("/apply", response_model=promo_schemas.PromoCodeApplyResponse)
 async def apply_promo_code(
-    apply_data: promo_schemas.PromoCodeApply, db: AsyncSession = Depends(get_db),
-        cache: redis.Redis = Depends(get_redis),
+    apply_data: promo_schemas.PromoCodeApply,
+    db: AsyncSession = Depends(get_db),
+    cache: redis.Redis = Depends(get_redis),
 ):
     promo_code = await promo_crud.validate_and_get_promo_code(
         db, code=apply_data.code, user_vk_id=apply_data.user_vk_id
@@ -54,7 +55,7 @@ async def apply_promo_code(
     await cache.set(
         cache_key,
         f'{{"final_price": {final_price}, "user_id": {apply_data.user_vk_id}}}',
-        ex=600  # 10 минут
+        ex=600,  # 10 минут
     )
 
     return {

@@ -58,7 +58,9 @@ async def handle_payment_notification(
             if context_data_str:
                 context_data = json.loads(context_data_str)
                 final_price = context_data.get("final_price")
-                logger.success(f"Found discounted price {final_price} in Redis for context {order_context_id}")
+                logger.success(
+                    f"Found discounted price {final_price} in Redis for context {order_context_id}"
+                )
                 response_item["price"] = final_price
 
         logger.success(f"Sending item info to VK: {response_item}")

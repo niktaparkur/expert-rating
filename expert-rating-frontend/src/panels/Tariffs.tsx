@@ -420,11 +420,6 @@ export const Tariffs = ({ id }: TariffsProps) => {
               </SimpleCell>
             )}
           </Group>
-          {promoResult && (
-            <SimpleCell disabled>
-              Скидка {promoResult.discount_percent}% применена!
-            </SimpleCell>
-          )}
         </Group>
         <Div>
           <Button
