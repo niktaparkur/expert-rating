@@ -22,7 +22,11 @@ interface EventInfoCardProps {
   showActions?: boolean;
 }
 
-export const EventInfoCard = ({ event, onClick, showActions = false }: EventInfoCardProps) => {
+export const EventInfoCard = ({
+  event,
+  onClick,
+  showActions = false,
+}: EventInfoCardProps) => {
   const isoDateString = event.event_date.endsWith("Z")
     ? event.event_date
     : event.event_date + "Z";

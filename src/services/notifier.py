@@ -14,7 +14,7 @@ class Notifier:
         else:
             self.bot = Bot(token=token)
 
-    async def _send_message(self, peer_id: int, message: str, keyboard=None):
+    async def send_message(self, peer_id: int, message: str, keyboard=None):
         if not self.bot or not peer_id:
             return
         try:
@@ -35,7 +35,7 @@ class Notifier:
         kb = KeyboardBuilder(inline=True)
         deep_link = f"https://vk.com/app{settings.VK_APP_ID}#/admin?vk_id={vk_id}"
         kb.add(Button.open_link("Рассмотреть заявку", link=deep_link))
-        await self._send_message(settings.ADMIN_ID, message, kb.build())
+        await self.send_message(settings.ADMIN_ID, message, kb.build())
 
     async def send_new_event_to_admin(self, event_name: str, expert_name: str):
         message = (
@@ -46,7 +46,7 @@ class Notifier:
         kb = KeyboardBuilder(inline=True)
         deep_link = f"https://vk.com/app{settings.VK_APP_ID}#/admin"
         kb.add(Button.open_link("В админ-панель", link=deep_link))
-        await self._send_message(settings.ADMIN_ID, message, kb.build())
+        await self.send_message(settings.ADMIN_ID, message, kb.build())
 
     async def send_moderation_result(
         self, vk_id: int, approved: bool, reason: Optional[str] = None
@@ -55,7 +55,7 @@ class Notifier:
             message = "✅ Ваша заявка на регистрацию в 'Рейтинге экспертов' одобрена! Теперь вам доступен личный кабинет в приложении."
         else:
             message = f"❌ К сожалению, ваша заявка на регистрацию была отклонена.\nПричина: {reason or 'не указана'}"
-        await self._send_message(vk_id, message)
+        await self.send_message(vk_id, message)
 
     async def send_event_status_notification(
         self,
@@ -68,7 +68,7 @@ class Notifier:
             message = f"✅ Ваше мероприятие «{event_name}» одобрено и появится в афише!"
         else:
             message = f"❌ Ваше мероприятие «{event_name}» отклонено.\nПричина: {reason or 'не указана'}"
-        await self._send_message(expert_id, message)
+        await self.send_message(expert_id, message)
 
     async def send_new_vote_notification(
         self, expert_id: int, vote_data: event_schemas.VoteCreate
@@ -81,7 +81,7 @@ class Notifier:
             f"Вы получили новый голос: {vote_type_text}\n"
             f"Мероприятие: {vote_data.promo_word}"
         )
-        await self._send_message(expert_id, message)
+        await self.send_message(expert_id, message)
 
     async def send_vote_action_notification(
         self,
@@ -93,7 +93,7 @@ class Notifier:
         message_override: Optional[str] = None,
     ):
         if message_override:
-            await self._send_message(user_vk_id, message_override)
+            await self.send_message(user_vk_id, message_override)
             return
 
         vote_map = {"trust": "«👍 Доверие»", "distrust": "«👎 Недоверие»"}
@@ -115,7 +115,7 @@ class Notifier:
         kb = KeyboardBuilder(inline=True)
         deep_link = f"https://vk.com/app{settings.VK_APP_ID}#/expert/{expert_vk_id}"
         kb.add(Button.open_link("Перейти к профилю", link=deep_link))
-        await self._send_message(user_vk_id, message, kb.build())
+        await self.send_message(user_vk_id, message, kb.build())
 
     async def send_event_reminder(
         self, expert_id: int, event_name: str, event_date: datetime
@@ -126,7 +126,7 @@ class Notifier:
             f"Ваше мероприятие «{event_name}» начнется сегодня в {time_str}."
         )
         # Можно добавить кнопку для перехода в приложение
-        await self._send_message(expert_id, message)
+        await self.send_message(expert_id, message)
 
     async def close(self):
         if self.bot:
