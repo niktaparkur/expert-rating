@@ -39,8 +39,8 @@ async def yookassa_webhook(
     """
     # 1. Проверка IP-адреса (базовая безопасность)
     # Список актуальных IP можно найти в документации ЮKassa
-    yookassa_ips = ["185.71.76.0/27", "185.71.77.0/27", "77.75.153.0/25", "77.75.154.128/25", "2a02:5180::/32"]
-    client_ip = request.client.host
+    # yookassa_ips = ["185.71.76.0/27", "185.71.77.0/27", "77.75.153.0/25", "77.75.154.128/25", "2a02:5180::/32"]
+    # client_ip = request.client.host
 
     # Эту проверку можно будет включить на проде. Для локального теста (с ngrok) ее лучше закомментировать.
     # is_valid_ip = any(ipaddress.ip_address(client_ip) in ipaddress.ip_network(net) for net in yookassa_ips)

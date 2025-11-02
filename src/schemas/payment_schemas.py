@@ -1,5 +1,4 @@
-from pydantic import BaseModel, Field
-from typing import Dict, Any
+from pydantic import BaseModel
 
 class YooKassaAmount(BaseModel):
     value: str
