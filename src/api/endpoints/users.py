@@ -15,8 +15,85 @@ from src.schemas.expert_schemas import (
     MyVoteRead,
     VotedExpertInfo,
 )
+from pydantic import EmailStr, TypeAdapter
+from loguru import logger
+
 
 router = APIRouter(prefix="/users", tags=["Users"])
+
+
+@router.put("/me/email", response_model=UserAdminRead)
+async def update_user_email(
+    email_data: dict,
+    current_user: Dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    cache: redis.Redis = Depends(get_redis),
+):
+    """Обновляет email текущего пользователя."""
+    vk_id = current_user["vk_id"]
+    email_to_update = email_data.get("email")
+
+    if not email_to_update:
+        raise HTTPException(status_code=400, detail="Email field is required.")
+
+    try:
+        # 1. Валидация формата email с помощью Pydantic
+        email_validator = TypeAdapter(EmailStr)
+        validated_email = email_validator.validate_python(email_to_update)
+
+        # 2. Обновление email в базе данных
+        updated_user = await expert_crud.update_user_email(
+            db, vk_id=vk_id, email=validated_email
+        )
+        if not updated_user:
+            raise HTTPException(status_code=404, detail="User not found.")
+
+        # 3. Инвалидация кэша профиля пользователя
+        await cache.delete(f"user_profile:{vk_id}")
+
+        # 4. Получение полного, обновленного профиля для возврата на фронтенд
+        result = await expert_crud.get_full_user_profile_with_stats(db, vk_id=vk_id)
+        if not result:
+            # Эта ситуация маловероятна, но лучше ее обработать
+            raise HTTPException(
+                status_code=404, detail="User disappeared after update."
+            )
+
+        user, profile, stats_dict, my_votes_stats_dict = result
+
+        # 5. Сборка объекта ответа (аналогично get_current_user и другим эндпоинтам)
+        response_data = UserAdminRead.model_validate(user, from_attributes=True)
+        response_data.stats = stats_dict
+        response_data.my_votes_stats = my_votes_stats_dict
+        response_data.is_admin = user.is_admin or (user.vk_id == settings.ADMIN_ID)
+        response_data.email = user.email  # Убедимся, что email включен
+
+        if profile:
+            response_data.is_expert = profile.status == "approved"
+            response_data.status = profile.status
+            response_data.show_community_rating = profile.show_community_rating
+            response_data.tariff_plan = profile.tariff_plan
+            response_data.topics = [
+                f"{theme.category.name} > {theme.name}"
+                for theme in profile.selected_themes
+            ]
+            response_data.regalia = profile.regalia
+            response_data.social_link = str(profile.social_link)
+
+        response_data.allow_notifications = user.allow_notifications
+        response_data.allow_expert_mailings = user.allow_expert_mailings
+
+        return response_data
+
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Некорректный формат email.")
+    except Exception as e:
+        # Обработка ошибки уникальности (специфично для MySQL)
+        if "Duplicate entry" in str(e) and "for key 'email'" in str(e):
+            raise HTTPException(status_code=409, detail="Этот email уже используется.")
+        # Логирование для других непредвиденных ошибок
+        logger.error(f"Failed to update email for user {vk_id}: {e}")
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
 @router.get("/me", response_model=UserAdminRead)

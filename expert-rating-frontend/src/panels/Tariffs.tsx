@@ -36,6 +36,7 @@ import bridge from "@vkontakte/vk-bridge";
 import { useApi } from "../hooks/useApi";
 import { useUserStore } from "../store/userStore";
 import { useUiStore } from "../store/uiStore";
+import { UserData } from "../types";
 
 interface TariffFeature {
   text: string;
@@ -56,6 +57,8 @@ const TARIFF_LEVELS: { [key: string]: number } = {
   Стандарт: 1,
   Профи: 2,
 };
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const tariffsData: Tariff[] = [
   {
@@ -301,9 +304,12 @@ export const Tariffs = ({ id }: TariffsProps) => {
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const routeNavigator = useRouteNavigator();
   const { viewWidth } = useAdaptivity();
-  const { apiPost } = useApi();
-  const { currentUser: user } = useUserStore();
+  const { apiPost, apiPut } = useApi();
+  const { currentUser: user, setCurrentUser } = useUserStore();
   const { setPopout, setSnackbar } = useUiStore();
+
+  const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   const isDesktop = viewWidth >= ViewWidth.TABLET;
   const isLoading = !user;
@@ -318,6 +324,8 @@ export const Tariffs = ({ id }: TariffsProps) => {
     setSelectedTariff(tariff);
     setPromoCode("");
     setPromoResult(null);
+    setEmail(user?.email || "");
+    setEmailError(null);
     setActiveModal("promo-modal");
   };
 
@@ -348,18 +356,42 @@ export const Tariffs = ({ id }: TariffsProps) => {
   };
 
   const handleInitiatePayment = async () => {
-    if (!selectedTariff || !user) return;
+    // 1. Валидация email перед отправкой
+    if (!email || !EMAIL_REGEX.test(email)) {
+      setEmailError("Пожалуйста, введите корректный email.");
+      return;
+    }
+    setEmailError(null);
+
+    // Если URL уже есть (для десктопа), не делаем новый запрос
     if (paymentUrl) return;
 
-    setActiveModal(null);
+    if (!selectedTariff || !user) {
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+          Ошибка: не выбраны тариф или пользователь.
+        </Snackbar>,
+      );
+      return;
+    }
+
     setPopout(<Spinner size="xl" />);
 
-    const finalPrice = promoResult
-      ? promoResult.final_price
-      : selectedTariff.price_votes;
-
     try {
-      // 1. Обращаемся к нашему бэкенду для создания платежа в ЮKassa
+      // 2. Если email в форме отличается от того, что в сторе, обновляем его на сервере
+      if (user.email !== email) {
+        const updatedUser = await apiPut<UserData>("/users/me/email", {
+          email,
+        });
+        // Обновляем глобальное состояние пользователя свежими данными с сервера
+        setCurrentUser(updatedUser);
+      }
+
+      const finalPrice = promoResult
+        ? promoResult.final_price
+        : selectedTariff.price_votes;
+
+      // 3. Создаем платеж в ЮKassa
       const response = await apiPost<{ confirmation_url: string }>(
         "/payment/yookassa/create-payment",
         {
@@ -375,6 +407,7 @@ export const Tariffs = ({ id }: TariffsProps) => {
 
       setPopout(null);
 
+      // 4. Адаптивно открываем ссылку
       const isDesktop = platform === "vkcom";
 
       if (isDesktop) {
@@ -425,7 +458,7 @@ export const Tariffs = ({ id }: TariffsProps) => {
     });
     if (isDesktop)
       return (
-        <CardScroll size="s" padding padding>
+        <CardScroll size="s" padding>
           {tariffCards}
         </CardScroll>
       );
@@ -479,16 +512,28 @@ export const Tariffs = ({ id }: TariffsProps) => {
             )}
           </Group>
         </Group>
+        <Group>
+          <FormItem
+            top="Email для чека"
+            required
+            status={emailError ? "error" : "default"}
+            bottom={emailError}
+          >
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="example@mail.com"
+            />
+          </FormItem>
+        </Group>
+
         <Div>
-          {paymentUrl ? (
-            <Button size="l" stretched href={paymentUrl} target="_blank">
-              Перейти к оплате
-            </Button>
-          ) : (
-            <Button size="l" stretched onClick={handleInitiatePayment}>
-              {`Оплатить ${promoResult ? promoResult.final_price : selectedTariff?.price_votes} ₽`}
-            </Button>
-          )}
+          <Button
+            size="l"
+            stretched
+            onClick={handleInitiatePayment}
+          >{`Оплатить ${promoResult ? promoResult.final_price : selectedTariff?.price_votes} ₽`}</Button>
         </Div>
       </ModalPage>
     </ModalRoot>

@@ -60,4 +60,5 @@ export interface UserData {
   social_link?: string;
   allow_notifications: boolean;
   allow_expert_mailings: boolean;
+  email?: string;
 }
