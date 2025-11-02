@@ -113,60 +113,80 @@ async def yookassa_webhook(
 
 @router.post("/yookassa/create-payment")
 async def create_yookassa_payment(
-    payment_data: dict,  # Просто для примера, потом сделаем Pydantic модель
+    payment_data: dict,
     current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
     cache: redis.Redis = Depends(get_redis),
 ):
     tariff_id = payment_data.get("tariff_id")
     final_price = payment_data.get("final_price")
+    user_vk_id = current_user["vk_id"]
 
     if not tariff_id or not final_price:
         raise HTTPException(
             status_code=400, detail="tariff_id and final_price are required."
         )
 
-    # Создаем уникальный idempotence_key для ЮKassa
+    fresh_user_data = await expert_crud.get_user_with_profile(db, vk_id=user_vk_id)
+    if (
+        not fresh_user_data or not fresh_user_data[0]
+    ):  # fresh_user_data это кортеж (User, Profile)
+        raise HTTPException(
+            status_code=404,
+            detail="Не удалось найти пользователя для создания платежа.",
+        )
+
+    user_email = fresh_user_data[0].email
+    if not user_email:
+        raise HTTPException(
+            status_code=400,
+            detail="Email пользователя не найден. Невозможно создать чек.",
+        )
+
+    tariff_title = TARIFFS_INFO.get(tariff_id, {}).get("title", "Неизвестный тариф")
+
     idempotence_key = str(uuid.uuid4())
-
-    # Создаем наш внутренний order_id для отслеживания
     internal_order_id = str(uuid.uuid4())
-
     payment_description = (
-        f"Оплата тарифа '{tariff_id}' для пользователя VK ID {current_user['vk_id']}"
+        f"Оплата тарифа '{tariff_title}' для пользователя VK ID {user_vk_id}"
     )
 
     try:
-        payment = Payment.create(
-            {
-                "amount": {
-                    "value": str(final_price),  # Цена в рублях, как строка
-                    "currency": "RUB",
-                },
-                "confirmation": {
-                    "type": "redirect",
-                    # ВАЖНО: Этот URL должен быть страницей-заглушкой
-                    # на вашем фронтенде, которая просто закроется.
-                    "return_url": f"https://vk.com/app{settings.VK_APP_ID}",
-                },
-                "capture": True,
-                "description": payment_description,
-                "metadata": {
-                    "internal_order_id": internal_order_id,
-                    "user_vk_id": current_user["vk_id"],
-                    "tariff_id": tariff_id,
-                },
+        payment_payload = {
+            "amount": {"value": str(final_price), "currency": "RUB"},
+            "confirmation": {
+                "type": "redirect",
+                "return_url": f"https://vk.com/app{settings.VK_APP_ID}",
             },
-            idempotence_key,
-        )
+            "capture": True,
+            "description": payment_description,
+            "metadata": {
+                "internal_order_id": internal_order_id,
+                "user_vk_id": user_vk_id,
+                "tariff_id": tariff_id,
+            },
+            "receipt": {
+                "customer": {"email": user_email},
+                "items": [
+                    {
+                        "description": f"Доступ к тарифу «{tariff_title}» на 30 дней",
+                        "quantity": "1.00",
+                        "amount": {"value": str(final_price), "currency": "RUB"},
+                        "vat_code": "1",
+                        "payment_mode": "full_prepayment",
+                        "payment_subject": "service",
+                    }
+                ],
+            },
+        }
 
-        # Сохраняем информацию о заказе в Redis для последующей проверки через webhook
-        await cache.set(
-            f"yookassa_order:{internal_order_id}", payment.id, ex=86400
-        )  # Храним сутки
+        payment = Payment.create(payment_payload, idempotence_key)
+
+        await cache.set(f"yookassa_order:{internal_order_id}", payment.id, ex=86400)
 
         confirmation_url = payment.confirmation.confirmation_url
         logger.success(
-            f"Created YooKassa payment {payment.id} for user {current_user['vk_id']}. URL: {confirmation_url}"
+            f"Created YooKassa payment {payment.id} for user {user_vk_id}. URL: {confirmation_url}"
         )
 
         return {"confirmation_url": confirmation_url}
