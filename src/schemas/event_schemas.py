@@ -12,6 +12,12 @@ class EventBase(BaseModel):
     event_date: datetime
 
 
+class EventAvailabilityCheck(BaseModel):
+    promo_word: str
+    event_date: datetime
+    duration_minutes: int
+
+
 class EventCreate(EventBase):
     name: str
     description: Optional[str] = None
