@@ -1,6 +1,6 @@
 from datetime import datetime, timezone, timedelta
 
-from sqlalchemy import and_, case, func, text
+from sqlalchemy import and_, case, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -158,9 +158,9 @@ async def get_event_by_promo(db: AsyncSession, promo_word: str):
         .filter(
             func.upper(Event.promo_word) == promo_word.upper(),
             Event.status == "approved",
-            # ИСПРАВЛЕНИЕ: Используем синтаксис MySQL DATE_ADD
+            # ИСПРАВЛЕНИЕ: Используем func.interval для корректной генерации SQL
             func.date_add(
-                Event.event_date, text(f"INTERVAL {Event.duration_minutes} MINUTE")
+                Event.event_date, func.interval(Event.duration_minutes, "MINUTE")
             )
             >= now,
         )
