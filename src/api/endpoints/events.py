@@ -15,6 +15,7 @@ from src.schemas import event_schemas
 from src.services.notifier import Notifier
 from src.schemas.expert_schemas import VotedExpertInfo
 from src.core.dependencies import get_redis
+from src.models.all_models import User, Event
 import redis.asyncio as redis
 
 router = APIRouter(prefix="/events", tags=["Events & Voting"])
@@ -63,9 +64,18 @@ async def delete_event(
     event_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: Dict = Depends(get_current_user),
+    notifier: Notifier = Depends(get_notifier),
 ):
     expert_id = current_user["vk_id"]
     try:
+        event_to_delete = await db.get(Event, event_id)
+        if (
+            event_to_delete
+            and event_to_delete.expert_id == expert_id
+            and event_to_delete.wall_post_id
+        ):
+            await notifier.delete_wall_post(event_to_delete.wall_post_id)
+
         success = await event_crud.delete_event_by_id(
             db=db, event_id=event_id, expert_id=expert_id
         )
@@ -275,8 +285,21 @@ async def approve_event(
     )
     if not event:
         raise HTTPException(status_code=404, detail="Event not found.")
+
+    if not event.is_private:
+        expert_user = await db.get(User, event.expert_id)
+        if expert_user:
+            expert_name = f"{expert_user.first_name} {expert_user.last_name}"
+            post_id = await notifier.post_announcement_to_wall(event, expert_name)
+            if post_id:
+                event.wall_post_id = post_id
+                await db.commit()
+
     await notifier.send_event_status_notification(
-        expert_id=event.expert_id, event_name=event.event_name, approved=True
+        expert_id=event.expert_id,
+        event_name=event.event_name,
+        approved=True,
+        is_private=event.is_private,
     )
     return {"status": "ok"}
 
@@ -298,6 +321,7 @@ async def reject_event(
         expert_id=event.expert_id,
         event_name=event.event_name,
         approved=False,
+        is_private=event.is_private,
         reason=reason,
     )
     return {"status": "ok"}
@@ -319,7 +343,6 @@ async def cancel_event_vote(
             status_code=404, detail="Голос для отмены не найден или у вас нет прав."
         )
 
-    # В данном случае инвалидация кэша не так критична, но полезна для обновления my_votes_stats
     await cache.delete(f"user_profile:{voter_vk_id}")
 
     return {"status": "ok", "message": "Vote cancelled."}

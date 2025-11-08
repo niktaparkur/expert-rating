@@ -16,6 +16,7 @@ import {
   Icon28Profile,
   Icon28Users3Outline,
   Icon28AdvertisingOutline,
+  Icon28DocumentTextOutline,
 } from "@vkontakte/icons";
 import "../css/ExpertProfileCard.css";
 
@@ -40,12 +41,14 @@ interface ExpertProfileCardProps {
   expert?: ExpertProfileData | null;
   onVoteClick: () => void;
   onFutureFeatureClick: () => void;
+  onReportClick: (event: React.MouseEvent<HTMLElement>) => void;
 }
 
 export const ExpertProfileCard = ({
   expert,
   onVoteClick,
   onFutureFeatureClick,
+  onReportClick,
 }: ExpertProfileCardProps) => {
   if (!expert) return null;
 
@@ -61,7 +64,15 @@ export const ExpertProfileCard = ({
   } = expert;
 
   return (
-    <Card mode="shadow">
+    <Card mode="shadow" style={{ position: "relative" }}>
+      <IconButton
+        onClick={onReportClick}
+        aria-label="Скачать отчет"
+        style={{ position: "absolute", top: 4, right: 4, zIndex: 2 }}
+      >
+        <Icon28DocumentTextOutline />
+      </IconButton>
+
       <Div className="expert-profile-header">
         <Avatar size={96} src={photo_url} />
         <div className="expert-profile-name-container">
@@ -115,13 +126,9 @@ export const ExpertProfileCard = ({
       {topics && topics.length > 0 && (
         <div className="topics-section-container">
           <Header>Направления:</Header>
-          <div className="topics-list">
-            {topics.map((topic) => (
-              <Text key={topic} className="topic-list-item">
-                {topic}
-              </Text>
-            ))}
-          </div>
+          <Div style={{ paddingBottom: 12, paddingTop: 0 }}>
+            <Text>{topics.join(" • ")}</Text>
+          </Div>
         </div>
       )}
 

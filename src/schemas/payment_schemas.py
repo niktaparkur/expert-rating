@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Optional
 
 
 class YooKassaAmount(BaseModel):
@@ -10,6 +11,7 @@ class YooKassaMetadata(BaseModel):
     internal_order_id: str
     user_vk_id: int
     tariff_id: str
+    expert_id: Optional[int] = None
 
 
 class YooKassaPaymentObject(BaseModel):

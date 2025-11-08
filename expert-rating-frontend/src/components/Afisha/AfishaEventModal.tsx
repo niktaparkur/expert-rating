@@ -7,6 +7,8 @@ import {
   SimpleCell,
   RichCell,
   Avatar,
+  Div,
+  Text,
 } from "@vkontakte/vkui";
 import { Icon28CalendarOutline } from "@vkontakte/icons";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
@@ -38,9 +40,14 @@ export const AfishaEventModal = ({
 
   let dateString: string;
   if (isSameDay(eventDate, endDate)) {
-    dateString = `${format(eventDate, "HH:mm")} — ${format(endDate, "HH:mm")}, ${format(eventDate, "d MMMM yyyy", { locale: ru })}`;
+    dateString = `${format(eventDate, "HH:mm")} — ${format(
+      endDate,
+      "HH:mm",
+    )}, ${format(eventDate, "d MMMM yyyy", { locale: ru })}`;
   } else {
-    dateString = `${format(eventDate, "HH:mm, d MMMM yyyy", { locale: ru })} — ${format(endDate, "HH:mm, d MMMM yyyy", { locale: ru })}`;
+    dateString = `${format(eventDate, "HH:mm, d MMMM yyyy", {
+      locale: ru,
+    })} — ${format(endDate, "HH:mm, d MMMM yyyy", { locale: ru })}`;
   }
 
   const handleExpertClick = () => {
@@ -62,6 +69,15 @@ export const AfishaEventModal = ({
           {dateString}
         </SimpleCell>
       </Group>
+
+      {event.description && (
+        <Group header={<Header>Описание</Header>}>
+          <Div>
+            <Text>{event.description}</Text>
+          </Div>
+        </Group>
+      )}
+
       <Group header={<Header>Эксперт</Header>}>
         <RichCell
           before={<Avatar size={72} src={event.expert_info.photo_url} />}

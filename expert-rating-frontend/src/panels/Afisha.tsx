@@ -5,8 +5,6 @@ import {
   Group,
   Spinner,
   Placeholder,
-  Search,
-  ModalRoot,
   PullToRefresh,
   PanelHeaderButton,
   SimpleCell,
@@ -16,54 +14,39 @@ import {
   Icon28RefreshOutline,
   Icon56NewsfeedOutline,
 } from "@vkontakte/icons";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { useInView } from "react-intersection-observer";
 import debounce from "lodash.debounce";
-import { useApi } from "../hooks/useApi";
-import { EventData } from "../types";
-import { AfishaFilters } from "../components/Afisha/AfishaFilters";
-import { AfishaEventModal } from "../components/Afisha/AfishaEventModal";
-import { usePlatform } from "@vkontakte/vkui";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 
+import { useApi } from "../hooks/useApi";
+import { EventData } from "../types";
+import { useFiltersStore } from "../store/filtersStore";
+import { SearchWithFilters } from "../components/Shared/SearchWithFilters";
+import { useUiStore } from "../store/uiStore";
+
 interface AfishaProps {
   id: string;
-}
-
-interface CategoryData {
-  id: number;
-  name: string;
-  items: { id: number; name: string }[];
+  onEventClick: (event: EventData) => void;
 }
 
 const PAGE_SIZE = 10;
 
-export const Afisha = ({ id }: AfishaProps) => {
+export const Afisha = ({ id, onEventClick }: AfishaProps) => {
   const { apiGet } = useApi();
   const { ref, inView } = useInView({ threshold: 0.5 });
-  const platform = usePlatform();
+  const { setActiveModal } = useUiStore();
+  const afishaFilters = useFiltersStore((state) => state.afishaFilters);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [filters, setFilters] = useState({ region: "", category_id: "" });
-
-  const [activeModal, setActiveModal] = useState<string | null>(null);
-  const [selectedEvent, setSelectedEvent] = useState<EventData | null>(null);
-
-  const { data: regions = [] } = useQuery({
-    queryKey: ["metaRegions"],
-    queryFn: () => apiGet<string[]>("/meta/regions"),
-  });
-  const { data: categories = [] } = useQuery({
-    queryKey: ["metaThemes"],
-    queryFn: () => apiGet<CategoryData[]>("/meta/themes"),
-  });
 
   const debouncedSetSearch = useMemo(
     () => debounce(setDebouncedSearch, 500),
     [],
   );
+
   useEffect(() => {
     debouncedSetSearch(searchQuery);
     return () => debouncedSetSearch.cancel();
@@ -75,8 +58,9 @@ export const Afisha = ({ id }: AfishaProps) => {
       size: String(PAGE_SIZE),
     });
     if (debouncedSearch) params.append("search", debouncedSearch);
-    if (filters.region) params.append("region", filters.region);
-    if (filters.category_id) params.append("category_id", filters.category_id);
+    if (afishaFilters.region) params.append("region", afishaFilters.region);
+    if (afishaFilters.category_id)
+      params.append("category_id", afishaFilters.category_id);
     return await apiGet<any>(`/events/feed?${params.toString()}`);
   };
 
@@ -89,7 +73,7 @@ export const Afisha = ({ id }: AfishaProps) => {
     isFetching,
     refetch,
   } = useInfiniteQuery({
-    queryKey: ["eventsFeed", debouncedSearch, filters],
+    queryKey: ["eventsFeed", debouncedSearch, afishaFilters],
     queryFn: fetchEvents,
     initialPageParam: 1,
     getNextPageParam: (lastPage, allPages) => {
@@ -109,28 +93,12 @@ export const Afisha = ({ id }: AfishaProps) => {
     return data?.pages.flatMap((page) => page.items) || [];
   }, [data]);
 
-  const handleEventClick = (event: EventData) => {
-    setSelectedEvent(event);
-    setActiveModal("afisha-event-details");
-  };
-
   const onRefresh = async () => {
     await refetch();
   };
 
-  const modal = (
-    <ModalRoot activeModal={activeModal} onClose={() => setActiveModal(null)}>
-      <AfishaEventModal
-        id="afisha-event-details"
-        event={selectedEvent}
-        onClose={() => setActiveModal(null)}
-      />
-    </ModalRoot>
-  );
-
   return (
     <Panel id={id}>
-      {modal}
       <PanelHeader
         after={
           <PanelHeaderButton
@@ -147,15 +115,11 @@ export const Afisha = ({ id }: AfishaProps) => {
 
       <PullToRefresh onRefresh={onRefresh} isFetching={isFetching}>
         <Group>
-          <Search
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+          <SearchWithFilters
+            searchQuery={searchQuery}
+            onSearchChange={(e) => setSearchQuery(e.target.value)}
+            onFiltersClick={() => setActiveModal("afisha-filters")}
             placeholder="Поиск по мероприятиям"
-          />
-          <AfishaFilters
-            regions={regions}
-            categories={categories}
-            onFiltersChange={setFilters}
           />
         </Group>
 
@@ -177,7 +141,7 @@ export const Afisha = ({ id }: AfishaProps) => {
                   key={event.id}
                   before={<Icon28CalendarOutline />}
                   subtitle={dateString}
-                  onClick={() => handleEventClick(event)}
+                  onClick={() => onEventClick(event)}
                   hoverMode="background"
                   activeMode="background"
                   multiline

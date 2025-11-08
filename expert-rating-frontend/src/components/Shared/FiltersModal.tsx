@@ -33,16 +33,19 @@ export const FiltersModal: React.FC<FiltersModalProps> = ({
   regions,
   categories,
 }) => {
-  // Выбираем нужные данные из стора в зависимости от filterType
-  const { initialFilters, setFilters } = useFiltersStore((state) => ({
-    initialFilters:
-      filterType === "home" ? state.homeFilters : state.afishaFilters,
-    setFilters:
-      filterType === "home" ? state.setHomeFilters : state.setAfishaFilters,
-  }));
+  const initialFilters = useFiltersStore((state) =>
+    filterType === "home" ? state.homeFilters : state.afishaFilters,
+  );
+  const setFilters = useFiltersStore((state) =>
+    filterType === "home" ? state.setHomeFilters : state.setAfishaFilters,
+  );
 
   const [localFilters, setLocalFilters] =
     useState<FiltersState>(initialFilters);
+
+  useEffect(() => {
+    setLocalFilters(initialFilters);
+  }, [initialFilters]);
 
   const handleFilterChange = (
     e: React.ChangeEvent<HTMLSelectElement>,

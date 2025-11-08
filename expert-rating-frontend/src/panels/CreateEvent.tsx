@@ -26,16 +26,17 @@ import {
   Icon28ArrowUpRectangleSlashOutline,
 } from "@vkontakte/icons";
 import debounce from "lodash.debounce";
-import { UserData } from "../types";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface CreateEventProps {
   id: string;
   onClose: () => void;
-  afterCreate: () => void;
+  onSuccess: () => void;
 }
 
 interface FormData {
   name: string;
+  description: string;
   promo_word: string;
   event_date: Date | null;
   duration_minutes: string;
@@ -45,13 +46,15 @@ interface FormData {
   voter_thank_you_message: string;
 }
 
-export const CreateEvent = ({ id, onClose, afterCreate }: CreateEventProps) => {
+export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
   const { apiPost, apiGet } = useApi();
   const { setPopout } = useUiStore();
   const { currentUser: user } = useUserStore();
+  const queryClient = useQueryClient();
 
   const [formData, setFormData] = useState<FormData>({
     name: "",
+    description: "",
     promo_word: "",
     event_date: null,
     duration_minutes: "60",
@@ -147,6 +150,8 @@ export const CreateEvent = ({ id, onClose, afterCreate }: CreateEventProps) => {
     const finalData = {
       ...formData,
       name: formData.name,
+      description:
+        formData.description.trim() === "" ? null : formData.description,
       event_link:
         formData.event_link.trim() === "" ? null : formData.event_link,
       duration_minutes: parseInt(formData.duration_minutes),
@@ -154,13 +159,12 @@ export const CreateEvent = ({ id, onClose, afterCreate }: CreateEventProps) => {
     };
     try {
       await apiPost("/events/create", finalData);
-      setPopout(null);
+      onSuccess();
       onClose();
-      afterCreate();
     } catch (error: any) {
-      setPopout(null);
       alert(error.message || "Произошла неизвестная ошибка");
     } finally {
+      setPopout(null);
       setIsSubmitting(false);
     }
   };
@@ -199,6 +203,20 @@ export const CreateEvent = ({ id, onClose, afterCreate }: CreateEventProps) => {
                 value={formData.name}
                 onChange={handleChange}
                 maxLength={128}
+              />
+            </FormField>
+          </FormItem>
+          <FormItem
+            top="Описание мероприятия (необязательно)"
+            bottom={`${formData.description.length} / 500`}
+          >
+            <FormField>
+              <Textarea
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                maxLength={500}
+                placeholder="Расскажите подробнее о чем будет ваше мероприятие..."
               />
             </FormField>
           </FormItem>

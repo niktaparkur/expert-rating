@@ -24,7 +24,10 @@ dependencies = [
     "redis[hiredis] (>=6.4.0,<7.0.0)",
     "faker (>=37.11.0,<38.0.0)",
     "apscheduler (>=3.11.0,<4.0.0)",
-    "yookassa (>=3.8.0,<4.0.0)"
+    "yookassa (>=3.8.0,<4.0.0)",
+    "reportlab (>=4.4.4,<5.0.0)",
+    "python-slugify[translit] (>=8.0.4,<9.0.0)",
+    "transliterate (>=1.10.2,<2.0.0)"
 ]
 
 

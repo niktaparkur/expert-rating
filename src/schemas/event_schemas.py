@@ -14,6 +14,7 @@ class EventBase(BaseModel):
 
 class EventCreate(EventBase):
     name: str
+    description: Optional[str] = None
     event_link: Optional[HttpUrl] = None
     is_private: bool = False
     voter_thank_you_message: Optional[str] = None
@@ -25,6 +26,7 @@ class EventRead(EventBase):
     expert_id: int
     status: str
     name: str
+    description: Optional[str] = None
     event_link: Optional[HttpUrl] = None
     is_private: bool
     votes_count: int = 0
