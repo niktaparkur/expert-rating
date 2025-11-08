@@ -1,6 +1,4 @@
-// src/panels/Registration.tsx
-
-import React, { useState, useEffect, ReactNode } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Panel,
   PanelHeader,
@@ -16,19 +14,16 @@ import {
   Checkbox,
   Div,
   ContentBadge,
-  ModalCard,
   Snackbar,
 } from "@vkontakte/vkui";
-import { Icon16Cancel, Icon56CheckCircleOutline } from "@vkontakte/icons";
+import { Icon16Cancel } from "@vkontakte/icons";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { useApi } from "../hooks/useApi";
 import { useUserStore } from "../store/userStore";
 import { useUiStore } from "../store/uiStore";
-import { UserData } from "../types";
 
-// Определяем типы для данных, получаемых от API
 interface ThemeItem {
   id: number;
   name: string;
@@ -40,7 +35,6 @@ interface ThemeCategory {
   items: ThemeItem[];
 }
 
-// Определяем тип для данных формы
 interface FormData {
   region: string;
   social_link: string;
@@ -49,7 +43,6 @@ interface FormData {
   referrer: string;
 }
 
-// Определяем интерфейс для пропсов компонента
 interface RegistrationProps {
   id: string;
   selectedThemeIds: number[];
@@ -66,11 +59,11 @@ export const Registration = ({
   allRegions,
 }: RegistrationProps) => {
   const routeNavigator = useRouteNavigator();
-  const { apiPost, apiGet } = useApi();
+  const { apiPost } = useApi();
   const queryClient = useQueryClient();
 
   const { currentUser: user } = useUserStore();
-  const { setPopout, setSnackbar } = useUiStore();
+  const { setPopout, setSnackbar, setActiveModal } = useUiStore();
 
   const [formData, setFormData] = useState<FormData>({
     region: "",
@@ -148,39 +141,14 @@ export const Registration = ({
       await apiPost("/experts/register", finalData);
       await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
 
-      setPopout(
-        <ModalCard
-          id="success-modal"
-          onClose={() => {
-            setPopout(null);
-            routeNavigator.back();
-          }}
-          icon={
-            <Icon56CheckCircleOutline
-              style={{ color: "var(--vkui--color_icon_positive)" }}
-            />
-          }
-          title="Заявка отправлена на модерацию"
-          description="Если вы ошиблись в данных, вы можете отозвать заявку в разделе 'Аккаунт' и подать ее заново."
-          actions={
-            <Button
-              size="l"
-              mode="primary"
-              stretched
-              onClick={() => {
-                setPopout(null);
-                routeNavigator.back();
-              }}
-            >
-              Понятно
-            </Button>
-          }
-        />,
-      );
+      // ИСПРАВЛЕНИЕ: Используем setActiveModal вместо setPopout
+      setActiveModal("registration-success");
     } catch (error: any) {
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)}>{error.message}</Snackbar>,
       );
+    } finally {
+      // ИСПРАВЛЕНИЕ: Убираем спиннер в любом случае
       setPopout(null);
     }
   };
@@ -197,15 +165,6 @@ export const Registration = ({
     }
     return names;
   };
-
-  // if (isLoadingMeta) {
-  //   return (
-  //     <Panel id={id}>
-  //       <PanelHeader before={<PanelHeaderBack />} />
-  //       <ScreenSpinner />
-  //     </Panel>
-  //   );
-  // }
 
   return (
     <Panel id={id}>

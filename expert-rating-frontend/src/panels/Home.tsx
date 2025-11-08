@@ -6,29 +6,24 @@ import {
   Header,
   CardGrid,
   Spinner,
-  Search,
   Placeholder,
   PullToRefresh,
   PanelHeaderButton,
 } from "@vkontakte/vkui";
 import { Icon56UsersOutline, Icon28RefreshOutline } from "@vkontakte/icons";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { useInView } from "react-intersection-observer";
 import debounce from "lodash.debounce";
 
 import { ExpertCard } from "../components/Expert/ExpertCard";
-import { AfishaFilters } from "../components/Afisha/AfishaFilters";
 import { useApi } from "../hooks/useApi";
+import { useUiStore } from "../store/uiStore";
+import { useFiltersStore } from "../store/filtersStore";
+import { SearchWithFilters } from "../components/Shared/SearchWithFilters";
 
 interface HomeProps {
   id: string;
-}
-
-interface CategoryData {
-  id: number;
-  name: string;
-  items: { id: number; name: string }[];
 }
 
 const PAGE_SIZE = 10;
@@ -37,24 +32,17 @@ export const Home = ({ id }: HomeProps) => {
   const routeNavigator = useRouteNavigator();
   const { apiGet } = useApi();
   const { ref, inView } = useInView({ threshold: 0.5 });
+  const { setActiveModal } = useUiStore();
+  const homeFilters = useFiltersStore((state) => state.homeFilters);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [filters, setFilters] = useState({ region: "", category_id: "" });
-
-  const { data: regions = [] } = useQuery({
-    queryKey: ["metaRegions"],
-    queryFn: () => apiGet<string[]>("/meta/regions"),
-  });
-  const { data: categories = [] } = useQuery({
-    queryKey: ["metaThemes"],
-    queryFn: () => apiGet<CategoryData[]>("/meta/themes"),
-  });
 
   const debouncedSetSearch = useMemo(
     () => debounce(setDebouncedSearch, 500),
     [],
   );
+
   useEffect(() => {
     debouncedSetSearch(searchQuery);
     return () => debouncedSetSearch.cancel();
@@ -66,8 +54,9 @@ export const Home = ({ id }: HomeProps) => {
       size: String(PAGE_SIZE),
     });
     if (debouncedSearch) params.append("search", debouncedSearch);
-    if (filters.region) params.append("region", filters.region);
-    if (filters.category_id) params.append("category_id", filters.category_id);
+    if (homeFilters.region) params.append("region", homeFilters.region);
+    if (homeFilters.category_id)
+      params.append("category_id", homeFilters.category_id);
 
     return await apiGet<any>(`/experts/top?${params.toString()}`);
   };
@@ -81,7 +70,7 @@ export const Home = ({ id }: HomeProps) => {
     isFetching,
     refetch,
   } = useInfiniteQuery({
-    queryKey: ["experts", debouncedSearch, filters],
+    queryKey: ["experts", debouncedSearch, homeFilters],
     queryFn: fetchExperts,
     initialPageParam: 1,
     getNextPageParam: (lastPage, allPages) => {
@@ -129,15 +118,11 @@ export const Home = ({ id }: HomeProps) => {
       </PanelHeader>
       <PullToRefresh onRefresh={onRefresh} isFetching={isFetching}>
         <Group>
-          <Search
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+          <SearchWithFilters
+            searchQuery={searchQuery}
+            onSearchChange={(e) => setSearchQuery(e.target.value)}
+            onFiltersClick={() => setActiveModal("home-filters")}
             placeholder="Поиск по имени или направлению"
-          />
-          <AfishaFilters
-            regions={regions}
-            categories={categories}
-            onFiltersChange={setFilters}
           />
         </Group>
         <Group header={<Header>Топ экспертов</Header>}>

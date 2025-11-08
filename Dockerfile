@@ -29,6 +29,7 @@ WORKDIR /app
 
 COPY --from=builder /app/.venv .venv
 COPY ./src ./src
+COPY ./src/assets ./src/assets
 COPY ./migrations ./migrations
 COPY ./alembic.ini ./alembic.ini
 COPY ./docker-entrypoint-backend.sh /usr/local/bin/docker-entrypoint-backend.sh

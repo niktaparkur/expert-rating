@@ -17,7 +17,6 @@ async def delete_event_by_id(db: AsyncSession, event_id: int, expert_id: int) ->
     if not event or event.expert_id != expert_id:
         return False
 
-    # Проверяем, что мероприятие еще не началось
     now = datetime.now(timezone.utc)
     event_start_time = event.event_date.replace(tzinfo=timezone.utc)
     if now >= event_start_time:
@@ -48,7 +47,6 @@ async def stop_event_voting(
             "Можно остановить только то голосование, которое идет в данный момент."
         )
 
-    # Устанавливаем длительность так, чтобы время окончания стало текущим временем
     new_duration = (now - event_start_time).total_seconds() / 60
     event.duration_minutes = int(new_duration)
 
@@ -73,13 +71,35 @@ async def create_event(
     db: AsyncSession, event_data: event_schemas.EventCreate, expert_id: int
 ):
     promo_normalized = event_data.promo_word.upper().strip()
-    existing_event = await get_event_by_promo(db, promo_normalized)
-    if existing_event:
-        raise ValueError("This promo word is already taken.")
+
+    query = select(Event).where(func.upper(Event.promo_word) == promo_normalized)
+    result = await db.execute(query)
+    conflicting_events = result.scalars().all()
+
+    if conflicting_events:
+        buffer = timedelta(minutes=30)
+        new_event_start = event_data.event_date.replace(tzinfo=timezone.utc) - buffer
+        new_event_end = (
+            new_event_start
+            + timedelta(minutes=event_data.duration_minutes)
+            + (buffer * 2)
+        )
+
+        for existing_event in conflicting_events:
+            existing_start = existing_event.event_date.replace(tzinfo=timezone.utc)
+            existing_end = existing_start + timedelta(
+                minutes=existing_event.duration_minutes
+            )
+
+            if new_event_start < existing_end and new_event_end > existing_start:
+                raise ValueError(
+                    "Это промо-слово уже занято на указанное время или близкое к нему."
+                )
 
     db_event = Event(
         expert_id=expert_id,
         event_name=event_data.name,
+        description=event_data.description,
         promo_word=promo_normalized,
         duration_minutes=event_data.duration_minutes,
         event_date=event_data.event_date,
@@ -280,7 +300,6 @@ async def delete_event_vote(db: AsyncSession, vote_id: int, voter_vk_id: int) ->
 
 
 async def get_events_for_reminding(db: AsyncSession):
-    """Находит мероприятия, которые скоро начнутся и для которых не было отправлено напоминание."""
     now = datetime.now(timezone.utc)
     start_time_threshold = now + timedelta(minutes=15)
 
@@ -297,7 +316,6 @@ async def get_events_for_reminding(db: AsyncSession):
 
 
 async def mark_reminder_as_sent(db: AsyncSession, event_id: int):
-    """Отмечает, что напоминание для мероприятия было отправлено."""
     result = await db.execute(select(Event).where(Event.id == event_id))
     event = result.scalars().first()
     if event:

@@ -49,21 +49,23 @@ import {
   Icon28CheckShieldOutline,
   Icon16Done,
   Icon16Cancel,
+  Icon56CheckCircleOutline,
 } from "@vkontakte/icons";
 import bridge from "@vkontakte/vk-bridge";
 import debounce from "lodash.debounce";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 
 import { Onboarding } from "./components/Shared/Onboarding";
 import { CreateMailingModal } from "./components/CreateMailingModal";
 import { EventActionModal } from "./components/Event/EventActionModal";
 import { QrCodeModal } from "./components/Event/QrCodeModal";
+import { AfishaEventModal } from "./components/Afisha/AfishaEventModal";
+import { FiltersModal } from "./components/Shared/FiltersModal";
+import { PurchaseModal } from "./components/Shared/PurchaseModal";
 import { useApi } from "./hooks/useApi";
 import { useUserStore } from "./store/userStore";
 import { useUiStore } from "./store/uiStore";
 import "./styles/global.css";
-import { useQuery } from "@tanstack/react-query";
-
 import {
   Home,
   Registration,
@@ -149,10 +151,57 @@ export const App = () => {
 
   const [selectedEvent, setSelectedEvent] = useState<EventData | null>(null);
   const [mailingsUsed, setMailingsUsed] = useState(0);
+  const [expertIdForReport, setExpertIdForReport] = useState<number | null>(
+    null,
+  );
 
-  const handleEventClick = (event: EventData) => {
+  const handleOpenEventModal = (event: EventData) => {
     setSelectedEvent(event);
-    setActiveModal("event-actions-modal");
+    if (activeView === VIEW_AFISHA) {
+      setActiveModal("afisha-event-details");
+    } else {
+      setActiveModal("event-actions-modal");
+    }
+  };
+
+  const handleOpenReportPurchase = (expertId: number) => {
+    setExpertIdForReport(expertId);
+    setActiveModal("report-purchase-modal");
+  };
+
+  const handleInitiateReportPayment = async ({ email }: { email: string }) => {
+    if (!expertIdForReport) return;
+    setActiveModal(null);
+    setPopout(<Spinner size="l" />);
+    try {
+      if (currentUser?.email !== email) {
+        const updatedUser = await apiPut<UserData>("/users/me/email", {
+          email,
+        });
+        setCurrentUser(updatedUser);
+      }
+      const response = await apiPost<{ confirmation_url: string }>(
+        `/payment/reports/${expertIdForReport}/create-payment`,
+        {},
+      );
+      if (response.confirmation_url) {
+        window.open(response.confirmation_url, "_blank");
+        setSnackbar(
+          <Snackbar duration={7000} onClose={() => setSnackbar(null)}>
+            После успешной оплаты отчет будет отправлен вам в личные сообщения
+            ВКонтакте.
+          </Snackbar>,
+        );
+      }
+    } catch (err) {
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+          {(err as Error).message}
+        </Snackbar>,
+      );
+    } finally {
+      setPopout(null);
+    }
   };
 
   const { data: allRegions = [] } = useQuery({
@@ -297,16 +346,24 @@ export const App = () => {
     fieldName: "allow_notifications" | "allow_expert_mailings",
     value: boolean,
   ) => {
-    if (fieldName === "allow_notifications" && value === true) {
+    if (fieldName === "allow_expert_mailings") {
+      await handleSettingsChange(fieldName, value);
+      return;
+    }
+
+    if (value === true) {
       if (bridge.isWebView()) {
         try {
           const result = await bridge.send("VKWebAppAllowMessagesFromGroup", {
             group_id: GROUP_ID,
           });
           if (result.result) {
-            await handleSettingsChange(fieldName, value);
+            await handleSettingsChange(fieldName, true);
+          } else {
+            await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
           }
         } catch (error) {
+          await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
           setSnackbar(
             <Snackbar
               onClose={() => setSnackbar(null)}
@@ -320,7 +377,7 @@ export const App = () => {
         await handleSettingsChange(fieldName, value);
       }
     } else {
-      await handleSettingsChange(fieldName, value);
+      await handleSettingsChange(fieldName, false);
     }
   };
 
@@ -619,11 +676,14 @@ export const App = () => {
                 allRegions={allRegions}
               />
               <Voting id={PANEL_VOTING} />
-              <ExpertProfile id={PANEL_EXPERT_PROFILE} />
+              <ExpertProfile
+                id={PANEL_EXPERT_PROFILE}
+                onReportPurchase={handleOpenReportPurchase}
+              />
               <Admin id={PANEL_ADMIN} />
             </View>
             <View id={VIEW_AFISHA} activePanel={activePanel}>
-              <Afisha id={PANEL_AFISHA} />
+              <Afisha id={PANEL_AFISHA} onEventClick={handleOpenEventModal} />
             </View>
             <View id={VIEW_TARIFFS} activePanel={activePanel}>
               <Tariffs id={PANEL_TARIFFS} />
@@ -634,7 +694,7 @@ export const App = () => {
                 onOpenCreateEventModal={() =>
                   setActiveModal("create-event-modal")
                 }
-                onEventClick={handleEventClick}
+                onEventClick={handleOpenEventModal}
               />
             </View>
           </Epic>
@@ -727,7 +787,11 @@ export const App = () => {
         <CreateEvent
           id="create-event-modal"
           onClose={() => setActiveModal(null)}
-          afterCreate={refetchUser}
+          onSuccess={() => {
+            queryClient.invalidateQueries({
+              queryKey: ["myEvents", currentUser?.vk_id],
+            });
+          }}
         />
 
         <EventActionModal
@@ -808,6 +872,19 @@ export const App = () => {
               </SimpleCell>
             </Group>
           )}
+          {currentUser?.is_expert && (
+            <Group header={<Header>Инструменты эксперта</Header>}>
+              <SimpleCell
+                selectable
+                onClick={() => {
+                  setActiveModal(null);
+                  setTimeout(() => setActiveModal("create-mailing-modal"), 200);
+                }}
+              >
+                Создать рассылку
+              </SimpleCell>
+            </Group>
+          )}
           <Group header={<Header>Уведомления</Header>}>
             <SimpleCell
               Component="label"
@@ -847,6 +924,60 @@ export const App = () => {
             </SimpleCell>
           </Group>
         </ModalPage>
+        <FiltersModal
+          id="home-filters"
+          onClose={() => setActiveModal(null)}
+          filterType="home"
+          regions={allRegions}
+          categories={allThemes}
+        />
+        <FiltersModal
+          id="afisha-filters"
+          onClose={() => setActiveModal(null)}
+          filterType="afisha"
+          regions={allRegions}
+          categories={allThemes}
+        />
+        <ModalCard
+          id="registration-success"
+          onClose={() => {
+            setActiveModal(null);
+            routeNavigator.back();
+          }}
+          icon={
+            <Icon56CheckCircleOutline
+              style={{ color: "var(--vkui--color_icon_positive)" }}
+            />
+          }
+          title="Заявка отправлена на модерацию"
+          description="Если вы ошиблись в данных, вы можете отозвать заявку в разделе 'Аккаунт' и подать ее заново."
+          actions={
+            <Button
+              size="l"
+              mode="primary"
+              stretched
+              onClick={() => {
+                setActiveModal(null);
+                routeNavigator.back();
+              }}
+            >
+              Понятно
+            </Button>
+          }
+        />
+        <AfishaEventModal
+          id="afisha-event-details"
+          event={selectedEvent}
+          onClose={() => setActiveModal(null)}
+        />
+        <PurchaseModal
+          id="report-purchase-modal"
+          onClose={() => setActiveModal(null)}
+          title="Отчет по голосованию"
+          description="Вы получите PDF-документ со всеми анонимными отзывами и комментариями по данному эксперту."
+          price={500}
+          onInitiatePayment={handleInitiateReportPayment}
+        />
       </ModalRoot>
     </AppRoot>
   );

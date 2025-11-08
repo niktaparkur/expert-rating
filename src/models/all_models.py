@@ -26,8 +26,9 @@ class User(Base):
     is_admin = Column(Boolean, default=False)
 
     allow_notifications = Column(
-        Boolean, default=True, nullable=False, server_default="1"
+        Boolean, default=False, nullable=False, server_default="0"
     )
+
     allow_expert_mailings = Column(
         Boolean, default=True, nullable=False, server_default="1"
     )
@@ -47,8 +48,9 @@ class Event(Base):
     expert_id = Column(
         BigInteger, ForeignKey("ExpertProfiles.user_vk_id", ondelete="CASCADE")
     )
-    promo_word = Column(String(100), unique=True)
+    promo_word = Column(String(100))
     event_name = Column(String(128))
+    description = Column(Text, nullable=True)
     event_link = Column(Text, nullable=True)
     start_date = Column(TIMESTAMP(timezone=True))
     duration_minutes = Column(Integer)
@@ -58,6 +60,7 @@ class Event(Base):
     show_contacts = Column(Boolean)
     is_private = Column(Boolean, default=False, nullable=False)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    wall_post_id = Column(Integer, nullable=True)
 
     voter_thank_you_message = Column(Text, nullable=True)
     send_reminder = Column(Boolean, default=False, server_default="0", nullable=False)

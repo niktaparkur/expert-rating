@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Panel,
   PanelHeader,
@@ -8,18 +8,11 @@ import {
   Placeholder,
   SegmentedControl,
   Header,
-  ModalRoot,
-  ModalPage,
-  ModalPageHeader,
   Snackbar,
 } from "@vkontakte/vkui";
 import { useRouteNavigator, useParams } from "@vkontakte/vk-mini-apps-router";
-import {
-  Icon56CalendarOutline,
-  Icon16Done,
-  Icon16Cancel,
-} from "@vkontakte/icons";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Icon56CalendarOutline, Icon16Cancel } from "@vkontakte/icons";
+import { useQuery } from "@tanstack/react-query";
 
 import { useApi } from "../hooks/useApi";
 import { useUserStore } from "../store/userStore";
@@ -28,13 +21,13 @@ import {
   ExpertProfileCard,
   ExpertProfileData,
 } from "../components/Expert/ExpertProfileCard";
-import { VoteCard } from "../components/Vote/VoteCard";
 import { EventInfoCard } from "../components/Event/EventInfoCard";
-import { groupPlannedEvents } from "../utils/groupEventsByDate";
+import { groupPlannedEvents } from "../utils";
 import { UserData, EventData } from "../types";
 
 interface ExpertProfileProps {
   id: string;
+  onReportPurchase: (expertId: number) => void;
 }
 
 interface ExpertEventsState {
@@ -61,15 +54,14 @@ const mapUserDataToExpertProfileData = (
   show_community_rating: userData.show_community_rating,
 });
 
-export const ExpertProfile = ({ id }: ExpertProfileProps) => {
+export const ExpertProfile = ({ id, onReportPurchase }: ExpertProfileProps) => {
   const routeNavigator = useRouteNavigator();
   const params = useParams<"expertId">();
   const expertId = params?.expertId;
 
-  const { apiGet, apiPost, apiDelete } = useApi();
+  const { apiGet } = useApi();
   const { currentUser: user } = useUserStore();
-  const { setPopout, setSnackbar, activeModal, setActiveModal } = useUiStore();
-  const queryClient = useQueryClient();
+  const { setSnackbar, setActiveModal } = useUiStore();
 
   const [activeTab, setActiveTab] = useState("current");
   const isSelf = user?.vk_id === Number(expertId);
@@ -108,65 +100,9 @@ export const ExpertProfile = ({ id }: ExpertProfileProps) => {
     setActiveModal("narod-vote-modal");
   };
 
-  const handleVoteAction = async (votePayload: {
-    vote_type: "trust" | "distrust";
-    [key: string]: any;
-  }) => {
-    setActiveModal(null);
-    setPopout(<Spinner size="l" />);
-    if (!user || !expertId) return;
-    const finalData = { voter_vk_id: user.vk_id, ...votePayload };
-
-    try {
-      await apiPost(`/experts/${expertId}/vote`, finalData);
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: ["expertProfile", expertId],
-        }),
-        queryClient.invalidateQueries({ queryKey: ["user", "me"] }),
-      ]);
-      setSnackbar(
-        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
-          Спасибо, ваше действие учтено!
-        </Snackbar>,
-      );
-    } catch (err: any) {
-      setSnackbar(
-        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
-          {err.message}
-        </Snackbar>,
-      );
-    } finally {
-      setPopout(null);
-    }
-  };
-
-  const handleCancelVoteAction = async () => {
-    setPopout(<Spinner size="l" />);
-    if (!expertId) return;
-
-    try {
-      await apiDelete(`/experts/${expertId}/vote`);
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: ["expertProfile", expertId],
-        }),
-        queryClient.invalidateQueries({ queryKey: ["user", "me"] }),
-      ]);
-      setSnackbar(
-        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
-          Ваш голос отменен.
-        </Snackbar>,
-      );
-    } catch (err: any) {
-      setSnackbar(
-        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
-          {err.message}
-        </Snackbar>,
-      );
-    } finally {
-      setPopout(null);
-      setActiveModal(null);
+  const handleReportClick = () => {
+    if (expertId) {
+      onReportPurchase(Number(expertId));
     }
   };
 
@@ -191,48 +127,32 @@ export const ExpertProfile = ({ id }: ExpertProfileProps) => {
       </React.Fragment>
     );
 
-  const modal = (
-    <ModalRoot activeModal={activeModal} onClose={() => setActiveModal(null)}>
-      <ModalPage
-        id="narod-vote-modal"
-        onClose={() => setActiveModal(null)}
-        header={
-          <ModalPageHeader
-            before={<PanelHeaderBack onClick={() => setActiveModal(null)} />}
-          >
-            Народное голосование
-          </ModalPageHeader>
-        }
-        settlingHeight={100}
-      >
-        <VoteCard
-          onSubmit={handleVoteAction}
-          onCancelVote={handleCancelVoteAction}
-          initialVote={expert?.current_user_vote_info}
-          setPopout={setPopout}
-        />
-      </ModalPage>
-    </ModalRoot>
-  );
-
-  if (isProfileLoading)
+  if (isProfileLoading) {
     return (
       <Panel id={id}>
+        <PanelHeader
+          before={<PanelHeaderBack onClick={() => routeNavigator.back()} />}
+        />
         <Spinner size="xl" />
       </Panel>
     );
-  if (isProfileError)
+  }
+
+  if (isProfileError) {
     return (
       <Panel id={id}>
+        <PanelHeader
+          before={<PanelHeaderBack onClick={() => routeNavigator.back()} />}
+        />
         <Placeholder title="Ошибка">
           Не удалось загрузить профиль эксперта.
         </Placeholder>
       </Panel>
     );
+  }
 
   return (
     <Panel id={id}>
-      {modal}
       <PanelHeader
         before={<PanelHeaderBack onClick={() => routeNavigator.back()} />}
       >
@@ -245,6 +165,7 @@ export const ExpertProfile = ({ id }: ExpertProfileProps) => {
               expert={mapUserDataToExpertProfileData(expert)}
               onVoteClick={handleVoteClick}
               onFutureFeatureClick={showFutureFeatureAlert}
+              onReportClick={handleReportClick}
             />
           </Group>
           <Group style={{ marginTop: "8px" }}>

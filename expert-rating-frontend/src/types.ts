@@ -5,25 +5,23 @@ export interface ExpertInfo {
   photo_url: string;
 }
 
-// Статистика эксперта (полученные голоса)
 export interface Stats {
   expert?: number;
   community?: number;
   events_count?: number;
 }
 
-// Статистика пользователя (отданные голоса)
 export interface MyVotesStats {
   trust?: number;
   distrust?: number;
 }
 
-// Тип для данных мероприятия
 export interface EventData {
   id: number;
   expert_id: number;
   status: "pending" | "approved" | "rejected";
   name: string;
+  description?: string;
   promo_word: string;
   event_date: string; // ISO-строка
   duration_minutes: number;
@@ -41,7 +39,6 @@ export interface UserVoteInfo {
   comment?: string;
 }
 
-// Тип для данных пользователя
 export interface UserData {
   vk_id: number;
   first_name: string;

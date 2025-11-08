@@ -110,6 +110,7 @@ async def get_current_user(
     response_data = expert_schemas.UserAdminRead.model_validate(
         user, from_attributes=True
     )
+
     response_data.stats = expert_schemas.Stats(**stats_dict)
     response_data.my_votes_stats = expert_schemas.MyVotesStats(**my_votes_stats_dict)
     response_data.is_admin = user.is_admin or (user.vk_id == settings.ADMIN_ID)

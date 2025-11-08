@@ -9,10 +9,10 @@ import {
   FormStatus,
   SimpleCell,
   InfoRow,
-  Tooltip,
   PanelHeaderBack,
   Placeholder,
   RichCell,
+  Header,
 } from "@vkontakte/vkui";
 import { Icon28CalendarOutline, Icon56ArchiveOutline } from "@vkontakte/icons";
 import { format } from "date-fns";
@@ -103,6 +103,15 @@ export const EventActionModal = ({
           </FormStatus>
         )}
       </Group>
+
+      {event.description && (
+        <Group header={<Header>Описание</Header>}>
+          <Div>
+            <Text>{event.description}</Text>
+          </Div>
+        </Group>
+      )}
+
       {!isFinished ? (
         <Div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           <Button size="l" mode="secondary" stretched onClick={onShare}>

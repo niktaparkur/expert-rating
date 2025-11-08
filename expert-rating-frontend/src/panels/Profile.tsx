@@ -13,15 +13,14 @@ import {
   Button,
   Div,
   Text,
-  ModalPage,
-  ModalPageHeader,
-  SimpleCell,
-  Switch,
   Separator,
-  PanelHeaderBack,
 } from "@vkontakte/vkui";
-import { Icon56UsersOutline, Icon16Cancel, Icon16Done } from "@vkontakte/icons";
-import bridge from "@vkontakte/vk-bridge";
+import {
+  Icon56UsersOutline,
+  Icon16Cancel,
+  Icon16Done,
+  Icon24Add,
+} from "@vkontakte/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { UserProfile } from "../components/Profile/UserProfile";
@@ -35,8 +34,6 @@ import { useUserStore } from "../store/userStore";
 import { useUiStore } from "../store/uiStore";
 import { EventData, UserData } from "../types";
 
-const GROUP_ID = Number(import.meta.env.VITE_VK_GROUP_ID);
-
 interface ProfileProps {
   id: string;
   onOpenCreateEventModal: () => void;
@@ -49,7 +46,7 @@ export const Profile = ({
   onEventClick,
 }: ProfileProps) => {
   const { apiGet, apiDelete, apiPut } = useApi();
-  const { currentUser: user, setCurrentUser } = useUserStore();
+  const { currentUser: user } = useUserStore();
   const { setPopout, setSnackbar, setActiveModal } = useUiStore();
   const queryClient = useQueryClient();
 
@@ -81,63 +78,6 @@ export const Profile = ({
     ]);
     setFetching(false);
   }, [queryClient, user?.vk_id, user?.is_expert]);
-
-  const handleEventClick = (event: EventData) => {
-    onEventClick(event);
-  };
-
-  const handleSettingsChange = async (fieldName: string, value: boolean) => {
-    if (!user) return;
-    setPopout(<Spinner size="xl" />);
-    const payload = { [fieldName]: value };
-    if (fieldName === "allow_notifications" && !value) {
-      payload.allow_expert_mailings = false;
-    }
-    try {
-      const updatedUser = await apiPut<UserData>("/users/me/settings", payload);
-      setCurrentUser(updatedUser);
-    } catch (err) {
-      setSnackbar(
-        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
-          {(err as Error).message}
-        </Snackbar>,
-      );
-      await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
-    } finally {
-      setPopout(null);
-    }
-  };
-
-  const handleNotificationSettingsChange = async (
-    fieldName: "allow_notifications" | "allow_expert_mailings",
-    value: boolean,
-  ) => {
-    if (fieldName === "allow_notifications" && value === true) {
-      if (bridge.isWebView()) {
-        try {
-          const result = await bridge.send("VKWebAppAllowMessagesFromGroup", {
-            group_id: GROUP_ID,
-          });
-          if (result.result) {
-            await handleSettingsChange(fieldName, value);
-          }
-        } catch (error) {
-          setSnackbar(
-            <Snackbar
-              onClose={() => setSnackbar(null)}
-              before={<Icon16Cancel />}
-            >
-              Не удалось запросить разрешение на уведомления.
-            </Snackbar>,
-          );
-        }
-      } else {
-        await handleSettingsChange(fieldName, value);
-      }
-    } else {
-      await handleSettingsChange(fieldName, value);
-    }
-  };
 
   const performCancelVote = async (voteId: number, isExpertVote: boolean) => {
     const endpoint = isExpertVote
@@ -230,7 +170,7 @@ export const Profile = ({
             <EventInfoCard
               key={event.id}
               event={event}
-              onClick={handleEventClick}
+              onClick={onEventClick}
               showActions={true}
             />
           ))}
@@ -240,58 +180,62 @@ export const Profile = ({
 
   const renderEventsContent = () => (
     <div style={{ paddingBottom: "60px" }}>
-      <Group>
-        <Header>Управление</Header>
-        <Div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <Button
-            stretched
-            size="l"
-            mode="secondary"
-            onClick={onOpenCreateEventModal}
+      <Group
+        header={
+          <Header
+            indicator={`${planned.length}`}
+            after={
+              planned.length > 0 ? (
+                <Button
+                  mode="tertiary"
+                  before={<Icon24Add />}
+                  onClick={onOpenCreateEventModal}
+                >
+                  Создать
+                </Button>
+              ) : undefined
+            }
           >
-            + Добавить Мероприятие
-          </Button>
-          <Button
-            stretched
-            size="l"
-            mode="secondary"
-            onClick={() => setActiveModal("create-mailing-modal")}
-          >
-            Создать рассылку
-          </Button>
-        </Div>
+            Запланированные
+          </Header>
+        }
+      >
+        {isLoadingMyEvents ? (
+          <Spinner size="l" />
+        ) : planned.length === 0 ? (
+          <Placeholder
+            action={
+              <Button size="l" onClick={onOpenCreateEventModal}>
+                + Добавить мероприятие
+              </Button>
+            }
+          />
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {renderGroupedEvents(groupedPlannedEvents.today, "Сегодня")}
+            {renderGroupedEvents(groupedPlannedEvents.tomorrow, "Завтра")}
+            {renderGroupedEvents(
+              groupedPlannedEvents.next7Days,
+              "Ближайшие 7 дней",
+            )}
+            {renderGroupedEvents(groupedPlannedEvents.later, "Позже")}
+          </div>
+        )}
       </Group>
-      <Header indicator={`${planned.length}`}>Запланированные</Header>
-      {isLoadingMyEvents ? (
-        <Spinner size="l" />
-      ) : planned.length === 0 ? (
-        <Placeholder title="Нет запланированных мероприятий." />
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {renderGroupedEvents(groupedPlannedEvents.today, "Сегодня")}
-          {renderGroupedEvents(groupedPlannedEvents.tomorrow, "Завтра")}
-          {renderGroupedEvents(
-            groupedPlannedEvents.next7Days,
-            "Ближайшие 7 дней",
-          )}
-          {renderGroupedEvents(groupedPlannedEvents.later, "Позже")}
-        </div>
-      )}
+
       {archived.length > 0 && (
-        <>
-          <Separator style={{ margin: "12px 0" }} />
-          <Header>Архив</Header>
+        <Group header={<Header>Архив</Header>}>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {archived.map((event) => (
               <EventInfoCard
                 key={event.id}
                 event={event}
-                onClick={handleEventClick}
+                onClick={onEventClick}
                 showActions={true}
               />
             ))}
           </div>
-        </>
+        </Group>
       )}
     </div>
   );

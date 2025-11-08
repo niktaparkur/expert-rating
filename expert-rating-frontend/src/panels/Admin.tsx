@@ -55,7 +55,6 @@ import { PromoCodeEditModal } from "../components/Admin/PromoCodeEditModal";
 import { PromoCodeDetailsModal } from "../components/Admin/PromoCodeDetailsModal";
 import { UserData } from "../types";
 
-// Определяем типы для данных, получаемых от API
 interface MailingRequest {
   id: number;
   expert_vk_id: number;
@@ -78,6 +77,7 @@ interface ExpertRequest {
 interface EventRequest {
   id: number;
   name: string;
+  description?: string;
   promo_word: string;
   expert_id: number;
   duration_minutes: number;
@@ -631,6 +631,13 @@ export const Admin = ({ id }: AdminPanelProps) => {
               <SimpleCell multiline>
                 <InfoRow header="Название">{selectedEvent.name}</InfoRow>
               </SimpleCell>
+              {selectedEvent.description && (
+                <SimpleCell multiline>
+                  <InfoRow header="Описание">
+                    {selectedEvent.description}
+                  </InfoRow>
+                </SimpleCell>
+              )}
               <SimpleCell multiline>
                 <InfoRow header="Промо-слово">
                   {selectedEvent.promo_word}
