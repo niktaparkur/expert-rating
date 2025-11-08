@@ -11,6 +11,39 @@ from src.models.all_models import Event, ExpertProfile, Vote, Theme
 from src.schemas import event_schemas
 
 
+async def check_event_availability(
+    db: AsyncSession, promo_word: str, event_date: datetime, duration_minutes: int
+) -> bool:
+    """Проверяет, доступно ли промо-слово на указанное время."""
+    promo_normalized = promo_word.upper().strip()
+
+    query = select(Event).where(func.upper(Event.promo_word) == promo_normalized)
+    result = await db.execute(query)
+    conflicting_events = result.scalars().all()
+
+    if not conflicting_events:
+        return True
+
+    buffer = timedelta(minutes=30)
+    new_event_start = event_date.replace(tzinfo=timezone.utc) - buffer
+    new_event_end = new_event_start + timedelta(minutes=duration_minutes) + (buffer * 2)
+
+    for existing_event in conflicting_events:
+        existing_start = existing_event.event_date.replace(tzinfo=timezone.utc)
+        existing_end = existing_start + timedelta(
+            minutes=existing_event.duration_minutes
+        )
+
+        if new_event_start < existing_end and new_event_end > existing_start:
+            logger.warning(
+                f"Availability check failed for '{promo_normalized}' on {event_date}. "
+                f"Conflict with event ID {existing_event.id}."
+            )
+            return False
+
+    return True
+
+
 async def delete_event_by_id(db: AsyncSession, event_id: int, expert_id: int) -> bool:
     result = await db.execute(select(Event).where(Event.id == event_id))
     event = result.scalars().first()
@@ -71,45 +104,22 @@ async def check_if_user_voted_on_event(
 async def create_event(
     db: AsyncSession, event_data: event_schemas.EventCreate, expert_id: int
 ):
+    is_available = await check_event_availability(
+        db,
+        promo_word=event_data.promo_word,
+        event_date=event_data.event_date,
+        duration_minutes=event_data.duration_minutes,
+    )
+    if not is_available:
+        raise ValueError(
+            "Это промо-слово уже занято на указанное время или близкое к нему."
+        )
+
     promo_normalized = event_data.promo_word.upper().strip()
-    logger.info(f"Attempting to create event with promo_word: '{promo_normalized}'")
-
-    query = select(Event).where(func.upper(Event.promo_word) == promo_normalized)
-    result = await db.execute(query)
-    conflicting_events = result.scalars().all()
-
-    if conflicting_events:
-        logger.warning(
-            f"Found {len(conflicting_events)} existing events with the same promo word. Checking for time conflicts..."
-        )
-        buffer = timedelta(minutes=30)
-        new_event_start = event_data.event_date.replace(tzinfo=timezone.utc) - buffer
-        new_event_end = (
-            new_event_start
-            + timedelta(minutes=event_data.duration_minutes)
-            + (buffer * 2)
-        )
-
-        for existing_event in conflicting_events:
-            existing_start = existing_event.event_date.replace(tzinfo=timezone.utc)
-            existing_end = existing_start + timedelta(
-                minutes=existing_event.duration_minutes
-            )
-
-            if new_event_start < existing_end and new_event_end > existing_start:
-                logger.error(
-                    f"Time conflict detected for promo_word '{promo_normalized}'. "
-                    f"New event interval ({new_event_start} to {new_event_end}) "
-                    f"conflicts with existing event ID {existing_event.id} "
-                    f"({existing_start} to {existing_end})."
-                )
-                raise ValueError(
-                    "Это промо-слово уже занято на указанное время или близкое к нему."
-                )
-
     logger.success(
         f"No time conflicts found for promo_word '{promo_normalized}'. Proceeding with creation."
     )
+
     db_event = Event(
         expert_id=expert_id,
         event_name=event_data.name,
@@ -121,7 +131,6 @@ async def create_event(
         event_link=str(event_data.event_link) if event_data.event_link else None,
         voter_thank_you_message=event_data.voter_thank_you_message,
         send_reminder=event_data.send_reminder,
-        start_date=datetime.now(timezone.utc),
         status="pending",
     )
     db.add(db_event)
@@ -158,7 +167,7 @@ async def get_event_by_promo(db: AsyncSession, promo_word: str):
         .filter(
             func.upper(Event.promo_word) == promo_word.upper(),
             Event.status == "approved",
-            # ИСПРАВЛЕНИЕ: Используем TIMESTAMPADD - стандартную функцию MySQL
+            Event.event_date <= now,
             func.timestampadd(text("MINUTE"), Event.duration_minutes, Event.event_date)
             >= now,
         )

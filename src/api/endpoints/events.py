@@ -24,6 +24,24 @@ TARIFF_DURATION_LIMITS = {"Начальный": 60, "Стандарт": 720, "П
 TARIFF_VOTES_LIMITS = {"Начальный": 100, "Стандарт": 200, "Профи": 1000}
 
 
+@router.post("/check-availability", response_model=Dict)
+async def check_event_availability(
+    check_data: event_schemas.EventAvailabilityCheck, db: AsyncSession = Depends(get_db)
+):
+    is_available = await event_crud.check_event_availability(
+        db,
+        promo_word=check_data.promo_word,
+        event_date=check_data.event_date,
+        duration_minutes=check_data.duration_minutes,
+    )
+    if not is_available:
+        raise HTTPException(
+            status_code=409,
+            detail="Это промо-слово уже занято на указанное время или близкое к нему.",
+        )
+    return {"status": "ok", "message": "This time slot is available."}
+
+
 @router.post("/create", response_model=event_schemas.EventRead)
 async def create_event(
     event_data: event_schemas.EventCreate,
@@ -55,8 +73,6 @@ async def create_event(
         return new_event
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception:
-        raise HTTPException(status_code=500, detail="Internal server error.")
 
 
 @router.delete("/{event_id}", status_code=200)
@@ -144,7 +160,7 @@ async def submit_vote(
     notifier: Notifier = Depends(get_notifier),
 ):
     event = await event_crud.get_event_by_promo(db, vote_data.promo_word)
-    if not event or event.status != "approved":
+    if not event:
         raise HTTPException(
             status_code=404,
             detail="Активное мероприятие с таким промо-словом не найдено.",
@@ -154,6 +170,8 @@ async def submit_vote(
             status_code=403,
             detail="Эксперт не может голосовать на собственном мероприятии.",
         )
+
+    # Эта проверка уже внутри get_event_by_promo, но дублируем для надежности
     now = datetime.now(timezone.utc)
     start_time = event.event_date.replace(tzinfo=timezone.utc)
     end_time = start_time + timedelta(minutes=event.duration_minutes)
@@ -187,8 +205,9 @@ async def get_event_status_by_promo(
     current_user: Dict = Depends(get_current_user),
 ):
     event = await event_crud.get_event_by_promo(db, promo_word)
-    if not event or event.status != "approved":
+    if not event:
         return {"status": "not_found"}
+
     now = datetime.now(timezone.utc)
     start_time = event.event_date.replace(tzinfo=timezone.utc)
     end_time = start_time + timedelta(minutes=event.duration_minutes)
