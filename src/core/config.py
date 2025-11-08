@@ -14,6 +14,7 @@ class Settings:
     VK_APP_SECRET_KEY: str = os.environ.get("VK_APP_SECRET_KEY")
     VK_SERVICE_KEY: str = os.environ.get("VK_SERVICE_KEY")
     VK_APP_ID: int = int(os.environ.get("VK_APP_ID", 0))
+    VK_GROUP_ID: int = int(os.environ.get("VK_GROUP_ID", 0))
 
     REDIS_URL: str = os.environ.get("REDIS_URL")
     SENTRY_DSN: str | None = os.environ.get("SENTRY_DSN", None)
