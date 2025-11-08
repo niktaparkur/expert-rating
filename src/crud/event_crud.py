@@ -1,20 +1,18 @@
 from datetime import datetime, timezone, timedelta
 
-from sqlalchemy import and_, case, func
+from sqlalchemy import and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from typing import Optional
 from loguru import logger
 
-from src.models.all_models import Event, ExpertProfile, Vote, Theme, User
+from src.models.all_models import Event, ExpertProfile, Vote, Theme
 from src.schemas import event_schemas
 
 
 async def delete_event_by_id(db: AsyncSession, event_id: int, expert_id: int) -> bool:
-    result = await db.execute(
-        select(Event).where(Event.id == event_id)
-    )
+    result = await db.execute(select(Event).where(Event.id == event_id))
     event = result.scalars().first()
 
     if not event or event.expert_id != expert_id:
@@ -33,7 +31,7 @@ async def delete_event_by_id(db: AsyncSession, event_id: int, expert_id: int) ->
 
 
 async def stop_event_voting(
-        db: AsyncSession, event_id: int, expert_id: int
+    db: AsyncSession, event_id: int, expert_id: int
 ) -> Optional[Event]:
     result = await db.execute(select(Event).where(Event.id == event_id))
     event = result.scalars().first()
@@ -59,7 +57,7 @@ async def stop_event_voting(
 
 
 async def check_if_user_voted_on_event(
-        db: AsyncSession, event_id: int, voter_vk_id: int
+    db: AsyncSession, event_id: int, voter_vk_id: int
 ) -> bool:
     if not voter_vk_id:
         return False
@@ -71,7 +69,7 @@ async def check_if_user_voted_on_event(
 
 
 async def create_event(
-        db: AsyncSession, event_data: event_schemas.EventCreate, expert_id: int
+    db: AsyncSession, event_data: event_schemas.EventCreate, expert_id: int
 ):
     promo_normalized = event_data.promo_word.upper().strip()
     logger.info(f"Attempting to create event with promo_word: '{promo_normalized}'")
@@ -82,14 +80,21 @@ async def create_event(
 
     if conflicting_events:
         logger.warning(
-            f"Found {len(conflicting_events)} existing events with the same promo word. Checking for time conflicts...")
+            f"Found {len(conflicting_events)} existing events with the same promo word. Checking for time conflicts..."
+        )
         buffer = timedelta(minutes=30)
         new_event_start = event_data.event_date.replace(tzinfo=timezone.utc) - buffer
-        new_event_end = new_event_start + timedelta(minutes=event_data.duration_minutes) + (buffer * 2)
+        new_event_end = (
+            new_event_start
+            + timedelta(minutes=event_data.duration_minutes)
+            + (buffer * 2)
+        )
 
         for existing_event in conflicting_events:
             existing_start = existing_event.event_date.replace(tzinfo=timezone.utc)
-            existing_end = existing_start + timedelta(minutes=existing_event.duration_minutes)
+            existing_end = existing_start + timedelta(
+                minutes=existing_event.duration_minutes
+            )
 
             if new_event_start < existing_end and new_event_end > existing_start:
                 logger.error(
@@ -98,9 +103,13 @@ async def create_event(
                     f"conflicts with existing event ID {existing_event.id} "
                     f"({existing_start} to {existing_end})."
                 )
-                raise ValueError("Это промо-слово уже занято на указанное время или близкое к нему.")
+                raise ValueError(
+                    "Это промо-слово уже занято на указанное время или близкое к нему."
+                )
 
-    logger.success(f"No time conflicts found for promo_word '{promo_normalized}'. Proceeding with creation.")
+    logger.success(
+        f"No time conflicts found for promo_word '{promo_normalized}'. Proceeding with creation."
+    )
     db_event = Event(
         expert_id=expert_id,
         event_name=event_data.name,
@@ -129,17 +138,19 @@ async def get_event_by_promo(db: AsyncSession, promo_word: str):
             func.upper(Event.promo_word) == promo_word.upper(),
             Event.status == "approved",
             # Ищем событие, которое еще не закончилось
-            Event.event_date + func.make_interval(mins=Event.duration_minutes) >= now
+            Event.event_date + func.make_interval(mins=Event.duration_minutes) >= now,
         )
         .options(selectinload(Event.expert).selectinload(ExpertProfile.user))
-        .order_by(Event.event_date.asc())  # Берем самое раннее из будущих, если их несколько
+        .order_by(
+            Event.event_date.asc()
+        )  # Берем самое раннее из будущих, если их несколько
     )
     result = await db.execute(query)
     return result.scalars().first()
 
 
 async def create_vote(
-        db: AsyncSession, vote_data: event_schemas.VoteCreate, event: Event
+    db: AsyncSession, vote_data: event_schemas.VoteCreate, event: Event
 ):
     existing_vote_result = await db.execute(
         select(Vote).filter(
@@ -165,14 +176,12 @@ async def create_vote(
 
 
 async def get_pending_events(db: AsyncSession):
-    result = await db.execute(
-        select(Event).filter(Event.status == "pending")
-    )
+    result = await db.execute(select(Event).filter(Event.status == "pending"))
     return result.scalars().all()
 
 
 async def set_event_status(
-        db: AsyncSession, event_id: int, status: str, reason: str = None
+    db: AsyncSession, event_id: int, status: str, reason: str = None
 ):
     result = await db.execute(select(Event).filter(Event.id == event_id))
     db_event = result.scalars().first()
@@ -233,12 +242,12 @@ async def get_events_by_expert_id(db: AsyncSession, expert_id: int):
 
 
 async def get_public_events_feed(
-        db: AsyncSession,
-        page: int,
-        size: int,
-        search_query: Optional[str] = None,
-        region: Optional[str] = None,
-        category_id: Optional[int] = None,
+    db: AsyncSession,
+    page: int,
+    size: int,
+    search_query: Optional[str] = None,
+    region: Optional[str] = None,
+    category_id: Optional[int] = None,
 ):
     now = datetime.now(timezone.utc)
 
