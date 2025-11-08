@@ -26,7 +26,6 @@ import {
   Icon28ArrowUpRectangleSlashOutline,
 } from "@vkontakte/icons";
 import debounce from "lodash.debounce";
-import { useQueryClient } from "@tanstack/react-query";
 
 interface CreateEventProps {
   id: string;
@@ -47,10 +46,9 @@ interface FormData {
 }
 
 export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
-  const { apiPost, apiGet } = useApi();
+  const { apiPost } = useApi();
   const { setPopout } = useUiStore();
   const { currentUser: user } = useUserStore();
-  const queryClient = useQueryClient();
 
   const [formData, setFormData] = useState<FormData>({
     name: "",
@@ -64,17 +62,18 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
     voter_thank_you_message: "",
   });
 
+  const [availabilityStatus, setAvailabilityStatus] = useState<
+    "available" | "taken" | "error" | "invalid" | null
+  >(null);
+  const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [durationError, setDurationError] = useState<string | null>(null);
+
   const TARIFF_LIMITS: { [key: string]: number } = {
     Начальный: 60,
     Стандарт: 720,
     Профи: 1440,
   };
-  const [promoStatus, setPromoStatus] = useState<
-    "available" | "taken" | "error" | "invalid" | null
-  >(null);
-  const [isCheckingPromo, setIsCheckingPromo] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [durationError, setDurationError] = useState<string | null>(null);
 
   const userTariff = user?.tariff_plan || "Начальный";
   const isAdmin = user?.is_admin || false;
@@ -83,32 +82,48 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
   const canUseProOptions = userTariff === "Профи" || isAdmin;
   const canUseAdminOptions = isAdmin;
 
-  const checkPromo = useCallback(
-    debounce(async (word: string) => {
+  const checkAvailability = useCallback(
+    debounce(async (word: string, date: Date | null, duration: string) => {
       const normalizedWord = word.trim();
-      if (!/^[A-Z0-9А-ЯЁ]{4,}$/i.test(normalizedWord)) {
-        setPromoStatus(normalizedWord.length > 0 ? "invalid" : null);
-        setIsCheckingPromo(false);
+      if (!date || !/^[A-Z0-9А-ЯЁ]{4,}$/i.test(normalizedWord)) {
+        setAvailabilityStatus(normalizedWord.length > 0 ? "invalid" : null);
+        setIsCheckingAvailability(false);
         return;
       }
-      setIsCheckingPromo(true);
+
+      setIsCheckingAvailability(true);
       try {
-        const response = await apiGet<any>(
-          `/events/status/${normalizedWord.toUpperCase()}`,
-        );
-        setPromoStatus(response.status === "not_found" ? "available" : "taken");
-      } catch {
-        setPromoStatus("error");
+        await apiPost("/events/check-availability", {
+          promo_word: normalizedWord,
+          event_date: date.toISOString(),
+          duration_minutes: parseInt(duration, 10),
+        });
+        setAvailabilityStatus("available");
+      } catch (error: any) {
+        if (error.response && error.response.status === 409) {
+          setAvailabilityStatus("taken");
+        } else {
+          setAvailabilityStatus("error");
+        }
       } finally {
-        setIsCheckingPromo(false);
+        setIsCheckingAvailability(false);
       }
-    }, 500),
-    [apiGet],
+    }, 800),
+    [apiPost],
   );
 
   useEffect(() => {
-    checkPromo(formData.promo_word);
-  }, [formData.promo_word, checkPromo]);
+    checkAvailability(
+      formData.promo_word,
+      formData.event_date,
+      formData.duration_minutes,
+    );
+  }, [
+    formData.promo_word,
+    formData.event_date,
+    formData.duration_minutes,
+    checkAvailability,
+  ]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -118,7 +133,7 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
     const checked = (e.target as HTMLInputElement).checked;
 
     if (name === "duration_minutes") {
-      const durationValue = parseInt(value, 10);
+      const durationValue = parseInt(value, 10) || 0;
       const maxDuration =
         TARIFF_LIMITS[userTariff as keyof typeof TARIFF_LIMITS] || 60;
       if (!isAdmin && durationValue > maxDuration) {
@@ -141,7 +156,11 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (isSubmitting || promoStatus !== "available" || !formData.event_date)
+    if (
+      isSubmitting ||
+      availabilityStatus !== "available" ||
+      !formData.event_date
+    )
       return;
 
     setIsSubmitting(true);
@@ -169,15 +188,19 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
     }
   };
 
-  const getPromoBottomText = () => {
-    if (isCheckingPromo) return "Проверка...";
-    if (promoStatus === "invalid")
+  const getAvailabilityBottomText = () => {
+    if (isCheckingAvailability) return "Проверка...";
+    if (availabilityStatus === "invalid")
       return "Минимум 4 символа (кириллица, латиница, цифры).";
-    if (promoStatus === "taken") return "Это слово уже занято";
-    if (promoStatus === "available") return "Слово свободно!";
-    if (promoStatus === "error") return "Ошибка проверки";
-    return "Уникальное слово для голосования.";
+    if (availabilityStatus === "taken")
+      return "Это слово уже занято на выбранное время.";
+    if (availabilityStatus === "available") return "Слово и время доступны!";
+    if (availabilityStatus === "error")
+      return "Ошибка проверки. Попробуйте снова.";
+    return "Заполните промо-слово и дату для проверки.";
   };
+
+  const isTimeConflict = availabilityStatus === "taken";
 
   return (
     <ModalPage
@@ -223,9 +246,9 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
           <FormItem
             top="Промо-слово"
             required
-            bottom={getPromoBottomText()}
+            bottom={getAvailabilityBottomText()}
             status={
-              promoStatus === "taken" || promoStatus === "invalid"
+              isTimeConflict || availabilityStatus === "invalid"
                 ? "error"
                 : "default"
             }
@@ -249,7 +272,11 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
               />
             </FormField>
           </FormItem>
-          <FormItem top="Дата и время начала" required>
+          <FormItem
+            top="Дата и время начала"
+            required
+            status={isTimeConflict ? "error" : "default"}
+          >
             <DateInput
               value={formData.event_date}
               onChange={handleDateChange}
@@ -400,8 +427,9 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
             type="submit"
             disabled={
               isSubmitting ||
+              isCheckingAvailability ||
+              availabilityStatus !== "available" ||
               !formData.event_date ||
-              promoStatus !== "available" ||
               !!durationError
             }
           >
