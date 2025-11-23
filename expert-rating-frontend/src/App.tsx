@@ -25,7 +25,6 @@ import {
   ModalPageHeader,
   Group,
   Header,
-  Checkbox,
   Search,
   Div,
   PanelHeaderBack,
@@ -34,6 +33,8 @@ import {
   Alert,
   SimpleCell,
   Switch,
+  usePlatform,
+  Checkbox,
 } from "@vkontakte/vkui";
 import {
   useActiveVkuiLocation,
@@ -50,6 +51,7 @@ import {
   Icon16Done,
   Icon16Cancel,
   Icon56CheckCircleOutline,
+  Icon28EditOutline,
 } from "@vkontakte/icons";
 import bridge from "@vkontakte/vk-bridge";
 import debounce from "lodash.debounce";
@@ -62,6 +64,9 @@ import { QrCodeModal } from "./components/Event/QrCodeModal";
 import { AfishaEventModal } from "./components/Afisha/AfishaEventModal";
 import { FiltersModal } from "./components/Shared/FiltersModal";
 import { PurchaseModal } from "./components/Shared/PurchaseModal";
+import { MobilePaymentStubModal } from "./components/Shared/MobilePaymentStubModal";
+import { EditRegaliaModal } from "./components/Profile/EditRegaliaModal";
+import { SelectModal, Option } from "./components/Shared/SelectModal"; // Импортируем SelectModal
 import { useApi } from "./hooks/useApi";
 import { useUserStore } from "./store/userStore";
 import { useUiStore } from "./store/uiStore";
@@ -121,7 +126,10 @@ const TARIFF_MAILING_LIMITS: { [key: string]: number } = {
   Профи: 4,
 };
 
+const ENABLE_MAILINGS = false;
+
 export const App = () => {
+  const platform = usePlatform();
   const { view: activeView = VIEW_MAIN, panel: activePanel = PANEL_HOME } =
     useActiveVkuiLocation();
   const routeNavigator = useRouteNavigator();
@@ -155,6 +163,17 @@ export const App = () => {
     null,
   );
 
+  // State for SelectModal
+  const [selectModalConfig, setSelectModalConfig] = useState<{
+    title: string;
+    options: Option[];
+    selected: string | number | null;
+    onSelect: (value: string | number) => void;
+    searchable?: boolean;
+  } | null>(null);
+
+  const isMobilePlatform = platform === "ios" || platform === "android";
+
   const handleOpenEventModal = (event: EventData) => {
     setSelectedEvent(event);
     if (activeView === VIEW_AFISHA) {
@@ -166,7 +185,46 @@ export const App = () => {
 
   const handleOpenReportPurchase = (expertId: number) => {
     setExpertIdForReport(expertId);
-    setActiveModal("report-purchase-modal");
+    if (isMobilePlatform) {
+      setActiveModal("mobile-payment-stub");
+    } else {
+      if (currentUser && !currentUser.allow_notifications) {
+        bridge
+          .send("VKWebAppAllowMessagesFromGroup", {
+            group_id: GROUP_ID,
+          })
+          .then((data) => {
+            if (data.result) {
+              apiPut("/users/me/settings", { allow_notifications: true }).then(
+                () =>
+                  queryClient.invalidateQueries({ queryKey: ["user", "me"] }),
+              );
+              setActiveModal("report-purchase-modal");
+            } else {
+              setSnackbar(
+                <Snackbar
+                  onClose={() => setSnackbar(null)}
+                  before={<Icon16Cancel />}
+                >
+                  Для получения отчета нужны разрешения на сообщения.
+                </Snackbar>,
+              );
+            }
+          })
+          .catch(() => {
+            setSnackbar(
+              <Snackbar
+                onClose={() => setSnackbar(null)}
+                before={<Icon16Cancel />}
+              >
+                Ошибка доступа к сообщениям.
+              </Snackbar>,
+            );
+          });
+      } else {
+        setActiveModal("report-purchase-modal");
+      }
+    }
   };
 
   const handleInitiateReportPayment = async ({ email }: { email: string }) => {
@@ -204,6 +262,38 @@ export const App = () => {
     }
   };
 
+  const handleSaveRegalia = async (newRegalia: string) => {
+    try {
+      const updatedUser = await apiPut<UserData>("/users/me/regalia", {
+        regalia: newRegalia,
+      });
+      setCurrentUser(updatedUser);
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
+          Профиль обновлен
+        </Snackbar>,
+      );
+    } catch (error) {
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+          Ошибка обновления
+        </Snackbar>,
+      );
+    }
+  };
+
+  // Helper to open select modal
+  const openSelectModal = (
+    title: string,
+    options: Option[],
+    selected: string | number | null,
+    onSelect: (val: any) => void,
+    searchable = false,
+  ) => {
+    setSelectModalConfig({ title, options, selected, onSelect, searchable });
+    setActiveModal("select-modal");
+  };
+
   const { data: allRegions = [] } = useQuery({
     queryKey: ["metaRegions"],
     queryFn: () => apiGet<string[]>("/meta/regions"),
@@ -232,6 +322,7 @@ export const App = () => {
     setActiveModal(null);
   };
 
+  // ... (Delete/Stop logic remains same)
   const performDeleteEvent = async () => {
     if (!selectedEvent) return;
     setPopout(<Spinner size="xl" />);
@@ -630,14 +721,16 @@ export const App = () => {
       >
         <Icon24CheckCircleFilledBlue />
       </TabbarItem>
-      <TabbarItem
-        onClick={onStoryChange}
-        selected={activeView === VIEW_TARIFFS}
-        data-story={VIEW_TARIFFS}
-        label="Тарифы"
-      >
-        <Icon28MoneyCircleOutline />
-      </TabbarItem>
+      {!isMobilePlatform && (
+        <TabbarItem
+          onClick={onStoryChange}
+          selected={activeView === VIEW_TARIFFS}
+          data-story={VIEW_TARIFFS}
+          label="Тарифы"
+        >
+          <Icon28MoneyCircleOutline />
+        </TabbarItem>
+      )}
       <TabbarItem
         onClick={onStoryChange}
         selected={activeView === VIEW_PROFILE}
@@ -674,6 +767,7 @@ export const App = () => {
                 onOpenTopicsModal={() => setActiveModal("topics-modal")}
                 allThemes={allThemes}
                 allRegions={allRegions}
+                openSelectModal={openSelectModal} // Pass it down
               />
               <Voting id={PANEL_VOTING} />
               <ExpertProfile
@@ -683,7 +777,11 @@ export const App = () => {
               <Admin id={PANEL_ADMIN} />
             </View>
             <View id={VIEW_AFISHA} activePanel={activePanel}>
-              <Afisha id={PANEL_AFISHA} onEventClick={handleOpenEventModal} />
+              <Afisha
+                id={PANEL_AFISHA}
+                onEventClick={handleOpenEventModal}
+                openSelectModal={openSelectModal}
+              />
             </View>
             <View id={VIEW_TARIFFS} activePanel={activePanel}>
               <Tariffs id={PANEL_TARIFFS} />
@@ -840,6 +938,7 @@ export const App = () => {
           }}
           mailingLimits={{ used: mailingsUsed, limit: mailingLimit }}
         />
+
         <ModalPage
           id="profile-settings-modal"
           onClose={() => setActiveModal(null)}
@@ -853,7 +952,13 @@ export const App = () => {
           settlingHeight={100}
         >
           {currentUser?.is_expert && (
-            <Group header={<Header>Рейтинг</Header>}>
+            <Group header={<Header>Настройки профиля</Header>}>
+              <SimpleCell
+                before={<Icon28EditOutline />}
+                onClick={() => setActiveModal("edit-regalia-modal")}
+              >
+                Редактировать "О себе"
+              </SimpleCell>
               <SimpleCell
                 Component="label"
                 after={
@@ -872,10 +977,10 @@ export const App = () => {
               </SimpleCell>
             </Group>
           )}
-          {currentUser?.is_expert && (
+
+          {ENABLE_MAILINGS && currentUser?.is_expert && (
             <Group header={<Header>Инструменты эксперта</Header>}>
               <SimpleCell
-                selectable
                 onClick={() => {
                   setActiveModal(null);
                   setTimeout(() => setActiveModal("create-mailing-modal"), 200);
@@ -885,6 +990,7 @@ export const App = () => {
               </SimpleCell>
             </Group>
           )}
+
           <Group header={<Header>Уведомления</Header>}>
             <SimpleCell
               Component="label"
@@ -903,33 +1009,37 @@ export const App = () => {
             >
               Получать уведомления
             </SimpleCell>
-            <SimpleCell
-              Component="label"
-              disabled={!currentUser?.allow_notifications}
-              after={
-                <Switch
-                  name="allow_expert_mailings"
-                  checked={currentUser?.allow_expert_mailings ?? false}
-                  onChange={(e) =>
-                    handleNotificationSettingsChange(
-                      "allow_expert_mailings",
-                      e.target.checked,
-                    )
-                  }
-                  disabled={!currentUser?.allow_notifications}
-                />
-              }
-            >
-              Сообщения от экспертов
-            </SimpleCell>
+            {ENABLE_MAILINGS && (
+              <SimpleCell
+                Component="label"
+                disabled={!currentUser?.allow_notifications}
+                after={
+                  <Switch
+                    name="allow_expert_mailings"
+                    checked={currentUser?.allow_expert_mailings ?? false}
+                    onChange={(e) =>
+                      handleNotificationSettingsChange(
+                        "allow_expert_mailings",
+                        e.target.checked,
+                      )
+                    }
+                    disabled={!currentUser?.allow_notifications}
+                  />
+                }
+              >
+                Сообщения от экспертов
+              </SimpleCell>
+            )}
           </Group>
         </ModalPage>
+
         <FiltersModal
           id="home-filters"
           onClose={() => setActiveModal(null)}
           filterType="home"
           regions={allRegions}
           categories={allThemes}
+          openSelectModal={openSelectModal} // Pass it down
         />
         <FiltersModal
           id="afisha-filters"
@@ -937,7 +1047,19 @@ export const App = () => {
           filterType="afisha"
           regions={allRegions}
           categories={allThemes}
+          openSelectModal={openSelectModal} // Pass it down
         />
+
+        <SelectModal
+          id="select-modal"
+          onClose={() => setActiveModal(null)}
+          title={selectModalConfig?.title || ""}
+          options={selectModalConfig?.options || []}
+          selected={selectModalConfig?.selected || null}
+          onSelect={selectModalConfig?.onSelect || (() => {})}
+          searchable={selectModalConfig?.searchable || false}
+        />
+
         <ModalCard
           id="registration-success"
           onClose={() => {
@@ -977,6 +1099,16 @@ export const App = () => {
           description="Вы получите PDF-документ со всеми анонимными отзывами и комментариями по данному эксперту."
           price={500}
           onInitiatePayment={handleInitiateReportPayment}
+        />
+        <MobilePaymentStubModal
+          id="mobile-payment-stub"
+          onClose={() => setActiveModal(null)}
+        />
+        <EditRegaliaModal
+          id="edit-regalia-modal"
+          onClose={() => setActiveModal(null)}
+          currentRegalia={currentUser?.regalia || ""}
+          onSave={handleSaveRegalia}
         />
       </ModalRoot>
     </AppRoot>

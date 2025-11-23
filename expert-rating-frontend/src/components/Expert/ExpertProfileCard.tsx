@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useState } from "react";
 import {
   Card,
   Avatar,
@@ -8,6 +8,8 @@ import {
   Tooltip,
   Header,
   IconButton,
+  useAdaptivity,
+  ViewWidth,
 } from "@vkontakte/vkui";
 import {
   Icon20FavoriteCircleFillYellow,
@@ -22,7 +24,11 @@ import "../css/ExpertProfileCard.css";
 
 interface ExpertStats {
   expert?: number;
+  expert_trust?: number;
+  expert_distrust?: number;
   community?: number;
+  community_trust?: number;
+  community_distrust?: number;
   events_count?: number;
 }
 
@@ -50,6 +56,14 @@ export const ExpertProfileCard = ({
   onFutureFeatureClick,
   onReportClick,
 }: ExpertProfileCardProps) => {
+  const { viewWidth } = useAdaptivity();
+  const isDesktop = (viewWidth ?? 0) >= ViewWidth.TABLET;
+
+  const [ratingTooltipShown, setRatingTooltipShown] = useState(false);
+  const [expertTooltipShown, setExpertTooltipShown] = useState(false);
+  const ratingRef = useRef<HTMLDivElement>(null);
+  const expertRef = useRef<HTMLDivElement>(null);
+
   if (!expert) return null;
 
   const {
@@ -59,9 +73,20 @@ export const ExpertProfileCard = ({
     regalia = "",
     social_link = "#",
     topics = [],
-    stats = { expert: 0, community: 0, events_count: 0 },
+    stats = {
+      expert: 0,
+      expert_trust: 0,
+      expert_distrust: 0,
+      community: 0,
+      events_count: 0,
+      community_trust: 0,
+      community_distrust: 0,
+    },
     show_community_rating,
   } = expert;
+
+  const communityTooltipText = `👍 ${stats.community_trust ?? 0} | 👎 ${stats.community_distrust ?? 0}`;
+  const expertTooltipText = `👍 ${stats.expert_trust ?? 0} | 👎 ${stats.expert_distrust ?? 0}`;
 
   return (
     <Card mode="shadow" style={{ position: "relative" }}>
@@ -94,15 +119,38 @@ export const ExpertProfileCard = ({
       </Div>
 
       <div className="expert-profile-stats">
-        <Tooltip description="Экспертный рейтинг">
-          <div className="stat-item">
+        {/* Экспертный рейтинг */}
+        <Tooltip
+          description={expertTooltipText}
+          shown={isDesktop ? undefined : expertTooltipShown}
+          onShownChange={setExpertTooltipShown}
+        >
+          <div
+            className="stat-item"
+            onClick={() => setExpertTooltipShown(!expertTooltipShown)}
+            ref={expertRef}
+          >
             <Icon20CheckCircleFillGreen width={28} height={28} />
             <Text className="stat-value">{stats.expert ?? 0}</Text>
           </div>
         </Tooltip>
+
+        {/* Народный рейтинг */}
         {show_community_rating && (
-          <Tooltip description="Народный рейтинг">
-            <div className="stat-item" onClick={onVoteClick}>
+          <Tooltip
+            shown={isDesktop ? undefined : ratingTooltipShown}
+            onShownChange={setRatingTooltipShown}
+            description={communityTooltipText}
+            placement="bottom"
+          >
+            <div
+              className="stat-item"
+              onClick={() => {
+                setRatingTooltipShown(!ratingTooltipShown);
+                onVoteClick();
+              }}
+              ref={ratingRef}
+            >
               <Icon20FavoriteCircleFillYellow width={28} height={28} />
               <Text className="stat-value">{stats.community ?? 0}</Text>
             </div>
@@ -117,17 +165,17 @@ export const ExpertProfileCard = ({
       </div>
 
       {regalia && (
-        <Div>
-          <Header>О себе</Header>
+        <Div className="compact-div">
+          <Header className="compact-header">О себе</Header>
           <Text className="expert-profile-regalia">{regalia}</Text>
         </Div>
       )}
 
       {topics && topics.length > 0 && (
         <div className="topics-section-container">
-          <Header>Направления:</Header>
-          <Div style={{ paddingBottom: 12, paddingTop: 0 }}>
-            <Text>{topics.join(" • ")}</Text>
+          <Header className="compact-header">Направления:</Header>
+          <Div style={{ paddingBottom: 12, paddingTop: 4 }}>
+            <Text className="topics-text">{topics.join(" • ")}</Text>
           </Div>
         </div>
       )}

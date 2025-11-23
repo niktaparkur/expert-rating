@@ -8,6 +8,8 @@ export interface ExpertInfo {
 export interface Stats {
   expert?: number;
   community?: number;
+  community_trust?: number; // Добавлено
+  community_distrust?: number; // Добавлено
   events_count?: number;
 }
 

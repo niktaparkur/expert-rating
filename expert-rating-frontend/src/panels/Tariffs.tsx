@@ -25,18 +25,13 @@ import {
   PanelHeaderBack,
   usePlatform,
 } from "@vkontakte/vkui";
-import {
-  Icon16HelpOutline,
-  Icon16Done,
-  Icon16Cancel,
-  Icon24CheckCircleOn,
-} from "@vkontakte/icons";
+import { Icon16HelpOutline, Icon24CheckCircleOn } from "@vkontakte/icons";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
-import bridge from "@vkontakte/vk-bridge";
 import { useApi } from "../hooks/useApi";
 import { useUserStore } from "../store/userStore";
 import { useUiStore } from "../store/uiStore";
 import { UserData } from "../types";
+import { Icon16Cancel } from "@vkontakte/icons";
 
 interface TariffFeature {
   text: string;
@@ -311,7 +306,8 @@ export const Tariffs = ({ id }: TariffsProps) => {
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
 
-  const isDesktop = viewWidth >= ViewWidth.TABLET;
+  // FIX: Безопасная проверка viewWidth для VKUI v6/v7
+  const isDesktop = (viewWidth ?? 0) >= ViewWidth.TABLET;
   const isLoading = !user;
 
   const [activeModal, setActiveModal] = useState<string | null>(null);
@@ -408,9 +404,9 @@ export const Tariffs = ({ id }: TariffsProps) => {
       setPopout(null);
 
       // 4. Адаптивно открываем ссылку
-      const isDesktop = platform === "vkcom";
+      const isDesktopPlatform = platform === "vkcom";
 
-      if (isDesktop) {
+      if (isDesktopPlatform) {
         setPaymentUrl(confirmationUrl);
       } else {
         window.open(confirmationUrl, "_blank");

@@ -1,3 +1,5 @@
+# src/crud/expert_crud.py
+
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -72,13 +74,21 @@ async def get_full_user_profile_with_stats(db: AsyncSession, vk_id: int):
     if not user_profile_tuple:
         return None
 
-    community_query = select(func.count(Vote.id)).where(
+    # Считаем народный рейтинг (Community) - раздельно Trust и Distrust
+    community_votes_query = select(
+        func.sum(case((Vote.vote_type == "trust", 1), else_=0)).label("trust"),
+        func.sum(case((Vote.vote_type == "distrust", 1), else_=0)).label("distrust"),
+    ).where(
         Vote.expert_vk_id == vk_id,
         Vote.is_expert_vote.is_(False),
-        Vote.vote_type == "trust",
     )
-    community_res = await db.execute(community_query)
-    community_count = community_res.scalar_one_or_none() or 0
+    community_votes_res = await db.execute(community_votes_query)
+    community_votes = community_votes_res.first()
+
+    community_trust = int(community_votes.trust or 0)
+    community_distrust = int(community_votes.distrust or 0)
+
+    # Экспертный рейтинг (только Trust)
     expert_query = select(func.count(Vote.id)).where(
         Vote.expert_vk_id == vk_id,
         Vote.is_expert_vote.is_(True),
@@ -86,17 +96,23 @@ async def get_full_user_profile_with_stats(db: AsyncSession, vk_id: int):
     )
     expert_res = await db.execute(expert_query)
     expert_count = expert_res.scalar_one_or_none() or 0
+
+    # Количество мероприятий
     events_query = select(func.count(Event.id)).where(
         Event.expert_id == vk_id, Event.status == "approved"
     )
     events_res = await db.execute(events_query)
     events_count = events_res.scalar_one_or_none() or 0
+
     stats = {
-        "community": community_count,
+        "community": community_trust,  # Для совместимости
+        "community_trust": community_trust,
+        "community_distrust": community_distrust,
         "expert": expert_count,
         "events_count": events_count,
     }
 
+    # "Мои голоса" (статистика голосующего)
     my_votes_query = select(
         func.sum(case((Vote.vote_type == "trust", 1), else_=0)).label("trust"),
         func.sum(case((Vote.vote_type == "distrust", 1), else_=0)).label("distrust"),
@@ -109,6 +125,20 @@ async def get_full_user_profile_with_stats(db: AsyncSession, vk_id: int):
     }
 
     return tuple(user_profile_tuple) + (stats, my_votes_stats)
+
+
+async def update_user_regalia(db: AsyncSession, vk_id: int, regalia: str) -> bool:
+    """Обновляет поле 'О себе' (regalia)."""
+    result = await db.execute(
+        select(ExpertProfile).filter(ExpertProfile.user_vk_id == vk_id)
+    )
+    db_profile = result.scalars().first()
+    if not db_profile:
+        return False
+
+    db_profile.regalia = regalia
+    await db.commit()
+    return True
 
 
 async def get_pending_experts(db: AsyncSession):

@@ -86,7 +86,11 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
     debounce(async (word: string, date: Date | null, duration: string) => {
       const normalizedWord = word.trim();
       if (!date || !/^[A-Z0-9А-ЯЁ]{4,}$/i.test(normalizedWord)) {
-        setAvailabilityStatus(normalizedWord.length > 0 ? "invalid" : null);
+        if (normalizedWord.length > 0 && date) {
+          setAvailabilityStatus("invalid");
+        } else {
+          setAvailabilityStatus(null);
+        }
         setIsCheckingAvailability(false);
         return;
       }
@@ -100,7 +104,10 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
         });
         setAvailabilityStatus("available");
       } catch (error: any) {
-        if (error.response && error.response.status === 409) {
+        if (
+          error.message &&
+          error.message.includes("уже занято на указанное время")
+        ) {
           setAvailabilityStatus("taken");
         } else {
           setAvailabilityStatus("error");
@@ -189,6 +196,7 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
   };
 
   const getAvailabilityBottomText = () => {
+    if (!formData.event_date) return "Сначала выберите дату и время начала.";
     if (isCheckingAvailability) return "Проверка...";
     if (availabilityStatus === "invalid")
       return "Минимум 4 символа (кириллица, латиница, цифры).";
@@ -197,7 +205,7 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
     if (availabilityStatus === "available") return "Слово и время доступны!";
     if (availabilityStatus === "error")
       return "Ошибка проверки. Попробуйте снова.";
-    return "Заполните промо-слово и дату для проверки.";
+    return "Введите уникальное слово для голосования.";
   };
 
   const isTimeConflict = availabilityStatus === "taken";
@@ -243,24 +251,6 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
               />
             </FormField>
           </FormItem>
-          <FormItem
-            top="Промо-слово"
-            required
-            bottom={getAvailabilityBottomText()}
-            status={
-              isTimeConflict || availabilityStatus === "invalid"
-                ? "error"
-                : "default"
-            }
-          >
-            <FormField>
-              <Input
-                name="promo_word"
-                value={formData.promo_word}
-                onChange={handleChange}
-              />
-            </FormField>
-          </FormItem>
           <FormItem top="Ссылка на мероприятие (необязательно)">
             <FormField>
               <Input
@@ -285,6 +275,25 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
               closeOnChange
               accessible
             />
+          </FormItem>
+          <FormItem
+            top="Промо-слово"
+            required
+            bottom={getAvailabilityBottomText()}
+            status={
+              isTimeConflict || availabilityStatus === "invalid"
+                ? "error"
+                : "default"
+            }
+          >
+            <FormField>
+              <Input
+                name="promo_word"
+                value={formData.promo_word}
+                onChange={handleChange}
+                disabled={!formData.event_date}
+              />
+            </FormField>
           </FormItem>
           <FormItem
             top="Длительность голосования (в минутах)"
