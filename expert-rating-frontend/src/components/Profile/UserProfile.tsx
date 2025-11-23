@@ -144,20 +144,28 @@ export const UserProfile = ({
           )}
           {isApprovedExpert && user.topics && user.topics.length > 0 && (
             <Div>
-              <Header>Направления</Header>
-              {user.topics.map((topic) => (
-                <SimpleCell key={topic} disabled multiline>
-                  {topic}
-                </SimpleCell>
-              ))}
+              <Header>Направления:</Header>
+              <Div>
+                {user.topics.map((topic) => (
+                  <SimpleCell
+                    key={topic}
+                    disabled
+                    multiline
+                    style={{ padding: 0 }}
+                  >
+                    {topic}
+                  </SimpleCell>
+                ))}
+              </Div>
             </Div>
           )}
           {isApprovedExpert && (
             <Div
               style={{
                 display: "flex",
-                justifyContent: "space-around",
+                justifyContent: "center",
                 alignItems: "center",
+                gap: "16px",
               }}
             >
               <Tooltip description="Экспертный рейтинг">
