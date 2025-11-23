@@ -25,15 +25,23 @@ import { EventData } from "../types";
 import { useFiltersStore } from "../store/filtersStore";
 import { SearchWithFilters } from "../components/Shared/SearchWithFilters";
 import { useUiStore } from "../store/uiStore";
+import { Option } from "../components/Shared/SelectModal";
 
 interface AfishaProps {
   id: string;
   onEventClick: (event: EventData) => void;
+  openSelectModal: (
+    title: string,
+    options: Option[],
+    selected: string | number | null,
+    onSelect: (val: any) => void,
+    searchable?: boolean,
+  ) => void;
 }
 
 const PAGE_SIZE = 10;
 
-export const Afisha = ({ id, onEventClick }: AfishaProps) => {
+export const Afisha = ({ id, onEventClick, openSelectModal }: AfishaProps) => {
   const { apiGet } = useApi();
   const { ref, inView } = useInView({ threshold: 0.5 });
   const { setActiveModal } = useUiStore();

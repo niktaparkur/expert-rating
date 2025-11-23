@@ -1,11 +1,11 @@
 .expert-card-container {
-  padding: 12px;
+  padding: 8px; /* Уменьшено с 12px */
 }
 
 .expert-card-main {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px; /* Уменьшено с 12px */
   width: 100%;
 }
 
@@ -27,22 +27,23 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  min-width: 0; /* Позволяет flex-элементу сжиматься и дает тексту переноситься */
+  min-width: 0;
 }
 
 .expert-name {
-  margin-bottom: 2px;
-  white-space: normal; /* Разрешаем перенос имени на новую строку */
+  margin-bottom: 0px; /* Уменьшено */
+  white-space: normal;
   overflow: visible;
   text-overflow: initial;
-  word-break: break-word; /* Для очень длинных имен без пробелов */
+  word-break: break-word;
 }
 
 .expert-topics-text {
   font-size: 13px;
   color: var(--vkui--color_text_secondary);
-  line-height: 1.3;
-  white-space: normal; /* Разрешаем перенос тем */
+  line-height: 1.2; /* Уменьшено */
+  white-space: normal;
+  margin-top: 2px; /* Немного отступа сверху */
 }
 
 .rating-block {
@@ -55,21 +56,21 @@
 }
 
 .rating-block.double {
-  min-width: 100px;
+  min-width: 90px; /* Чуть компактнее */
 }
 
 .rating-block.single {
-  min-width: 50px;
+  min-width: 45px;
 }
 
 .rating-segment {
-  padding: 6px 8px;
+  padding: 4px 6px; /* Уменьшено */
   flex-grow: 1;
   background-color: var(--vkui--color_background_secondary);
   display: flex;
-  flex-direction: column; /* По умолчанию: число НАД иконкой */
+  flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 0px; /* Убрали gap */
 }
 
 .rating-separator {
@@ -78,7 +79,7 @@
 }
 
 .rating-value {
-  font-size: 17px;
+  font-size: 16px; /* Чуть меньше шрифт */
   font-weight: 600;
   line-height: 1;
   color: var(--vkui--color_text_primary);
@@ -87,27 +88,29 @@
 /* --- АДАПТАЦИЯ ДЛЯ МОБИЛЬНЫХ УСТРОЙСТВ --- */
 @media (max-width: 480px) {
   .rating-block.double {
-    flex-direction: column; /* Блок с двумя рейтингами становится вертикальным */
-    min-width: 70px;
+    flex-direction: column;
+    min-width: 60px;
   }
 
   .rating-segment {
-    flex-direction: row; /* Иконка и число выстраиваются в строку */
+    flex-direction: row;
     justify-content: center;
-    gap: 4px; /* Отступ между иконкой и числом */
-    padding: 6px;
+    gap: 4px;
+    padding: 4px;
   }
 
-  /* Меняем визуальный порядок: сначала иконка, потом число */
   .rating-segment svg {
     order: 1;
+    width: 16px; /* Меньше иконка */
+    height: 16px;
   }
   .rating-segment .rating-value {
     order: 2;
+    font-size: 14px;
   }
 
   .rating-separator {
-    height: 1px; /* Разделитель становится горизонтальным */
+    height: 1px;
     width: 100%;
   }
 }

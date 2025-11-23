@@ -8,21 +8,22 @@ import {
   FormField,
   Input,
   Textarea,
-  Select,
   ScreenSpinner,
   Group,
   Checkbox,
   Div,
   ContentBadge,
   Snackbar,
+  Cell,
 } from "@vkontakte/vkui";
-import { Icon16Cancel } from "@vkontakte/icons";
+import { Icon16Cancel, Icon24ChevronRight } from "@vkontakte/icons";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useApi } from "../hooks/useApi";
 import { useUserStore } from "../store/userStore";
 import { useUiStore } from "../store/uiStore";
+import { Option } from "../components/Shared/SelectModal";
 
 interface ThemeItem {
   id: number;
@@ -49,6 +50,13 @@ interface RegistrationProps {
   allThemes: ThemeCategory[];
   onOpenTopicsModal: () => void;
   allRegions: string[];
+  openSelectModal: (
+    title: string,
+    options: Option[],
+    selected: string | number | null,
+    onSelect: (val: any) => void,
+    searchable?: boolean,
+  ) => void;
 }
 
 export const Registration = ({
@@ -57,6 +65,7 @@ export const Registration = ({
   allThemes,
   onOpenTopicsModal,
   allRegions,
+  openSelectModal,
 }: RegistrationProps) => {
   const routeNavigator = useRouteNavigator();
   const { apiPost } = useApi();
@@ -100,6 +109,10 @@ export const Registration = ({
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleRegionSelect = (val: string) => {
+    setFormData((prev) => ({ ...prev, region: val }));
+  };
+
   const isTopicSelectionValid =
     selectedThemeIds.length >= 1 && selectedThemeIds.length <= 3;
 
@@ -140,15 +153,12 @@ export const Registration = ({
     try {
       await apiPost("/experts/register", finalData);
       await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
-
-      // ИСПРАВЛЕНИЕ: Используем setActiveModal вместо setPopout
       setActiveModal("registration-success");
     } catch (error: any) {
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)}>{error.message}</Snackbar>,
       );
     } finally {
-      // ИСПРАВЛЕНИЕ: Убираем спиннер в любом случае
       setPopout(null);
     }
   };
@@ -165,6 +175,11 @@ export const Registration = ({
     }
     return names;
   };
+
+  const regionOptions = allRegions.map((region) => ({
+    label: region,
+    value: region,
+  }));
 
   return (
     <Panel id={id}>
@@ -209,20 +224,25 @@ export const Registration = ({
             )}
           </FormItem>
           <FormItem top="Домашний регион">
-            <FormField>
-              <Select
-                name="region"
-                value={formData.region}
-                onChange={handleChange}
-                options={allRegions.map((region) => ({
-                  label: region,
-                  value: region,
-                }))}
-                required
-                searchable
-                placeholder="Не выбран"
-              />
-            </FormField>
+            <Cell
+              after={
+                <Icon24ChevronRight
+                  style={{ color: "var(--vkui--color_icon_secondary)" }}
+                />
+              }
+              onClick={() =>
+                openSelectModal(
+                  "Выберите регион",
+                  regionOptions,
+                  formData.region,
+                  handleRegionSelect,
+                  true,
+                )
+              }
+              style={{ padding: 0 }}
+            >
+              {formData.region || "Не выбран"}
+            </Cell>
           </FormItem>
           <FormItem top="Ссылка на аккаунт или ваше сообщество">
             <FormField>

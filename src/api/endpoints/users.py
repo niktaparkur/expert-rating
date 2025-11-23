@@ -1,3 +1,5 @@
+# src/api/endpoints/users.py
+
 from typing import Dict, List
 
 import redis.asyncio as redis
@@ -14,10 +16,10 @@ from src.schemas.expert_schemas import (
     UserSettingsUpdate,
     MyVoteRead,
     VotedExpertInfo,
+    UserRegaliaUpdate,
 )
 from pydantic import EmailStr, TypeAdapter
 from loguru import logger
-
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -94,6 +96,60 @@ async def update_user_email(
         # Логирование для других непредвиденных ошибок
         logger.error(f"Failed to update email for user {vk_id}: {e}")
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+
+
+@router.put("/me/regalia", response_model=UserAdminRead)
+async def update_user_regalia(
+    regalia_data: UserRegaliaUpdate,
+    current_user: Dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    cache: redis.Redis = Depends(get_redis),
+):
+    """Обновляет поле 'О себе' текущего пользователя."""
+    vk_id = current_user["vk_id"]
+    if not current_user.get("is_expert"):
+        raise HTTPException(
+            status_code=403, detail="Только эксперты могут менять описание."
+        )
+
+    try:
+        success = await expert_crud.update_user_regalia(
+            db, vk_id=vk_id, regalia=regalia_data.regalia
+        )
+        if not success:
+            raise HTTPException(status_code=404, detail="User profile not found.")
+
+        # Инвалидация кэша
+        await cache.delete(f"user_profile:{vk_id}")
+
+        # Возврат обновленного профиля
+        result = await expert_crud.get_full_user_profile_with_stats(db, vk_id=vk_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="User disappeared.")
+
+        user, profile, stats_dict, my_votes_stats_dict = result
+        response_data = UserAdminRead.model_validate(user, from_attributes=True)
+        response_data.stats = stats_dict
+        response_data.my_votes_stats = my_votes_stats_dict
+        response_data.is_admin = user.is_admin or (user.vk_id == settings.ADMIN_ID)
+
+        if profile:
+            response_data.is_expert = profile.status == "approved"
+            response_data.status = profile.status
+            response_data.show_community_rating = profile.show_community_rating
+            response_data.tariff_plan = profile.tariff_plan
+            response_data.regalia = profile.regalia
+            response_data.social_link = str(profile.social_link)
+            response_data.topics = [
+                f"{theme.category.name} > {theme.name}"
+                for theme in profile.selected_themes
+            ]
+
+        return response_data
+
+    except Exception as e:
+        logger.error(f"Failed to update regalia for user {vk_id}: {e}")
+        raise HTTPException(status_code=500, detail="Server error.")
 
 
 @router.get("/me", response_model=UserAdminRead)

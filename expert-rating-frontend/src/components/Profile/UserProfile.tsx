@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useState } from "react";
 import {
   Group,
   Card,
@@ -9,11 +9,12 @@ import {
   Tooltip,
   IconButton,
   Header,
-  SimpleCell,
   Button,
   RichCell,
   Placeholder,
   Spinner,
+  useAdaptivity,
+  ViewWidth,
 } from "@vkontakte/vkui";
 import {
   Icon20FavoriteCircleFillYellow,
@@ -32,6 +33,7 @@ interface UserProfileProps {
   onSettingsClick: () => void;
   onWithdraw: () => void;
   isWithdrawLoading: boolean;
+  onEditClick?: () => void;
 }
 
 export const UserProfile = ({
@@ -40,8 +42,18 @@ export const UserProfile = ({
   onWithdraw,
   isWithdrawLoading,
 }: UserProfileProps) => {
-  if (!user) return null;
+  const { viewWidth } = useAdaptivity();
+  const isDesktop = (viewWidth ?? 0) >= ViewWidth.TABLET;
   const routeNavigator = useRouteNavigator();
+
+  const [expertTooltipShown, setExpertTooltipShown] = useState(false);
+  const [communityTooltipShown, setCommunityTooltipShown] = useState(false);
+
+  const expertRef = useRef<HTMLDivElement>(null);
+  const communityRef = useRef<HTMLDivElement>(null);
+
+  if (!user) return null;
+
   const getRoleText = () => {
     const roles = [];
     if (user.is_admin) roles.push("Администратор");
@@ -51,6 +63,16 @@ export const UserProfile = ({
   };
   const isPending = user.status === "pending";
   const isApprovedExpert = user.is_expert && user.status === "approved";
+
+  const stats = user.stats || {
+    expert: 0,
+    expert_trust: 0,
+    expert_distrust: 0,
+    community: 0,
+    community_trust: 0,
+    community_distrust: 0,
+    events_count: 0,
+  };
 
   return (
     <>
@@ -77,7 +99,7 @@ export const UserProfile = ({
                 display: "flex",
                 alignItems: "center",
                 gap: "12px",
-                marginTop: "8px",
+                marginTop: "4px",
               }}
             >
               <Tooltip description="Отдано голосов 'Доверяю'">
@@ -112,7 +134,7 @@ export const UserProfile = ({
                 style={{
                   textAlign: "left",
                   color: "var(--vkui--color_text_secondary)",
-                  paddingTop: 8,
+                  paddingTop: 4,
                   paddingBottom: 0,
                   paddingLeft: 0,
                   paddingRight: 0,
@@ -142,65 +164,106 @@ export const UserProfile = ({
               Ваша анкета находится на рассмотрении.
             </Placeholder>
           )}
-          {isApprovedExpert && user.topics && user.topics.length > 0 && (
-            <Div>
-              <Header>Направления:</Header>
-              <Div>
-                {user.topics.map((topic) => (
-                  <SimpleCell
-                    key={topic}
-                    disabled
-                    multiline
-                    style={{ padding: 0 }}
-                  >
-                    {topic}
-                  </SimpleCell>
-                ))}
-              </Div>
-            </Div>
-          )}
+
           {isApprovedExpert && (
-            <Div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                gap: "16px",
-              }}
-            >
-              <Tooltip description="Экспертный рейтинг">
-                <div
-                  className="stat-item"
-                  style={{ display: "flex", alignItems: "center", gap: "4px" }}
+            <>
+              <Div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: "16px",
+                  paddingTop: 8,
+                  paddingBottom: 8,
+                  borderTop: "1px solid var(--vkui--color_separator_primary)",
+                  borderBottom:
+                    "1px solid var(--vkui--color_separator_primary)",
+                  marginTop: 8,
+                  marginBottom: 8,
+                }}
+              >
+                {/* Экспертный рейтинг */}
+                <Tooltip
+                  shown={isDesktop ? undefined : expertTooltipShown}
+                  onShownChange={setExpertTooltipShown}
+                  description={`Экспертный рейтинг (👍 ${stats.community_trust ?? 0} | 👎 ${stats.community_distrust ?? 0})`}
                 >
-                  <Icon20CheckCircleFillGreen />
-                  <Title level="3">{user.stats?.expert || 0}</Title>
-                </div>
-              </Tooltip>
-              <Tooltip description="Народный рейтинг">
-                <div
-                  className="stat-item"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "4px",
-                  }}
+                  <div
+                    className="stat-item"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                    onClick={() => setExpertTooltipShown(!expertTooltipShown)}
+                    ref={expertRef}
+                  >
+                    <Icon20CheckCircleFillGreen />
+                    <Title level="3">{stats.expert}</Title>
+                  </div>
+                </Tooltip>
+
+                {/* Народный рейтинг */}
+                <Tooltip
+                  shown={isDesktop ? undefined : communityTooltipShown}
+                  onShownChange={setCommunityTooltipShown}
+                  description={`Народный рейтинг (👍 ${stats.community_trust ?? 0} | 👎 ${stats.community_distrust ?? 0})`}
                 >
-                  <Icon20FavoriteCircleFillYellow />
-                  <Title level="3">{user.stats?.community || 0}</Title>
+                  <div
+                    className="stat-item"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                    onClick={() =>
+                      setCommunityTooltipShown(!communityTooltipShown)
+                    }
+                    ref={communityRef}
+                  >
+                    <Icon20FavoriteCircleFillYellow />
+                    <Title level="3">{stats.community}</Title>
+                  </div>
+                </Tooltip>
+
+                <Tooltip description="Проведено мероприятий">
+                  <div
+                    className="stat-item"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    <Icon24ListBulletSquareOutline width={20} height={20} />
+                    <Title level="3">{stats.events_count}</Title>
+                  </div>
+                </Tooltip>
+              </Div>
+
+              {/* Блок "О себе" без кнопки редактирования (она теперь в настройках) */}
+              <Div style={{ paddingTop: 4, paddingBottom: 4 }}>
+                <Header style={{ margin: 0 }}>О себе</Header>
+              </Div>
+              {user.regalia && (
+                <Div style={{ paddingTop: 0, paddingBottom: 8 }}>
+                  <Text style={{ whiteSpace: "pre-wrap" }}>{user.regalia}</Text>
+                </Div>
+              )}
+
+              {user.topics && user.topics.length > 0 && (
+                <div style={{ padding: "0 16px 12px 16px" }}>
+                  <Header style={{ margin: "4px 0 2px 0" }}>
+                    Направления:
+                  </Header>
+                  <Text style={{ lineHeight: 1.3 }}>
+                    {user.topics.join(" • ")}
+                  </Text>
                 </div>
-              </Tooltip>
-              <Tooltip description="Проведено мероприятий">
-                <div
-                  className="stat-item"
-                  style={{ display: "flex", alignItems: "center", gap: "4px" }}
-                >
-                  <Icon24ListBulletSquareOutline width={20} height={20} />
-                  <Title level="3">{user.stats?.events_count || 0}</Title>
-                </div>
-              </Tooltip>
-            </Div>
+              )}
+            </>
           )}
+
           {!user.is_expert && !isPending && (
             <Div>
               <Button

@@ -1,17 +1,17 @@
-# src/schemas/expert_schemas.py
-
 from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field, HttpUrl
 from src.schemas.base_schemas import VotedExpertInfo
 
-# НЕ ИМПОРТИРУЕМ EventRead ЗДЕСЬ НАПРЯМУЮ
-
 
 class Stats(BaseModel):
     expert: int = 0
+    expert_trust: int = 0  # NEW
+    expert_distrust: int = 0  # NEW
     community: int = 0
+    community_trust: int = 0
+    community_distrust: int = 0
     events_count: int = 0
 
 
@@ -25,6 +25,10 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     pass
+
+
+class UserRegaliaUpdate(BaseModel):
+    regalia: str = Field(..., max_length=500)
 
 
 class MyVotesStats(BaseModel):
@@ -63,7 +67,6 @@ class MyVoteRead(BaseModel):
     is_expert_vote: bool
     created_at: datetime
     expert: Optional[VotedExpertInfo] = None
-    # ИЗМЕНЕНИЕ: Используем строковую аннотацию для отложенного определения типа
     event: Optional["EventRead"] = None
 
     class Config:

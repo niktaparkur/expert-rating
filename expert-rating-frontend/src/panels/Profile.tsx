@@ -11,9 +11,6 @@ import {
   Snackbar,
   PullToRefresh,
   Button,
-  Div,
-  Text,
-  Separator,
 } from "@vkontakte/vkui";
 import {
   Icon56UsersOutline,
@@ -27,12 +24,13 @@ import { UserProfile } from "../components/Profile/UserProfile";
 import { VoteHistoryCard } from "../components/Profile/VoteHistoryCard";
 import { EventInfoCard } from "../components/Event/EventInfoCard";
 import { TabbedGroup } from "../components/Shared/TabbedGroup";
+import { EmptyEventsState } from "../components/Shared/EmptyEventsState";
 
 import { groupPlannedEvents } from "../utils";
 import { useApi } from "../hooks/useApi";
 import { useUserStore } from "../store/userStore";
 import { useUiStore } from "../store/uiStore";
-import { EventData, UserData } from "../types";
+import { EventData } from "../types";
 
 interface ProfileProps {
   id: string;
@@ -45,7 +43,7 @@ export const Profile = ({
   onOpenCreateEventModal,
   onEventClick,
 }: ProfileProps) => {
-  const { apiGet, apiDelete, apiPut } = useApi();
+  const { apiGet, apiDelete } = useApi();
   const { currentUser: user } = useUserStore();
   const { setPopout, setSnackbar, setActiveModal } = useUiStore();
   const queryClient = useQueryClient();
@@ -202,14 +200,14 @@ export const Profile = ({
       >
         {isLoadingMyEvents ? (
           <Spinner size="l" />
+        ) : planned.length === 0 && archived.length === 0 ? (
+          <EmptyEventsState onCreate={onOpenCreateEventModal} />
         ) : planned.length === 0 ? (
           <Placeholder
-            action={
-              <Button size="l" onClick={onOpenCreateEventModal}>
-                + Добавить мероприятие
-              </Button>
-            }
-          />
+            action={<Button onClick={onOpenCreateEventModal}>+ Создать</Button>}
+          >
+            Нет запланированных мероприятий
+          </Placeholder>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {renderGroupedEvents(groupedPlannedEvents.today, "Сегодня")}
@@ -305,6 +303,7 @@ export const Profile = ({
           onSettingsClick={() => setActiveModal("profile-settings-modal")}
           onWithdraw={() => {}}
           isWithdrawLoading={isWithdrawLoading}
+          onEditClick={() => setActiveModal("edit-regalia-modal")} // Добавляем обработчик
         />
         <TabbedGroup
           tabs={tabsConfig}
