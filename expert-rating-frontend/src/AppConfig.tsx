@@ -23,11 +23,30 @@ export const AppConfig = () => {
     [vkBridgeAdaptivity],
   );
 
+  const currentUrl = new URL(window.location.href);
+  const vkPlatform = currentUrl.searchParams.get("vk_platform");
+
+  let platform = "android"; // Fallback по умолчанию
+  if (vkPlatform === "desktop_web") {
+    platform = "vkcom";
+  } else if (
+    vkPlatform === "mobile_iphone" ||
+    vkPlatform === "iphone_external"
+  ) {
+    platform = "ios";
+  } else if (
+    vkPlatform === "mobile_android" ||
+    vkPlatform === "android_external"
+  ) {
+    platform = "android";
+  }
+  // --- FIX END ---
+
   return (
     <ConfigProvider
-      // appearance переименован в colorScheme
       colorScheme={colorScheme}
       isWebView={vkBridge.isWebView()}
+      platform={platform as "android" | "ios" | "vkcom"} // Явно передаем платформу
     >
       <AdaptivityProvider {...adaptivity}>
         <AppRoot mode="full" safeAreaInsets={vkBridgeInsets}>
