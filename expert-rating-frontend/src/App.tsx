@@ -35,6 +35,7 @@ import {
   Switch,
   usePlatform,
   Checkbox,
+  Panel,
 } from "@vkontakte/vkui";
 import {
   useActiveVkuiLocation,
@@ -58,6 +59,9 @@ import debounce from "lodash.debounce";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 
 import { Onboarding } from "./components/Shared/Onboarding";
+import { LegalConsent } from "./components/Shared/LegalConsent";
+// import { LegalModal } from "./components/Shared/LegalModal"; // УДАЛЕНО: Больше не нужен
+import { LEGAL_DOCUMENTS } from "./data/legalDocuments";
 import { CreateMailingModal } from "./components/CreateMailingModal";
 import { EventActionModal } from "./components/Event/EventActionModal";
 import { QrCodeModal } from "./components/Event/QrCodeModal";
@@ -66,7 +70,7 @@ import { FiltersModal } from "./components/Shared/FiltersModal";
 import { PurchaseModal } from "./components/Shared/PurchaseModal";
 import { MobilePaymentStubModal } from "./components/Shared/MobilePaymentStubModal";
 import { EditRegaliaModal } from "./components/Profile/EditRegaliaModal";
-import { SelectModal, Option } from "./components/Shared/SelectModal"; // Импортируем SelectModal
+import { SelectModal, Option } from "./components/Shared/SelectModal";
 import { useApi } from "./hooks/useApi";
 import { useUserStore } from "./store/userStore";
 import { useUiStore } from "./store/uiStore";
@@ -150,6 +154,7 @@ export const App = () => {
 
   const [promoWord, setPromoWord] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showLegalConsent, setShowLegalConsent] = useState(false);
   const [isLoadingApp, setIsLoadingApp] = useState(true);
   const [promoStatus, setPromoStatus] = useState<any | null>(null);
   const [isCheckingPromo, setIsCheckingPromo] = useState(false);
@@ -163,7 +168,6 @@ export const App = () => {
     null,
   );
 
-  // State for SelectModal
   const [selectModalConfig, setSelectModalConfig] = useState<{
     title: string;
     options: Option[];
@@ -282,7 +286,6 @@ export const App = () => {
     }
   };
 
-  // Helper to open select modal
   const openSelectModal = (
     title: string,
     options: Option[],
@@ -322,7 +325,6 @@ export const App = () => {
     setActiveModal(null);
   };
 
-  // ... (Delete/Stop logic remains same)
   const performDeleteEvent = async () => {
     if (!selectedEvent) return;
     setPopout(<Spinner size="xl" />);
@@ -595,9 +597,71 @@ export const App = () => {
     return () => bridge.unsubscribe(handleAppEvents);
   }, [refetchUser]);
 
+  const handleLegalAccept = async () => {
+    try {
+      await bridge.send("VKWebAppStorageSet", {
+        key: "legalAccepted_v1",
+        value: "true",
+      });
+    } catch (error) {
+      localStorage.setItem("legalAccepted_v1", "true");
+    }
+    setShowLegalConsent(false);
+  };
+
+  const handleOpenLegalDoc = (
+    docType: "offer" | "user_agreement" | "privacy" | "mailing_consent",
+  ) => {
+    const url = LEGAL_DOCUMENTS[docType].url;
+
+    if (url) {
+      if (platform === "vkcom") {
+        // На ПК открываем в новой вкладке стандартным способом
+        window.open(url, "_blank");
+      } else {
+        // На мобильных пытаемся открыть через нативный браузер
+        bridge.send("VKWebAppOpenUrl" as any, { url }).catch((error) => {
+          console.warn("VKWebAppOpenUrl failed, using fallback:", error);
+          // Если бридж не сработал (например, в мобильном браузере), тоже открываем через window.open
+          window.open(url, "_blank");
+        });
+      }
+    } else {
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+          Ссылка на документ не найдена.
+        </Snackbar>,
+      );
+    }
+  };
+
   useEffect(() => {
     const initApp = async () => {
+      let legalNeeded = true;
       let onboardingNeeded = true;
+
+      try {
+        const result = await bridge.send("VKWebAppStorageGet", {
+          keys: ["legalAccepted_v1"],
+        });
+        const legalAccepted =
+          result.keys.find((k) => k.key === "legalAccepted_v1")?.value ===
+          "true";
+        if (legalAccepted) legalNeeded = false;
+      } catch (e) {
+        console.warn(
+          "VK Storage check failed (legal), falling back to localStorage",
+          e,
+        );
+        if (localStorage.getItem("legalAccepted_v1")) legalNeeded = false;
+      }
+
+      if (legalNeeded) {
+        setShowLegalConsent(true);
+        setIsLoadingApp(false);
+        return;
+      }
+
       if (!hasLaunchParams) {
         try {
           const result = await bridge.send("VKWebAppStorageGet", {
@@ -609,7 +673,7 @@ export const App = () => {
           if (onboardingFinished) onboardingNeeded = false;
         } catch (e) {
           console.warn(
-            "VK Storage check failed, falling back to localStorage",
+            "VK Storage check failed (onboarding), falling back to localStorage",
             e,
           );
           if (localStorage.getItem("onboardingFinished"))
@@ -653,7 +717,7 @@ export const App = () => {
       }
     };
     initApp();
-  }, [apiGet, apiPost, hasLaunchParams, setCurrentUser]);
+  }, [apiGet, apiPost, hasLaunchParams, setCurrentUser, showLegalConsent]);
 
   const finishOnboarding = async () => {
     try {
@@ -665,6 +729,7 @@ export const App = () => {
       localStorage.setItem("onboardingFinished", "true");
     }
     setShowOnboarding(false);
+    setIsLoadingApp(true);
     window.location.reload();
   };
 
@@ -752,6 +817,27 @@ export const App = () => {
   );
 
   if (isLoadingApp) return <ScreenSpinner state="loading" />;
+
+  // --- LEGAL CONSENT SCREEN ---
+  if (showLegalConsent) {
+    return (
+      <AppRoot>
+        <SplitLayout>
+          <SplitCol>
+            <View activePanel="legal_consent_panel">
+              <Panel id="legal_consent_panel">
+                <LegalConsent
+                  onAccept={handleLegalAccept}
+                  onOpenDoc={handleOpenLegalDoc}
+                />
+              </Panel>
+            </View>
+          </SplitCol>
+        </SplitLayout>
+      </AppRoot>
+    );
+  }
+
   if (showOnboarding) return <Onboarding onFinish={finishOnboarding} />;
 
   return (
@@ -759,6 +845,7 @@ export const App = () => {
       <SplitLayout>
         <SplitCol>
           <Epic activeStory={activeView} tabbar={renderTabbar()}>
+            {/* Views content - NO CHANGE */}
             <View id={VIEW_MAIN} activePanel={activePanel}>
               <Home id={PANEL_HOME} />
               <Registration
@@ -767,7 +854,7 @@ export const App = () => {
                 onOpenTopicsModal={() => setActiveModal("topics-modal")}
                 allThemes={allThemes}
                 allRegions={allRegions}
-                openSelectModal={openSelectModal} // Pass it down
+                openSelectModal={openSelectModal}
               />
               <Voting id={PANEL_VOTING} />
               <ExpertProfile
@@ -1031,6 +1118,20 @@ export const App = () => {
               </SimpleCell>
             )}
           </Group>
+          <Group header={<Header>О приложении</Header>}>
+            <SimpleCell onClick={() => handleOpenLegalDoc("user_agreement")}>
+              Пользовательское соглашение
+            </SimpleCell>
+            <SimpleCell onClick={() => handleOpenLegalDoc("privacy")}>
+              Политика конфиденциальности
+            </SimpleCell>
+            <SimpleCell onClick={() => handleOpenLegalDoc("offer")}>
+              Публичная оферта
+            </SimpleCell>
+            <SimpleCell onClick={() => handleOpenLegalDoc("mailing_consent")}>
+              Согласие на рассылку
+            </SimpleCell>
+          </Group>
         </ModalPage>
 
         <FiltersModal
@@ -1039,7 +1140,7 @@ export const App = () => {
           filterType="home"
           regions={allRegions}
           categories={allThemes}
-          openSelectModal={openSelectModal} // Pass it down
+          openSelectModal={openSelectModal}
         />
         <FiltersModal
           id="afisha-filters"
@@ -1047,7 +1148,7 @@ export const App = () => {
           filterType="afisha"
           regions={allRegions}
           categories={allThemes}
-          openSelectModal={openSelectModal} // Pass it down
+          openSelectModal={openSelectModal}
         />
 
         <SelectModal

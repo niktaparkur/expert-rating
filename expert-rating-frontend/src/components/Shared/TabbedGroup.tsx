@@ -1,7 +1,12 @@
-// expert-rating-frontend/src/components/TabbedGroup.tsx
-
 import React from "react";
-import { Group, Separator, Tabs, TabsItem } from "@vkontakte/vkui";
+import {
+  Group,
+  Separator,
+  Tabs,
+  TabsItem,
+  SegmentedControl,
+  Div,
+} from "@vkontakte/vkui";
 
 interface Tab {
   id: string;
@@ -26,23 +31,48 @@ export const TabbedGroup: React.FC<TabbedGroupProps> = ({
 
   const activeContent = tabs.find((tab) => tab.id === activeTab)?.content;
 
+  // Если вкладок мало (<= 2), используем SegmentedControl для красоты и растягивания
+  const useSegmentedControl = tabs.length <= 2;
+
   return (
     <Group>
       {tabs.length > 1 && (
-        <Tabs>
-          {tabs.map((tab) => (
-            <TabsItem
-              key={tab.id}
-              selected={activeTab === tab.id}
-              onClick={() => onTabChange(tab.id)}
-            >
-              {tab.title}
-            </TabsItem>
-          ))}
-        </Tabs>
+        <>
+          {useSegmentedControl ? (
+            <Div style={{ paddingTop: 12, paddingBottom: 12 }}>
+              <SegmentedControl
+                size="l"
+                value={activeTab}
+                onChange={(value) => onTabChange(String(value))}
+                options={tabs.map((tab) => ({
+                  label: tab.title,
+                  value: tab.id,
+                }))}
+              />
+            </Div>
+          ) : (
+            <Tabs>
+              {tabs.map((tab) => (
+                <TabsItem
+                  key={tab.id}
+                  selected={activeTab === tab.id}
+                  onClick={() => onTabChange(tab.id)}
+                >
+                  {tab.title}
+                </TabsItem>
+              ))}
+            </Tabs>
+          )}
+          {/* Разделитель нужен только для Tabs, у SegmentedControl свои отступы */}
+          {!useSegmentedControl && <Separator />}
+        </>
       )}
-      <Separator />
-      <div style={{ paddingTop: tabs.length > 1 ? "12px" : "0" }}>
+
+      <div
+        style={{
+          paddingTop: tabs.length > 1 && !useSegmentedControl ? "12px" : "0",
+        }}
+      >
         {activeContent}
       </div>
     </Group>
