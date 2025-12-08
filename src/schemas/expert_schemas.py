@@ -128,7 +128,6 @@ class ExpertProfileUpdate(BaseModel):
     region: str
     social_link: HttpUrl
     regalia: str = Field(..., max_length=500)
-    performance_link: HttpUrl
 
 
 class ExpertUpdateRequestRead(BaseModel):

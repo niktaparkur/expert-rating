@@ -37,7 +37,7 @@ interface EditProfileModalProps {
 export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   id,
   onClose,
-  onBack, // <--- Получаем его
+  onBack,
   currentUser,
   onSave,
   openSelectModal,
@@ -47,7 +47,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     region: "",
     social_link: "",
     regalia: "",
-    performance_link: "",
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -57,7 +56,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
         region: currentUser.region || "",
         social_link: currentUser.social_link || "",
         regalia: currentUser.regalia || "",
-        performance_link: currentUser.performance_link || "",
       });
     }
   }, [currentUser]);
@@ -94,7 +92,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       onClose={onClose}
       header={
         <ModalPageHeader
-          // ИЗМЕНЕНИЕ: Используем onBack для кнопки назад
           before={<PanelHeaderBack onClick={onBack} />}
         >
           Редактирование профиля
@@ -146,13 +143,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             onChange={handleChange}
           />
         </FormItem>
-        <FormItem top="Пример выступления">
-          <Input
-            name="performance_link"
-            value={formData.performance_link}
-            onChange={handleChange}
-          />
-        </FormItem>
+
         <Div>
           <Button
             size="l"

@@ -579,8 +579,6 @@ async def process_update_request(
                 profile.social_link = new_data["social_link"]
             if "regalia" in new_data:
                 profile.regalia = new_data["regalia"]
-            if "performance_link" in new_data:
-                profile.performance_link = new_data["performance_link"]
 
     await db.commit()
     await db.refresh(request)
