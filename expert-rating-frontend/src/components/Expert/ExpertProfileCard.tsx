@@ -85,8 +85,9 @@ export const ExpertProfileCard = ({
     show_community_rating,
   } = expert;
 
-  const communityTooltipText = `👍 ${stats.community_trust ?? 0} | 👎 ${stats.community_distrust ?? 0}`;
-  const expertTooltipText = `👍 ${stats.expert_trust ?? 0} | 👎 ${stats.expert_distrust ?? 0}`;
+  // ИЗМЕНЕНИЕ: Упрощенные тексты для тултипов (без цифр)
+  const communityTooltipText = "Народный рейтинг";
+  const expertTooltipText = "Экспертный рейтинг";
 
   return (
     <Card mode="shadow" style={{ position: "relative" }}>

@@ -60,7 +60,6 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 
 import { Onboarding } from "./components/Shared/Onboarding";
 import { LegalConsent } from "./components/Shared/LegalConsent";
-// import { LegalModal } from "./components/Shared/LegalModal"; // УДАЛЕНО: Больше не нужен
 import { LEGAL_DOCUMENTS } from "./data/legalDocuments";
 import { CreateMailingModal } from "./components/CreateMailingModal";
 import { EventActionModal } from "./components/Event/EventActionModal";
@@ -69,7 +68,7 @@ import { AfishaEventModal } from "./components/Afisha/AfishaEventModal";
 import { FiltersModal } from "./components/Shared/FiltersModal";
 import { PurchaseModal } from "./components/Shared/PurchaseModal";
 import { MobilePaymentStubModal } from "./components/Shared/MobilePaymentStubModal";
-import { EditRegaliaModal } from "./components/Profile/EditRegaliaModal";
+import { EditProfileModal } from "./components/Profile/EditProfileModal";
 import { SelectModal, Option } from "./components/Shared/SelectModal";
 import { useApi } from "./hooks/useApi";
 import { useUserStore } from "./store/userStore";
@@ -174,6 +173,7 @@ export const App = () => {
     selected: string | number | null;
     onSelect: (value: string | number) => void;
     searchable?: boolean;
+    fallbackModal?: string | null;
   } | null>(null);
 
   const isMobilePlatform = platform === "ios" || platform === "android";
@@ -266,21 +266,18 @@ export const App = () => {
     }
   };
 
-  const handleSaveRegalia = async (newRegalia: string) => {
+  const handleSaveProfile = async (profileData: any) => {
     try {
-      const updatedUser = await apiPut<UserData>("/users/me/regalia", {
-        regalia: newRegalia,
-      });
-      setCurrentUser(updatedUser);
+      await apiPost("/experts/me/update_profile", profileData);
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
-          Профиль обновлен
+          Заявка на обновление профиля отправлена на модерацию.
         </Snackbar>,
       );
-    } catch (error) {
+    } catch (error: any) {
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
-          Ошибка обновления
+          {error.message || "Ошибка обновления"}
         </Snackbar>,
       );
     }
@@ -292,8 +289,16 @@ export const App = () => {
     selected: string | number | null,
     onSelect: (val: any) => void,
     searchable = false,
+    fallbackModal: string | null = null,
   ) => {
-    setSelectModalConfig({ title, options, selected, onSelect, searchable });
+    setSelectModalConfig({
+      title,
+      options,
+      selected,
+      onSelect,
+      searchable,
+      fallbackModal,
+    });
     setActiveModal("select-modal");
   };
 
@@ -1042,9 +1047,9 @@ export const App = () => {
             <Group header={<Header>Настройки профиля</Header>}>
               <SimpleCell
                 before={<Icon28EditOutline />}
-                onClick={() => setActiveModal("edit-regalia-modal")}
+                onClick={() => setActiveModal("edit-profile-modal")}
               >
-                Редактировать "О себе"
+                Редактировать профиль
               </SimpleCell>
               <SimpleCell
                 Component="label"
@@ -1153,7 +1158,9 @@ export const App = () => {
 
         <SelectModal
           id="select-modal"
-          onClose={() => setActiveModal(null)}
+          onClose={() =>
+            setActiveModal(selectModalConfig?.fallbackModal || null)
+          }
           title={selectModalConfig?.title || ""}
           options={selectModalConfig?.options || []}
           selected={selectModalConfig?.selected || null}
@@ -1205,11 +1212,15 @@ export const App = () => {
           id="mobile-payment-stub"
           onClose={() => setActiveModal(null)}
         />
-        <EditRegaliaModal
-          id="edit-regalia-modal"
+
+        <EditProfileModal
+          id="edit-profile-modal"
           onClose={() => setActiveModal(null)}
-          currentRegalia={currentUser?.regalia || ""}
-          onSave={handleSaveRegalia}
+          onBack={() => setActiveModal("profile-settings-modal")}
+          currentUser={currentUser as UserData}
+          onSave={handleSaveProfile}
+          openSelectModal={openSelectModal}
+          allRegions={allRegions}
         />
       </ModalRoot>
     </AppRoot>

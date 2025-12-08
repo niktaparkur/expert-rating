@@ -57,6 +57,8 @@ export interface UserData {
   current_user_vote_info?: UserVoteInfo;
   regalia?: string;
   social_link?: string;
+  region?: string;
+  performance_link?: string;
   allow_notifications: boolean;
   allow_expert_mailings: boolean;
   email?: string;

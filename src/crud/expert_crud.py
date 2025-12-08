@@ -1,5 +1,3 @@
-# src/crud/expert_crud.py
-
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -16,6 +14,7 @@ from src.models.all_models import (
     Theme,
     User,
     Vote,
+    ExpertUpdateRequest,
 )
 from src.schemas.expert_schemas import (
     CommunityVoteCreate,
@@ -23,6 +22,7 @@ from src.schemas.expert_schemas import (
     UserCreate,
     UserSettingsUpdate,
     UserVoteInfo,
+    ExpertProfileUpdate,
 )
 from src.services.notifier import Notifier
 
@@ -509,3 +509,79 @@ async def update_user_email(db: AsyncSession, vk_id: int, email: str) -> Optiona
         await db.refresh(db_user)
         return db_user
     return None
+
+
+async def create_profile_update_request(
+    db: AsyncSession, vk_id: int, update_data: ExpertProfileUpdate
+) -> ExpertUpdateRequest:
+    # 1. Проверяем, есть ли уже активная заявка (status='pending')
+    existing_request = await db.execute(
+        select(ExpertUpdateRequest).filter(
+            ExpertUpdateRequest.expert_vk_id == vk_id,
+            ExpertUpdateRequest.status == "pending",
+        )
+    )
+    request_obj = existing_request.scalars().first()
+
+    # Сериализуем данные в dict для JSON (Pydantic model dump)
+    json_data = update_data.model_dump(mode="json")
+
+    if request_obj:
+        # Если заявка уже есть, обновляем её данные (перезаписываем)
+        request_obj.new_data = json_data
+        request_obj.created_at = func.now()  # Обновляем дату
+    else:
+        # Создаем новую
+        request_obj = ExpertUpdateRequest(
+            expert_vk_id=vk_id, new_data=json_data, status="pending"
+        )
+        db.add(request_obj)
+
+    await db.commit()
+    await db.refresh(request_obj)
+    return request_obj
+
+
+async def get_pending_update_requests(db: AsyncSession):
+    query = (
+        select(ExpertUpdateRequest)
+        .where(ExpertUpdateRequest.status == "pending")
+        .options(
+            selectinload(ExpertUpdateRequest.expert).selectinload(ExpertProfile.user),
+            selectinload(ExpertUpdateRequest.expert)
+            .selectinload(ExpertProfile.selected_themes)
+            .selectinload(Theme.category),
+        )
+        .order_by(ExpertUpdateRequest.created_at.asc())
+    )
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
+async def process_update_request(
+    db: AsyncSession, request_id: int, action: str, admin_comment: str = None
+):
+    request = await db.get(ExpertUpdateRequest, request_id)
+    if not request:
+        return None
+
+    request.status = "approved" if action == "approve" else "rejected"
+    request.admin_comment = admin_comment
+
+    if action == "approve":
+        # Применяем изменения к профилю
+        profile = await db.get(ExpertProfile, request.expert_vk_id)
+        if profile:
+            new_data = request.new_data
+            if "region" in new_data:
+                profile.region = new_data["region"]
+            if "social_link" in new_data:
+                profile.social_link = new_data["social_link"]
+            if "regalia" in new_data:
+                profile.regalia = new_data["regalia"]
+            if "performance_link" in new_data:
+                profile.performance_link = new_data["performance_link"]
+
+    await db.commit()
+    await db.refresh(request)
+    return request

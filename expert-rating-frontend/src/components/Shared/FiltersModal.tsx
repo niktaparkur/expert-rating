@@ -31,6 +31,7 @@ interface FiltersModalProps {
     selected: string | number | null,
     onSelect: (val: any) => void,
     searchable?: boolean,
+    fallbackModal?: string | null,
   ) => void;
 }
 
@@ -124,6 +125,7 @@ export const FiltersModal: React.FC<FiltersModalProps> = ({
                 localFilters.region,
                 (val) => handleFilterChange(val, "region"),
                 true,
+                id,
               )
             }
             title="Регион"
@@ -143,6 +145,7 @@ export const FiltersModal: React.FC<FiltersModalProps> = ({
                 localFilters.category_id,
                 (val) => handleFilterChange(val, "category_id"),
                 true,
+                id,
               )
             }
             title="Категория"

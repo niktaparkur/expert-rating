@@ -36,6 +36,7 @@ interface AfishaProps {
     selected: string | number | null,
     onSelect: (val: any) => void,
     searchable?: boolean,
+    fallbackModal?: string | null,
   ) => void;
 }
 

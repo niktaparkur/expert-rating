@@ -38,6 +38,7 @@ import {
   Text,
   Cell,
   ScreenSpinner,
+  Separator,
 } from "@vkontakte/vkui";
 import {
   Icon16Cancel,
@@ -85,6 +86,20 @@ interface EventRequest {
   event_link?: string;
 }
 
+interface UpdateRequest {
+  id: number;
+  expert_vk_id: number;
+  new_data: {
+    region?: string;
+    regalia?: string;
+    social_link?: string;
+    performance_link?: string;
+  };
+  status: string;
+  created_at: string;
+  expert_info: any;
+}
+
 interface AdminPanelProps {
   id: string;
 }
@@ -129,6 +144,9 @@ export const Admin = ({ id }: AdminPanelProps) => {
     null,
   );
 
+  const [updateRequests, setUpdateRequests] = useState<UpdateRequest[]>([]);
+  const [loadingUpdates, setLoadingUpdates] = useState(false);
+
   const showErrorSnackbar = (message: string) =>
     setSnackbar(
       <Snackbar
@@ -167,6 +185,18 @@ export const Admin = ({ id }: AdminPanelProps) => {
       showErrorSnackbar((e as Error).message || "Ошибка загрузки заявок");
     } finally {
       setLoadingModeration(false);
+    }
+  }, [apiGet, setSnackbar]);
+
+  const fetchUpdatesData = useCallback(async () => {
+    setLoadingUpdates(true);
+    try {
+      const data = await apiGet<UpdateRequest[]>("/experts/admin/updates");
+      setUpdateRequests(data || []);
+    } catch (e) {
+      showErrorSnackbar((e as Error).message || "Ошибка загрузки обновлений");
+    } finally {
+      setLoadingUpdates(false);
     }
   }, [apiGet, setSnackbar]);
 
@@ -246,6 +276,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
   useEffect(() => {
     if (selectedTab === "moderation") fetchModerationData();
     if (selectedTab === "mailings") fetchMailingData();
+    if (selectedTab === "updates") fetchUpdatesData();
   }, [selectedTab, fetchModerationData, fetchMailingData]);
 
   useEffect(() => {
@@ -347,6 +378,21 @@ export const Admin = ({ id }: AdminPanelProps) => {
     try {
       await apiPost(`/experts/admin/${vkId}/${action}`, {});
       setExpertRequests((prev) => prev.filter((req) => req.vk_id !== vkId));
+    } catch (err) {
+      showErrorSnackbar((err as Error).message);
+    } finally {
+      setPopout(null);
+    }
+  };
+
+  const handleUpdateAction = async (
+    requestId: number,
+    action: "approve" | "reject",
+  ) => {
+    setPopout(<ScreenSpinner state="loading" />);
+    try {
+      await apiPost(`/experts/admin/updates/${requestId}/${action}`, {});
+      setUpdateRequests((prev) => prev.filter((req) => req.id !== requestId));
     } catch (err) {
       showErrorSnackbar((err as Error).message);
     } finally {
@@ -753,6 +799,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
       >
         Панель Администратора
       </PanelHeader>
+
       <Tabs>
         <TabsItem
           selected={selectedTab === "moderation"}
@@ -760,6 +807,13 @@ export const Admin = ({ id }: AdminPanelProps) => {
           id="tab-moderation"
         >
           Заявки
+        </TabsItem>
+        <TabsItem
+          selected={selectedTab === "updates"}
+          onClick={() => setSelectedTab("updates")}
+          id="tab-updates"
+        >
+          Обновления
         </TabsItem>
         <TabsItem
           selected={selectedTab === "mailings"}
@@ -783,6 +837,8 @@ export const Admin = ({ id }: AdminPanelProps) => {
           Промокоды
         </TabsItem>
       </Tabs>
+
+      {/* --- TAB: MODERATION (Registration & Events) --- */}
       <div
         style={{
           display: selectedTab === "moderation" ? "block" : "none",
@@ -791,7 +847,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
       >
         <Group header={<Header>Заявки на регистрацию экспертов</Header>}>
           {loadingModeration ? (
-            <Spinner />
+            <Spinner size="l" style={{ margin: "20px 0" }} />
           ) : expertRequests.length === 0 ? (
             <Placeholder title="Новых заявок нет" />
           ) : (
@@ -807,7 +863,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
         </Group>
         <Group header={<Header>Заявки на создание мероприятий</Header>}>
           {loadingModeration ? (
-            <Spinner />
+            <Spinner size="l" style={{ margin: "20px 0" }} />
           ) : eventRequests.length === 0 ? (
             <Placeholder title="Новых заявок нет" />
           ) : (
@@ -822,6 +878,164 @@ export const Admin = ({ id }: AdminPanelProps) => {
           )}
         </Group>
       </div>
+
+      {/* --- TAB: UPDATES (Profile Edits) --- */}
+      <div
+        style={{
+          display: selectedTab === "updates" ? "block" : "none",
+          paddingBottom: 60,
+        }}
+      >
+        <Group header={<Header>Заявки на обновление профиля</Header>}>
+          {loadingUpdates ? (
+            <Spinner size="l" style={{ margin: "20px 0" }} />
+          ) : updateRequests.length === 0 ? (
+            <Placeholder
+              icon={<Icon56UsersOutline />}
+              title="Нет заявок на обновление"
+            />
+          ) : (
+            updateRequests.map((req) => (
+              <Group
+                key={req.id}
+                mode="card"
+                header={
+                  <Header
+                    subtitle={`ID эксперта: ${req.expert_vk_id} | ${new Date(req.created_at).toLocaleDateString()}`}
+                  >
+                    {req.expert_info?.first_name} {req.expert_info?.last_name}
+                  </Header>
+                }
+              >
+                {/* Сравнение РЕГИОНА */}
+                {req.new_data.region &&
+                  req.new_data.region !== req.expert_info?.region && (
+                    <SimpleCell multiline disabled>
+                      <InfoRow header="Регион (Было)">
+                        <Text
+                          style={{
+                            color: "var(--vkui--color_text_secondary)",
+                            textDecoration: "line-through",
+                          }}
+                        >
+                          {req.expert_info?.region || "Не указан"}
+                        </Text>
+                      </InfoRow>
+                      <Div style={{ padding: "8px 0 0 0" }}>
+                        <InfoRow header="Регион (Стало)">
+                          <Text
+                            style={{
+                              color: "var(--vkui--color_text_positive)",
+                              fontWeight: "500",
+                            }}
+                          >
+                            {req.new_data.region}
+                          </Text>
+                        </InfoRow>
+                      </Div>
+                    </SimpleCell>
+                  )}
+
+                {/* Сравнение ССЫЛКИ */}
+                {req.new_data.social_link &&
+                  req.new_data.social_link !== req.expert_info?.social_link && (
+                    <SimpleCell multiline disabled>
+                      <InfoRow header="Соц. сеть (Было)">
+                        <Text
+                          style={{ color: "var(--vkui--color_text_secondary)" }}
+                        >
+                          {req.expert_info?.social_link || "Не указана"}
+                        </Text>
+                      </InfoRow>
+                      <Div style={{ padding: "8px 0 0 0" }}>
+                        <InfoRow header="Соц. сеть (Стало)">
+                          <Text
+                            style={{ color: "var(--vkui--color_text_primary)" }}
+                          >
+                            {req.new_data.social_link}
+                          </Text>
+                        </InfoRow>
+                      </Div>
+                    </SimpleCell>
+                  )}
+
+                {/* Сравнение РЕГАЛИЙ */}
+                {req.new_data.regalia &&
+                  req.new_data.regalia !== req.expert_info?.regalia && (
+                    <Div>
+                      <InfoRow header="Регалии (Было)">
+                        <Text
+                          style={{
+                            color: "var(--vkui--color_text_secondary)",
+                            fontSize: "14px",
+                          }}
+                        >
+                          {req.expert_info?.regalia || "Пусто"}
+                        </Text>
+                      </InfoRow>
+                      <Separator style={{ margin: "10px 0" }} />
+                      <InfoRow header="Регалии (Стало)">
+                        <Text
+                          style={{
+                            color: "var(--vkui--color_text_primary)",
+                            fontSize: "15px",
+                          }}
+                        >
+                          {req.new_data.regalia}
+                        </Text>
+                      </InfoRow>
+                    </Div>
+                  )}
+
+                {/* Сравнение ПРИМЕРА ВЫСТУПЛЕНИЯ */}
+                {req.new_data.performance_link &&
+                  req.new_data.performance_link !==
+                    req.expert_info?.performance_link && (
+                    <SimpleCell multiline disabled>
+                      <InfoRow header="Пример выступления (Было)">
+                        <Text
+                          style={{ color: "var(--vkui--color_text_secondary)" }}
+                        >
+                          {req.expert_info?.performance_link || "Нет"}
+                        </Text>
+                      </InfoRow>
+                      <Div style={{ padding: "8px 0 0 0" }}>
+                        <InfoRow header="Пример выступления (Стало)">
+                          <Text
+                            style={{ color: "var(--vkui--color_text_primary)" }}
+                          >
+                            {req.new_data.performance_link}
+                          </Text>
+                        </InfoRow>
+                      </Div>
+                    </SimpleCell>
+                  )}
+
+                <Div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
+                  <Button
+                    size="l"
+                    stretched
+                    mode="primary"
+                    onClick={() => handleUpdateAction(req.id, "approve")}
+                  >
+                    Принять изменения
+                  </Button>
+                  <Button
+                    size="l"
+                    stretched
+                    appearance="negative"
+                    onClick={() => handleUpdateAction(req.id, "reject")}
+                  >
+                    Отклонить
+                  </Button>
+                </Div>
+              </Group>
+            ))
+          )}
+        </Group>
+      </div>
+
+      {/* --- TAB: MAILINGS --- */}
       <div
         style={{
           display: selectedTab === "mailings" ? "block" : "none",
@@ -830,7 +1044,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
       >
         <Group header={<Header>Рассылки на модерацию</Header>}>
           {loadingMailings ? (
-            <Spinner />
+            <Spinner size="l" style={{ margin: "20px 0" }} />
           ) : mailingRequests.length === 0 ? (
             <Placeholder title="Новых рассылок нет" />
           ) : (
@@ -850,6 +1064,8 @@ export const Admin = ({ id }: AdminPanelProps) => {
           )}
         </Group>
       </div>
+
+      {/* --- TAB: USERS --- */}
       <div
         style={{
           display: selectedTab === "users" ? "block" : "none",
@@ -928,6 +1144,8 @@ export const Admin = ({ id }: AdminPanelProps) => {
           )}
         </Group>
       </div>
+
+      {/* --- TAB: PROMO CODES --- */}
       <div
         style={{
           display: selectedTab === "promo" ? "block" : "none",

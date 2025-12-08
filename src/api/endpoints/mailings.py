@@ -1,5 +1,3 @@
-# src/api/endpoints/mailings.py
-
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Dict
