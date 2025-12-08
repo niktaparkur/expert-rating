@@ -8,6 +8,7 @@ from sqlalchemy import (
     ForeignKey,
     BigInteger,
     Enum,
+    JSON,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -202,5 +203,24 @@ class Mailings(Base):
     rejection_reason = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     processed_at = Column(TIMESTAMP(timezone=True), nullable=True)
+
+    expert = relationship("ExpertProfile")
+
+
+class ExpertUpdateRequest(Base):
+    __tablename__ = "ExpertUpdateRequests"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    expert_vk_id = Column(
+        BigInteger,
+        ForeignKey("ExpertProfiles.user_vk_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    # Храним новые данные в JSON формате: {"regalia": "...", "region": "..."}
+    new_data = Column(JSON, nullable=False)
+
+    status = Column(Enum("pending", "approved", "rejected"), default="pending")
+    admin_comment = Column(Text, nullable=True)  # Причина отказа
+
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
     expert = relationship("ExpertProfile")

@@ -56,6 +56,7 @@ interface RegistrationProps {
     selected: string | number | null,
     onSelect: (val: any) => void,
     searchable?: boolean,
+    fallbackModal?: string | null,
   ) => void;
 }
 
@@ -68,10 +69,10 @@ export const Registration = ({
   openSelectModal,
 }: RegistrationProps) => {
   const routeNavigator = useRouteNavigator();
-  const { apiPost } = useApi();
   const queryClient = useQueryClient();
 
-  const { currentUser: user } = useUserStore();
+  const { apiPost, apiGet } = useApi();
+  const { currentUser: user, setCurrentUser } = useUserStore();
   const { setPopout, setSnackbar, setActiveModal } = useUiStore();
 
   const [formData, setFormData] = useState<FormData>({
@@ -118,6 +119,7 @@ export const Registration = ({
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
     if (!isTopicSelectionValid) {
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
@@ -136,6 +138,7 @@ export const Registration = ({
     }
 
     setPopout(<ScreenSpinner state="loading" />);
+
     const finalData = {
       user_data: {
         vk_id: user.vk_id,
@@ -152,7 +155,13 @@ export const Registration = ({
 
     try {
       await apiPost("/experts/register", finalData);
+
       await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
+
+      const updatedUser = await apiGet<any>("/users/me");
+
+      setCurrentUser(updatedUser);
+
       setActiveModal("registration-success");
     } catch (error: any) {
       setSnackbar(

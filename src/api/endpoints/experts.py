@@ -4,6 +4,7 @@ import redis.asyncio as redis
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.config import settings
 from src.core.dependencies import (
     get_current_admin_user,
     get_current_user,
@@ -299,3 +300,103 @@ async def delete_expert_endpoint(
     if not success:
         raise HTTPException(status_code=404, detail="User not found")
     return {"status": "ok", "message": "User deleted"}
+
+
+@router.post("/me/update_profile", status_code=201)
+async def request_profile_update(
+    update_data: expert_schemas.ExpertProfileUpdate,
+    current_user: Dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    notifier: Notifier = Depends(get_notifier),
+):
+    if not current_user.get("is_expert"):
+        raise HTTPException(
+            status_code=403, detail="Только эксперты могут обновлять профиль."
+        )
+
+    try:
+        await expert_crud.create_profile_update_request(
+            db=db, vk_id=current_user["vk_id"], update_data=update_data
+        )
+
+        # Уведомляем админа
+        await notifier.send_message(
+            settings.ADMIN_ID,
+            f"📝 Новая заявка на изменение профиля от ID {current_user['vk_id']}",
+        )
+
+        return {
+            "status": "ok",
+            "message": "Заявка на обновление отправлена модератору.",
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/admin/updates",
+    response_model=List[expert_schemas.ExpertUpdateRequestRead],
+    dependencies=[Depends(get_current_admin_user)],
+)
+async def get_profile_updates(db: AsyncSession = Depends(get_db)):
+    requests = await expert_crud.get_pending_update_requests(db)
+
+    # Мапим данные для ответа (включая инфу об эксперте)
+    response = []
+    for req in requests:
+        expert = req.expert
+        user = expert.user
+
+        expert_info = {
+            "vk_id": user.vk_id,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "photo_url": str(user.photo_url),
+            "regalia": expert.regalia,
+            "social_link": str(expert.social_link),
+            "performance_link": str(expert.performance_link),
+            "region": expert.region,
+            "topics": [f"{t.category.name} > {t.name}" for t in expert.selected_themes],
+        }
+
+        response.append(
+            {
+                "id": req.id,
+                "expert_vk_id": req.expert_vk_id,
+                "new_data": req.new_data,
+                "status": req.status,
+                "created_at": req.created_at,
+                "expert_info": expert_info,
+            }
+        )
+
+    return response
+
+
+@router.post("/admin/updates/{request_id}/{action}")
+async def moderate_update_request(
+    request_id: int,
+    action: str,  # approve / reject
+    db: AsyncSession = Depends(get_db),
+    notifier: Notifier = Depends(get_notifier),
+    cache: redis.Redis = Depends(get_redis),
+):
+    if action not in ["approve", "reject"]:
+        raise HTTPException(status_code=400, detail="Invalid action")
+
+    result = await expert_crud.process_update_request(db, request_id, action)
+    if not result:
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    # Сброс кэша профиля
+    await cache.delete(f"user_profile:{result.expert_vk_id}")
+
+    # Уведомление пользователю
+    msg = (
+        "✅ Ваш профиль успешно обновлен!"
+        if action == "approve"
+        else "❌ Изменения профиля отклонены."
+    )
+    await notifier.send_message(result.expert_vk_id, msg)
+
+    return {"status": "ok"}

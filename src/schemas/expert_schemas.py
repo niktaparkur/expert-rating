@@ -1,6 +1,6 @@
 from __future__ import annotations
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field, HttpUrl
 from src.schemas.base_schemas import VotedExpertInfo
 
@@ -120,6 +120,30 @@ class PaginatedUsersResponse(BaseModel):
     total_count: int
     page: int
     size: int
+
+
+class ExpertProfileUpdate(BaseModel):
+    """Данные, которые эксперт может отправить на обновление"""
+
+    region: str
+    social_link: HttpUrl
+    regalia: str = Field(..., max_length=500)
+    performance_link: HttpUrl
+
+
+class ExpertUpdateRequestRead(BaseModel):
+    """Отображение заявки для админа"""
+
+    id: int
+    expert_vk_id: int
+    new_data: Dict[str, Any]
+    status: str
+    created_at: datetime
+
+    expert_info: Optional[ExpertRequestRead] = None
+
+    class Config:
+        from_attributes = True
 
 
 from src.schemas.event_schemas import EventRead  # noqa: E402
