@@ -1,5 +1,6 @@
 import uuid
 from datetime import timedelta
+from ipaddress import ip_address
 
 from yookassa import Configuration, Payment
 from fastapi import (
@@ -12,12 +13,11 @@ from fastapi import (
     BackgroundTasks,
 )
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-
 import redis.asyncio as redis
 from loguru import logger
 
 from src.core.dependencies import get_db, get_redis, get_current_user
-from src.crud import expert_crud
+from src.crud import expert_crud, promo_crud
 from .tariffs import TARIFFS_INFO
 from src.schemas import payment_schemas
 from src.services.notifier import Notifier
@@ -32,7 +32,19 @@ router = APIRouter(prefix="/payment", tags=["Payment"])
 REPORT_PRICE = 500
 engine = create_async_engine(settings.DATABASE_URL_ASYNC)
 
+# --- НОВЫЙ БЛОК: Список доверенных IP-адресов YooKassa ---
+YOOKASSA_TRUSTED_IPS = [
+    "185.71.76.0/27",
+    "185.71.77.0/27",
+    "77.75.153.0/25",
+    "77.75.156.11",
+    "77.75.156.35",
+    "77.75.154.128/25",
+    "2a02:5180::/32",
+]
 
+
+# --- ИЗМЕНЕННАЯ ФУНКЦИЯ ---
 @router.post("/yookassa/webhook", status_code=status.HTTP_200_OK)
 async def yookassa_webhook(
     notification: payment_schemas.YooKassaNotification,
@@ -42,6 +54,16 @@ async def yookassa_webhook(
     cache: redis.Redis = Depends(get_redis),
     notifier: Notifier = Depends(get_notifier),
 ):
+    # --- НОВЫЙ БЛОК: Проверка IP-адреса ---
+    client_ip = request.headers.get("x-forwarded-for") or request.client.host
+    is_trusted = any(
+        ip_address(client_ip) in ip_network
+        for ip_network in [ip_address(net) for net in YOOKASSA_TRUSTED_IPS]
+    )
+    if not is_trusted:
+        logger.warning(f"Untrusted IP {client_ip} tried to access YooKassa webhook.")
+        raise HTTPException(status_code=403, detail="Forbidden IP")
+
     logger.info(f"Received YooKassa webhook: event='{notification.event}'")
 
     if notification.event == "payment.succeeded":
@@ -191,31 +213,46 @@ async def create_report_payment(
         raise HTTPException(status_code=500, detail="Ошибка при создании платежа.")
 
 
+# --- ПОЛНОСТЬЮ ПЕРЕРАБОТАННАЯ ФУНКЦИЯ ---
 @router.post("/yookassa/create-payment")
 async def create_yookassa_payment(
-    payment_data: dict,
+    payment_data: payment_schemas.YooKassaPaymentCreate,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     cache: redis.Redis = Depends(get_redis),
 ):
-    tariff_id = payment_data.get("tariff_id")
-    final_price = payment_data.get("final_price")
+    tariff_id = payment_data.tariff_id
     user_vk_id = current_user["vk_id"]
-
-    if not tariff_id or not final_price:
-        raise HTTPException(
-            status_code=400, detail="tariff_id and final_price are required."
-        )
-
     user_email = current_user.get("email")
+
     if not user_email:
         raise HTTPException(
             status_code=400,
             detail="Email пользователя не найден. Пожалуйста, укажите его в настройках профиля.",
         )
 
-    tariff_title = TARIFFS_INFO.get(tariff_id, {}).get("title", "Неизвестный тариф")
+    tariff_info = TARIFFS_INFO.get(tariff_id)
+    if not tariff_info:
+        raise HTTPException(status_code=404, detail="Тариф не найден.")
 
+    final_price = tariff_info["price"]
+
+    # Применяем промокод, если он есть
+    if payment_data.promo_code:
+        promo = await promo_crud.validate_and_get_promo_code(
+            db, code=payment_data.promo_code, user_vk_id=user_vk_id
+        )
+        if promo:
+            final_price = round(final_price * (100 - promo.discount_percent) / 100)
+            logger.info(
+                f"Promo '{promo.code}' applied for user {user_vk_id}. New price: {final_price}"
+            )
+        else:
+            logger.warning(
+                f"User {user_vk_id} tried to use invalid promo code '{payment_data.promo_code}'."
+            )
+
+    tariff_title = tariff_info["title"]
     idempotence_key = str(uuid.uuid4())
     internal_order_id = str(uuid.uuid4())
     payment_description = (

@@ -143,7 +143,10 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
       const durationValue = parseInt(value, 10) || 0;
       const maxDuration =
         TARIFF_LIMITS[userTariff as keyof typeof TARIFF_LIMITS] || 60;
-      if (!isAdmin && durationValue > maxDuration) {
+
+      if (durationValue < 1) {
+        setDurationError("Длительность должна быть не менее 1 минуты.");
+      } else if (!isAdmin && durationValue > maxDuration) {
         setDurationError(`Максимум для вашего тарифа: ${maxDuration} мин.`);
       } else {
         setDurationError(null);
@@ -153,6 +156,9 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
   };
 
   const handleDateChange = (date: Date | null | undefined) => {
+    if (date && date < new Date()) {
+      return;
+    }
     setFormData((prev) => ({ ...prev, event_date: date || null }));
   };
 
@@ -422,9 +428,15 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
                 name="send_reminder"
                 checked={formData.send_reminder}
                 onChange={handleChange}
+                disabled={!user?.allow_notifications}
               />
             }
-            subtitle="Вы получите уведомление за 15 минут до начала голосования"
+            subtitle={
+              user?.allow_notifications
+                ? "Вы получите уведомление за 15 минут до начала голосования"
+                : "Чтобы включить, разрешите уведомления в настройках профиля"
+            }
+            disabled={!user?.allow_notifications}
           >
             Напомнить о начале
           </SimpleCell>
@@ -439,7 +451,8 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
               isCheckingAvailability ||
               availabilityStatus !== "available" ||
               !formData.event_date ||
-              !!durationError
+              !!durationError ||
+              parseInt(formData.duration_minutes) < 1
             }
           >
             Отправить на модерацию

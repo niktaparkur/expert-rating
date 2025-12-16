@@ -87,13 +87,16 @@ export const Home = ({ id }: HomeProps) => {
   }, [inView, hasNextPage, fetchNextPage, isFetchingNextPage]);
 
   const allExperts = useMemo(() => {
-    return (
+    const flatExperts =
       data?.pages.flatMap((page, pageIndex) =>
         page.items.map((expert: any, itemIndex: number) => ({
           ...expert,
           topPosition: pageIndex * PAGE_SIZE + itemIndex + 1,
         })),
-      ) || []
+      ) || [];
+
+    return Array.from(
+      new Map(flatExperts.map((expert) => [expert.vk_id, expert])).values(),
     );
   }, [data]);
 

@@ -39,6 +39,7 @@ import {
   Cell,
   ScreenSpinner,
   Separator,
+  HorizontalScroll,
 } from "@vkontakte/vkui";
 import {
   Icon16Cancel,
@@ -618,6 +619,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
                 multiline
                 href={selectedExpert.social_link}
                 target="_blank"
+                subtitle={selectedExpert.social_link}
               >
                 <InfoRow header="Соц. сеть">Перейти</InfoRow>
               </SimpleCell>
@@ -625,6 +627,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
                 multiline
                 href={selectedExpert.performance_link}
                 target="_blank"
+                subtitle={selectedExpert.performance_link}
               >
                 <InfoRow header="Выступление">Посмотреть</InfoRow>
               </SimpleCell>
@@ -799,44 +802,45 @@ export const Admin = ({ id }: AdminPanelProps) => {
       >
         Панель Администратора
       </PanelHeader>
-
-      <Tabs>
-        <TabsItem
-          selected={selectedTab === "moderation"}
-          onClick={() => setSelectedTab("moderation")}
-          id="tab-moderation"
-        >
-          Заявки
-        </TabsItem>
-        <TabsItem
-          selected={selectedTab === "updates"}
-          onClick={() => setSelectedTab("updates")}
-          id="tab-updates"
-        >
-          Обновления
-        </TabsItem>
-        <TabsItem
-          selected={selectedTab === "mailings"}
-          onClick={() => setSelectedTab("mailings")}
-          id="tab-mailings"
-        >
-          Рассылки
-        </TabsItem>
-        <TabsItem
-          selected={selectedTab === "users"}
-          onClick={() => setSelectedTab("users")}
-          id="tab-users"
-        >
-          Пользователи
-        </TabsItem>
-        <TabsItem
-          selected={selectedTab === "promo"}
-          onClick={() => setSelectedTab("promo")}
-          id="tab-promo"
-        >
-          Промокоды
-        </TabsItem>
-      </Tabs>
+      <HorizontalScroll>
+        <Tabs>
+          <TabsItem
+            selected={selectedTab === "moderation"}
+            onClick={() => setSelectedTab("moderation")}
+            id="tab-moderation"
+          >
+            Заявки
+          </TabsItem>
+          <TabsItem
+            selected={selectedTab === "updates"}
+            onClick={() => setSelectedTab("updates")}
+            id="tab-updates"
+          >
+            Обновления
+          </TabsItem>
+          <TabsItem
+            selected={selectedTab === "mailings"}
+            onClick={() => setSelectedTab("mailings")}
+            id="tab-mailings"
+          >
+            Рассылки
+          </TabsItem>
+          <TabsItem
+            selected={selectedTab === "users"}
+            onClick={() => setSelectedTab("users")}
+            id="tab-users"
+          >
+            Пользователи
+          </TabsItem>
+          <TabsItem
+            selected={selectedTab === "promo"}
+            onClick={() => setSelectedTab("promo")}
+            id="tab-promo"
+          >
+            Промокоды
+          </TabsItem>
+        </Tabs>
+      </HorizontalScroll>
 
       {/* --- TAB: MODERATION (Registration & Events) --- */}
       <div

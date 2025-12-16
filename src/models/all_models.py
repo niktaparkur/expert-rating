@@ -9,6 +9,7 @@ from sqlalchemy import (
     BigInteger,
     Enum,
     JSON,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -87,6 +88,16 @@ class Vote(Base):
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     expert = relationship("ExpertProfile", foreign_keys=[expert_vk_id])
     event = relationship("Event", foreign_keys=[event_id])
+
+    __table_args__ = (
+        UniqueConstraint("voter_vk_id", "event_id", name="uq_voter_event_vote"),
+        UniqueConstraint(
+            "voter_vk_id",
+            "expert_vk_id",
+            "is_expert_vote",
+            name="uq_voter_community_vote",
+        ),
+    )
 
 
 class Category(Base):

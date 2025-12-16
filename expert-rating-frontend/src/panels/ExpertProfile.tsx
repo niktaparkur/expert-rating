@@ -58,10 +58,10 @@ export const ExpertProfile = ({ id, onReportPurchase }: ExpertProfileProps) => {
   const routeNavigator = useRouteNavigator();
   const params = useParams<"expertId">();
   const expertId = params?.expertId;
+  const { setSnackbar, setActiveModal, setTargetExpertId } = useUiStore();
 
   const { apiGet } = useApi();
   const { currentUser: user } = useUserStore();
-  const { setSnackbar, setActiveModal } = useUiStore();
 
   const [activeTab, setActiveTab] = useState("current");
   const isSelf = user?.vk_id === Number(expertId);
@@ -96,6 +96,9 @@ export const ExpertProfile = ({ id, onReportPurchase }: ExpertProfileProps) => {
         </Snackbar>,
       );
       return;
+    }
+    if (expertId) {
+      setTargetExpertId(Number(expertId));
     }
     setActiveModal("narod-vote-modal");
   };

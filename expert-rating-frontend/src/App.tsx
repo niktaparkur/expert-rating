@@ -100,6 +100,7 @@ import {
   PANEL_PROFILE,
 } from "./routes";
 import { EventData, UserData } from "./types";
+import { VoteCard } from "./components/Vote/VoteCard";
 
 const PopoutWrapper: React.FC<{ children: ReactNode }> = ({ children }) => {
   return (
@@ -149,6 +150,7 @@ export const App = () => {
     setActiveModal,
     setPopout,
     setSnackbar,
+    targetExpertId,
   } = useUiStore();
 
   const [promoWord, setPromoWord] = useState("");
@@ -620,17 +622,7 @@ export const App = () => {
     const url = LEGAL_DOCUMENTS[docType].url;
 
     if (url) {
-      if (platform === "vkcom") {
-        // На ПК открываем в новой вкладке стандартным способом
-        window.open(url, "_blank");
-      } else {
-        // На мобильных пытаемся открыть через нативный браузер
-        bridge.send("VKWebAppOpenUrl" as any, { url }).catch((error) => {
-          console.warn("VKWebAppOpenUrl failed, using fallback:", error);
-          // Если бридж не сработал (например, в мобильном браузере), тоже открываем через window.open
-          window.open(url, "_blank");
-        });
-      }
+      window.open(url, "_blank");
     } else {
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
@@ -750,6 +742,68 @@ export const App = () => {
     if (promoStatus?.status === "active") {
       setActiveModal(null);
       routeNavigator.push(`/vote/${promoWord.trim().toUpperCase()}`);
+    }
+  };
+
+  const { data: expertForVote } = useQuery({
+    queryKey: ["expertProfile", targetExpertId],
+    queryFn: () => {
+      if (!targetExpertId) return null;
+      return apiGet<UserData>(`/experts/${targetExpertId}`);
+    },
+    enabled: !!targetExpertId && activeModal === "narod-vote-modal",
+  });
+
+  const handleCommunityVoteSubmit = async (voteData: any) => {
+    if (!expertForVote) return;
+    setPopout(<Spinner size="xl" />);
+    try {
+      await apiPost(`/experts/${expertForVote.vk_id}/vote`, {
+        voter_vk_id: currentUser?.vk_id,
+        ...voteData,
+      });
+      setActiveModal(null);
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
+          Ваш голос учтен!
+        </Snackbar>,
+      );
+      await queryClient.invalidateQueries({
+        queryKey: ["expertProfile", String(expertForVote.vk_id)],
+      });
+    } catch (err) {
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+          {(err as Error).message}
+        </Snackbar>,
+      );
+    } finally {
+      setPopout(null);
+    }
+  };
+
+  const performCancelCommunityVote = async () => {
+    if (!expertForVote) return;
+    setPopout(<Spinner size="xl" />);
+    try {
+      await apiDelete(`/experts/${expertForVote.vk_id}/vote`);
+      setActiveModal(null);
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
+          Ваш голос отменен.
+        </Snackbar>,
+      );
+      await queryClient.invalidateQueries({
+        queryKey: ["expertProfile", String(expertForVote.vk_id)],
+      });
+    } catch (err) {
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+          {(err as Error).message}
+        </Snackbar>,
+      );
+    } finally {
+      setPopout(null);
     }
   };
 
@@ -1195,6 +1249,21 @@ export const App = () => {
             </Button>
           }
         />
+
+        <ModalPage
+          id="narod-vote-modal"
+          onClose={() => setActiveModal(null)}
+          header={<ModalPageHeader>Народное голосование</ModalPageHeader>}
+          settlingHeight={100}
+        >
+          <VoteCard
+            onSubmit={handleCommunityVoteSubmit}
+            onCancelVote={performCancelCommunityVote}
+            initialVote={currentUser?.current_user_vote_info || null}
+            setPopout={setPopout}
+          />
+        </ModalPage>
+
         <AfishaEventModal
           id="afisha-event-details"
           event={selectedEvent}

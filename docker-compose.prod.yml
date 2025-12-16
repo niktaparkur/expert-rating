@@ -8,6 +8,8 @@ services:
     env_file: .env
     ports:
       - "127.0.0.1:8000:8000"
+    volumes:
+      - logs_data_prod:/app/logs
     depends_on:
       - redis
 
@@ -20,3 +22,4 @@ services:
 
 volumes:
   redis_data_prod:
+  logs_data_prod:

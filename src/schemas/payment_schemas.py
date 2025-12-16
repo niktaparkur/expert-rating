@@ -2,6 +2,11 @@ from pydantic import BaseModel
 from typing import Optional
 
 
+class YooKassaPaymentCreate(BaseModel):
+    tariff_id: str
+    promo_code: Optional[str] = None
+
+
 class YooKassaAmount(BaseModel):
     value: str
     currency: str
