@@ -622,7 +622,7 @@ export const App = () => {
     const url = LEGAL_DOCUMENTS[docType].url;
 
     if (url) {
-        window.open(url, "_blank");
+      window.open(url, "_blank");
     } else {
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>

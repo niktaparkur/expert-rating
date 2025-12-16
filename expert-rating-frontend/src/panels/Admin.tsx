@@ -3,7 +3,7 @@ import React, {
   useEffect,
   useCallback,
   useRef,
-  useMemo
+  useMemo,
 } from "react";
 import {
   Panel,
@@ -39,13 +39,13 @@ import {
   Cell,
   ScreenSpinner,
   Separator,
-  HorizontalScroll
+  HorizontalScroll,
 } from "@vkontakte/vkui";
 import {
   Icon16Cancel,
   Icon24Cancel,
   Icon28MoreVertical,
-  Icon56UsersOutline
+  Icon56UsersOutline,
 } from "@vkontakte/icons";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
 import { useApi } from "../hooks/useApi";
@@ -120,7 +120,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
   const [expertRequests, setExpertRequests] = useState<ExpertRequest[]>([]);
   const [eventRequests, setEventRequests] = useState<EventRequest[]>([]);
   const [selectedExpert, setSelectedExpert] = useState<ExpertRequest | null>(
-    null
+    null,
   );
   const [selectedEvent, setSelectedEvent] = useState<EventRequest | null>(null);
   const [loadingModeration, setLoadingModeration] = useState(true);
@@ -142,7 +142,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
   const [mailingRequests, setMailingRequests] = useState<MailingRequest[]>([]);
   const [loadingMailings, setLoadingMailings] = useState(true);
   const [selectedMailing, setSelectedMailing] = useState<MailingRequest | null>(
-    null
+    null,
   );
 
   const [updateRequests, setUpdateRequests] = useState<UpdateRequest[]>([]);
@@ -156,14 +156,14 @@ export const Admin = ({ id }: AdminPanelProps) => {
         before={<Icon16Cancel />}
       >
         {message}
-      </Snackbar>
+      </Snackbar>,
     );
 
   const fetchMailingData = useCallback(async () => {
     setLoadingMailings(true);
     try {
       const mailingsData = await apiGet<MailingRequest[]>(
-        "/mailings/admin/pending"
+        "/mailings/admin/pending",
       );
       setMailingRequests(mailingsData || []);
     } catch (e) {
@@ -178,7 +178,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
     try {
       const [expertsData, eventsData] = await Promise.all([
         apiGet<ExpertRequest[]>("/experts/admin/pending"),
-        apiGet<EventRequest[]>("/events/admin/pending")
+        apiGet<EventRequest[]>("/events/admin/pending"),
       ]);
       setExpertRequests(expertsData || []);
       setEventRequests(eventsData || []);
@@ -211,21 +211,21 @@ export const Admin = ({ id }: AdminPanelProps) => {
         size: "50",
         search: debouncedSearch,
         user_type: usersFilter.type,
-        sort_by_date: usersFilter.date
+        sort_by_date: usersFilter.date,
       });
       try {
         const usersData = await apiGet<any>(
-          `/experts/admin/all_users?${params.toString()}`
+          `/experts/admin/all_users?${params.toString()}`,
         );
         setUsers((prev) =>
-          isNewSearch ? usersData.items : [...prev, ...usersData.items]
+          isNewSearch ? usersData.items : [...prev, ...usersData.items],
         );
         setHasMoreUsers(currentPage * 50 < usersData.total_count);
         if (isNewSearch) setUsersPage(2);
         else setUsersPage((p) => p + 1);
       } catch (e) {
         showErrorSnackbar(
-          (e as Error).message || "Ошибка загрузки пользователей"
+          (e as Error).message || "Ошибка загрузки пользователей",
         );
       } finally {
         setLoadingUsers(false);
@@ -237,8 +237,8 @@ export const Admin = ({ id }: AdminPanelProps) => {
       usersPage,
       debouncedSearch,
       usersFilter,
-      setSnackbar
-    ]
+      setSnackbar,
+    ],
   );
 
   const fetchPromoCodes = useCallback(
@@ -248,10 +248,10 @@ export const Admin = ({ id }: AdminPanelProps) => {
       const currentPage = isNewSearch ? 1 : promoCodesPage;
       try {
         const data = await apiGet<any>(
-          `/promo/admin?page=${currentPage}&size=50`
+          `/promo/admin?page=${currentPage}&size=50`,
         );
         setPromoCodes((prev) =>
-          isNewSearch ? data.items : [...prev, ...data.items]
+          isNewSearch ? data.items : [...prev, ...data.items],
         );
         setHasMorePromoCodes(currentPage * 50 < data.total_count);
         if (isNewSearch) setPromoCodesPage(2);
@@ -262,12 +262,12 @@ export const Admin = ({ id }: AdminPanelProps) => {
         setLoadingPromoCodes(false);
       }
     },
-    [apiGet, loadingPromoCodes, promoCodesPage, setSnackbar]
+    [apiGet, loadingPromoCodes, promoCodesPage, setSnackbar],
   );
 
   const debouncedSetSearch = useMemo(
     () => debounce((query: string) => setDebouncedSearch(query), 500),
-    []
+    [],
   );
 
   useEffect(() => {
@@ -305,7 +305,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
         if (entries[0].isIntersecting && hasMoreUsers && !loadingUsers)
           fetchUsersData();
       },
-      { threshold: 1.0 }
+      { threshold: 1.0 },
     );
     const currentObserverRef = usersObserverRef.current;
     if (currentObserverRef) observer.observe(currentObserverRef);
@@ -325,7 +325,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
         )
           fetchPromoCodes();
       },
-      { threshold: 1.0 }
+      { threshold: 1.0 },
     );
     const currentObserverRef = promoObserverRef.current;
     if (currentObserverRef) observer.observe(currentObserverRef);
@@ -355,7 +355,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
 
   const handleMailingAction = async (
     mailingId: number,
-    action: "approve" | "reject"
+    action: "approve" | "reject",
   ) => {
     setActiveModal(null);
     setPopout(<ScreenSpinner state="loading" />);
@@ -372,7 +372,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
 
   const handleExpertAction = async (
     vkId: number,
-    action: "approve" | "reject"
+    action: "approve" | "reject",
   ) => {
     closeModal();
     setPopout(<ScreenSpinner state="loading" />);
@@ -388,7 +388,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
 
   const handleUpdateAction = async (
     requestId: number,
-    action: "approve" | "reject"
+    action: "approve" | "reject",
   ) => {
     setPopout(<ScreenSpinner state="loading" />);
     try {
@@ -403,7 +403,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
 
   const handleEventAction = async (
     eventId: number,
-    action: "approve" | "reject"
+    action: "approve" | "reject",
   ) => {
     closeModal();
     setPopout(<ScreenSpinner state="loading" />);
@@ -437,19 +437,19 @@ export const Admin = ({ id }: AdminPanelProps) => {
           {
             title: "Удалить",
             mode: "destructive",
-            action: performDelete
-          }
+            action: performDelete,
+          },
         ]}
         onClose={() => setPopout(null)}
         title="Подтверждение действия"
         description={`Удалить пользователя ${userToDelete.first_name} ${userToDelete.last_name}?`}
-      />
+      />,
     );
   };
 
   const openUserMenu = (
     event: React.MouseEvent<HTMLElement>,
-    user: UserData
+    user: UserData,
   ) => {
     const handleCloseSheet = () => setActiveSheet(null);
     setActiveSheet(
@@ -458,7 +458,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
         iosCloseItem={<ActionSheetItem mode="cancel">Отмена</ActionSheetItem>}
         toggleRef={event.currentTarget}
         style={{
-          paddingBottom: "60px"
+          paddingBottom: "60px",
         }}
       >
         {user.is_expert && (
@@ -483,7 +483,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
         {platform !== Platform.IOS && (
           <ActionSheetItem mode="cancel">Отмена</ActionSheetItem>
         )}
-      </ActionSheet>
+      </ActionSheet>,
     );
   };
 
@@ -529,13 +529,13 @@ export const Admin = ({ id }: AdminPanelProps) => {
           {
             title: "Удалить",
             mode: "destructive",
-            action: performDelete
-          }
+            action: performDelete,
+          },
         ]}
         onClose={() => setPopout(null)}
         title="Подтверждение"
         description="Вы уверены, что хотите удалить этот промокод?"
-      />
+      />,
     );
   };
 
@@ -548,7 +548,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
         iosCloseItem={<ActionSheetItem mode="cancel">Отмена</ActionSheetItem>}
         toggleRef={event.currentTarget}
         style={{
-          paddingBottom: "60px"
+          paddingBottom: "60px",
         }}
       >
         <ActionSheetItem
@@ -570,7 +570,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
         {platform !== Platform.IOS && (
           <ActionSheetItem mode="cancel">Отмена</ActionSheetItem>
         )}
-      </ActionSheet>
+      </ActionSheet>,
     );
   };
 
@@ -846,7 +846,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
       <div
         style={{
           display: selectedTab === "moderation" ? "block" : "none",
-          paddingBottom: 60
+          paddingBottom: 60,
         }}
       >
         <Group header={<Header>Заявки на регистрацию экспертов</Header>}>
@@ -887,7 +887,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
       <div
         style={{
           display: selectedTab === "updates" ? "block" : "none",
-          paddingBottom: 60
+          paddingBottom: 60,
         }}
       >
         <Group header={<Header>Заявки на обновление профиля</Header>}>
@@ -919,7 +919,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
                         <Text
                           style={{
                             color: "var(--vkui--color_text_secondary)",
-                            textDecoration: "line-through"
+                            textDecoration: "line-through",
                           }}
                         >
                           {req.expert_info?.region || "Не указан"}
@@ -930,7 +930,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
                           <Text
                             style={{
                               color: "var(--vkui--color_text_positive)",
-                              fontWeight: "500"
+                              fontWeight: "500",
                             }}
                           >
                             {req.new_data.region}
@@ -971,7 +971,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
                         <Text
                           style={{
                             color: "var(--vkui--color_text_secondary)",
-                            fontSize: "14px"
+                            fontSize: "14px",
                           }}
                         >
                           {req.expert_info?.regalia || "Пусто"}
@@ -982,7 +982,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
                         <Text
                           style={{
                             color: "var(--vkui--color_text_primary)",
-                            fontSize: "15px"
+                            fontSize: "15px",
                           }}
                         >
                           {req.new_data.regalia}
@@ -994,7 +994,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
                 {/* Сравнение ПРИМЕРА ВЫСТУПЛЕНИЯ */}
                 {req.new_data.performance_link &&
                   req.new_data.performance_link !==
-                  req.expert_info?.performance_link && (
+                    req.expert_info?.performance_link && (
                     <SimpleCell multiline disabled>
                       <InfoRow header="Пример выступления (Было)">
                         <Text
@@ -1043,7 +1043,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
       <div
         style={{
           display: selectedTab === "mailings" ? "block" : "none",
-          paddingBottom: 60
+          paddingBottom: 60,
         }}
       >
         <Group header={<Header>Рассылки на модерацию</Header>}>
@@ -1073,7 +1073,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
       <div
         style={{
           display: selectedTab === "users" ? "block" : "none",
-          paddingBottom: 60
+          paddingBottom: 60,
         }}
       >
         <Group>
@@ -1093,9 +1093,9 @@ export const Admin = ({ id }: AdminPanelProps) => {
                   { label: "Все", value: "all" },
                   {
                     label: "Только эксперты",
-                    value: "expert"
+                    value: "expert",
                   },
-                  { label: "Только пользователи", value: "user" }
+                  { label: "Только пользователи", value: "user" },
                 ]}
               />
             </FormItem>
@@ -1109,8 +1109,8 @@ export const Admin = ({ id }: AdminPanelProps) => {
                   { label: "Сначала новые", value: "desc" },
                   {
                     label: "Сначала старые",
-                    value: "asc"
-                  }
+                    value: "asc",
+                  },
                 ]}
               />
             </FormItem>
@@ -1153,7 +1153,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
       <div
         style={{
           display: selectedTab === "promo" ? "block" : "none",
-          paddingBottom: 60
+          paddingBottom: 60,
         }}
       >
         <Group>

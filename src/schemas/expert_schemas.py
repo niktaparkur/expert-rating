@@ -88,13 +88,16 @@ class ExpertProfileBase(BaseModel):
         field_name = info.field_name
 
         if field_name == "social_link":
-            allowed_hosts = [
-                "vk.com", "vk.ru", "ok.ru", "rutube.ru", "dzen.ru"
-            ]
+            allowed_hosts = ["vk.com", "vk.ru", "ok.ru", "rutube.ru", "dzen.ru"]
         elif field_name == "performance_link":
             allowed_hosts = [
-                "disk.yandex.ru", "vk.com", "vk.ru", "rutube.ru",
-                "youtube.com", "vimeo.com", "dzen.ru"
+                "disk.yandex.ru",
+                "vk.com",
+                "vk.ru",
+                "rutube.ru",
+                "youtube.com",
+                "vimeo.com",
+                "dzen.ru",
             ]
 
         if not any(v.host.endswith(host) for host in allowed_hosts):

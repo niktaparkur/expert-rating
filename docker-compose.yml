@@ -12,6 +12,7 @@ services:
       - ./src:/app/src
       - ./migrations:/app/migrations
       - ./alembic.ini:/app/alembic.ini
+      - ./logs:/app/logs
     depends_on:
       - redis
       - db

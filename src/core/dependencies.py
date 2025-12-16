@@ -66,9 +66,9 @@ async def get_current_user(
 
     if cached_id:
         vk_user_id = int(cached_id)
-        logger.debug(f"VK User ID {vk_user_id} found in token cache.")
+        logger.trace(f"VK User ID {vk_user_id} found in token cache.")
     else:
-        logger.debug("Checking token for user via VK API...")
+        logger.trace("Checking token for user via VK API...")
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.get(
@@ -92,10 +92,10 @@ async def get_current_user(
     cache_key = f"user_profile:{vk_user_id}"
     cached_user_str = await cache.get(cache_key)
     if cached_user_str:
-        logger.success(f"User {vk_user_id} found in profile cache.")
+        logger.trace(f"User {vk_user_id} found in profile cache.")
         return json.loads(cached_user_str)
 
-    logger.debug(f"User {vk_user_id} not in profile cache. Fetching from DB.")
+    logger.trace(f"User {vk_user_id} not in profile cache. Fetching from DB.")
 
     result = await expert_crud.get_full_user_profile_with_stats(db, vk_id=vk_user_id)
 
@@ -131,7 +131,7 @@ async def get_current_user(
     current_user_dict = response_data.model_dump(mode="json")
 
     await cache.set(cache_key, json.dumps(current_user_dict), ex=3600)
-    logger.info(f"User {vk_user_id} data has been cached.")
+    logger.trace(f"User {vk_user_id} data has been cached.")
 
     return current_user_dict
 

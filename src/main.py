@@ -5,6 +5,8 @@ import sentry_sdk
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
+import sys
+from loguru import logger
 
 from src.api.endpoints import (
     experts,
@@ -19,6 +21,29 @@ from src.api.endpoints import (
 from src.core.config import settings
 from src.crud import event_crud
 from src.services.notifier import Notifier
+
+logger.remove()
+logger.add(
+    sys.stderr,
+    level="INFO",
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan> - <level>{message}</level>",
+)
+logger.add(
+    "logs/general.log",
+    level="INFO",
+    rotation="1 day",
+    retention="1 month",
+    compression="zip",
+    encoding="utf-8",
+)
+logger.add(
+    "logs/error.log",
+    level="ERROR",
+    rotation="1 day",
+    retention="1 month",
+    compression="zip",
+    encoding="utf-8",
+)
 
 if settings.SENTRY_DSN:
     sentry_sdk.init(

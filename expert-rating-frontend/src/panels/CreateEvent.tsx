@@ -431,9 +431,11 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
                 disabled={!user?.allow_notifications}
               />
             }
-            subtitle={user?.allow_notifications
-              ? "Вы получите уведомление за 15 минут до начала голосования"
-              : "Чтобы включить, разрешите уведомления в настройках профиля"}
+            subtitle={
+              user?.allow_notifications
+                ? "Вы получите уведомление за 15 минут до начала голосования"
+                : "Чтобы включить, разрешите уведомления в настройках профиля"
+            }
             disabled={!user?.allow_notifications}
           >
             Напомнить о начале

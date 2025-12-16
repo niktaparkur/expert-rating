@@ -3,6 +3,7 @@ from typing import Optional
 import os
 import httpx
 import json
+from loguru import logger
 
 from src.core.config import settings
 from src.schemas import event_schemas
@@ -37,28 +38,46 @@ class Notifier:
             response.raise_for_status()
             data = response.json()
             if "error" in data:
-                print(
+                logger.error(
                     f"VK API Error in method '{method}': {data['error']['error_msg']}"
                 )
                 return None
             return data.get("response")
         except httpx.HTTPStatusError as e:
-            print(
+            logger.error(
                 f"HTTP error calling VK API method '{method}': {e.response.status_code} {e.response.text}"
             )
         except Exception as e:
-            print(
+            logger.error(
                 f"An unexpected error occurred in _call_api for method '{method}': {e}"
             )
         return None
 
+    async def is_messages_allowed(self, user_id: int) -> bool:
+        """Проверяет, разрешил ли пользователь отправку сообщений от сообщества."""
+        if not self.client or not self.token:
+            return False
+
+        response = await self._call_api(
+            "messages.isMessagesFromGroupAllowed",
+            {"group_id": settings.VK_GROUP_ID, "user_id": user_id},
+        )
+        return response and response.get("is_allowed") == 1
+
     async def send_message(
         self, peer_id: int, message: str, keyboard=None, attachment=None
     ):
+        can_send = await self.is_messages_allowed(user_id=peer_id)
+        if not can_send:
+            logger.warning(
+                f"Cannot send message to user {peer_id}: permission denied by user."
+            )
+            return
+
         params = {
             "peer_id": peer_id,
             "message": message,
-            "random_id": 0,  # random_id=0 is a valid value for bots
+            "random_id": 0,
         }
         if keyboard:
             params["keyboard"] = json.dumps(keyboard)
