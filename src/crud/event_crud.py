@@ -6,6 +6,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from typing import Optional
 from loguru import logger
+from dateutil.parser import isoparse
 
 from src.models.all_models import Event, ExpertProfile, Vote, Theme
 from src.schemas import event_schemas
@@ -17,7 +18,10 @@ async def check_event_availability(
     """Проверяет, доступно ли промо-слово на указанное время."""
     promo_normalized = promo_word.upper().strip()
 
-    query = select(Event).where(func.upper(Event.promo_word) == promo_normalized)
+    query = select(Event).where(
+        func.upper(Event.promo_word) == promo_normalized,
+        Event.status.in_(["approved", "pending"]),
+    )
     result = await db.execute(query)
     conflicting_events = result.scalars().all()
 
@@ -25,11 +29,21 @@ async def check_event_availability(
         return True
 
     buffer = timedelta(minutes=30)
-    new_event_start = event_date.replace(tzinfo=timezone.utc) - buffer
+
+    new_event_start = event_date
+    if isinstance(new_event_start, str):
+        new_event_start = isoparse(new_event_start)
+    if new_event_start.tzinfo is None:
+        new_event_start = new_event_start.replace(tzinfo=timezone.utc)
+
+    new_event_start -= buffer
     new_event_end = new_event_start + timedelta(minutes=duration_minutes) + (buffer * 2)
 
     for existing_event in conflicting_events:
-        existing_start = existing_event.event_date.replace(tzinfo=timezone.utc)
+        existing_start = existing_event.event_date
+        if existing_start.tzinfo is None:
+            existing_start = existing_start.replace(tzinfo=timezone.utc)
+
         existing_end = existing_start + timedelta(
             minutes=existing_event.duration_minutes
         )
@@ -169,7 +183,7 @@ async def get_event_by_promo(db: AsyncSession, promo_word: str):
             Event.status == "approved",
             Event.event_date <= now,
             func.timestampadd(text("MINUTE"), Event.duration_minutes, Event.event_date)
-            >= now,
+            >= func.now(),
         )
         .options(selectinload(Event.expert).selectinload(ExpertProfile.user))
         .order_by(Event.event_date.asc())
