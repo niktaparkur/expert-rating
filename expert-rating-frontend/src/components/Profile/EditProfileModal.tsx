@@ -91,9 +91,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       id={id}
       onClose={onClose}
       header={
-        <ModalPageHeader
-          before={<PanelHeaderBack onClick={onBack} />}
-        >
+        <ModalPageHeader before={<PanelHeaderBack onClick={onBack} />}>
           Редактирование профиля
         </ModalPageHeader>
       }

@@ -1,6 +1,13 @@
 from __future__ import annotations
-from datetime import datetime
-from pydantic import BaseModel, model_validator, HttpUrl, field_serializer
+from datetime import datetime, timezone
+from pydantic import (
+    BaseModel,
+    model_validator,
+    HttpUrl,
+    field_serializer,
+    Field,
+    field_validator,
+)
 from typing import Optional, Any, List
 
 from src.schemas.base_schemas import VotedExpertInfo
@@ -25,6 +32,17 @@ class EventCreate(EventBase):
     is_private: bool = False
     voter_thank_you_message: Optional[str] = None
     send_reminder: bool = False
+
+    @field_validator("event_date")
+    @classmethod
+    def event_date_must_be_in_future(cls, v: datetime) -> datetime:
+        if v.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+            raise ValueError("Дата мероприятия не может быть в прошлом.")
+        return v
+
+    duration_minutes: int = Field(
+        ..., gt=0, description="Длительность должна быть больше нуля."
+    )
 
 
 class EventRead(EventBase):
