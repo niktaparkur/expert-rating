@@ -428,9 +428,13 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
                 name="send_reminder"
                 checked={formData.send_reminder}
                 onChange={handleChange}
+                disabled={!user?.allow_notifications}
               />
             }
-            subtitle="Вы получите уведомление за 15 минут до начала голосования"
+            subtitle={user?.allow_notifications
+              ? "Вы получите уведомление за 15 минут до начала голосования"
+              : "Чтобы включить, разрешите уведомления в настройках профиля"}
+            disabled={!user?.allow_notifications}
           >
             Напомнить о начале
           </SimpleCell>

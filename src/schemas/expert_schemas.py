@@ -1,14 +1,14 @@
 from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, field_validator
 from src.schemas.base_schemas import VotedExpertInfo
 
 
 class Stats(BaseModel):
     expert: int = 0
-    expert_trust: int = 0  # NEW
-    expert_distrust: int = 0  # NEW
+    expert_trust: int = 0
+    expert_distrust: int = 0
     community: int = 0
     community_trust: int = 0
     community_distrust: int = 0
@@ -80,6 +80,27 @@ class ExpertProfileBase(BaseModel):
     regalia: str
     performance_link: HttpUrl
     referrer: Optional[str] = Field(None, alias="referrer_info")
+
+    @field_validator("social_link", "performance_link")
+    @classmethod
+    def validate_urls(cls, v: HttpUrl, info) -> HttpUrl:
+        allowed_hosts = []
+        field_name = info.field_name
+
+        if field_name == "social_link":
+            allowed_hosts = [
+                "vk.com", "vk.ru", "ok.ru", "rutube.ru", "dzen.ru"
+            ]
+        elif field_name == "performance_link":
+            allowed_hosts = [
+                "disk.yandex.ru", "vk.com", "vk.ru", "rutube.ru",
+                "youtube.com", "vimeo.com", "dzen.ru"
+            ]
+
+        if not any(v.host.endswith(host) for host in allowed_hosts):
+            raise ValueError(f"URL host must be one of: {', '.join(allowed_hosts)}")
+
+        return v
 
 
 class ExpertCreate(BaseModel):

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
   Panel,
   PanelHeader,
@@ -44,7 +44,7 @@ export const Profile = ({
   onEventClick,
 }: ProfileProps) => {
   const { apiGet, apiDelete } = useApi();
-  const { currentUser: user } = useUserStore();
+  const { currentUser: user, setCurrentUser } = useUserStore();
   const { setPopout, setSnackbar, setActiveModal } = useUiStore();
   const queryClient = useQueryClient();
 
@@ -69,6 +69,7 @@ export const Profile = ({
     setFetching(true);
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["user", "me"] }),
+      queryClient.refetchQueries({ queryKey: ["users/me"] }),
       queryClient.invalidateQueries({ queryKey: ["userVotes", user?.vk_id] }),
       user?.is_expert
         ? queryClient.invalidateQueries({ queryKey: ["myEvents", user?.vk_id] })
@@ -293,6 +294,22 @@ export const Profile = ({
     planned,
     archived,
   ]);
+
+  useEffect(() => {
+    const refetchUserStatus = async () => {
+      if (user && user.status === "pending") {
+        console.log("Checking user status...");
+        try {
+          const freshUserData = await apiGet<any>("/users/me");
+          setCurrentUser(freshUserData);
+        } catch (error) {
+          console.error("Failed to auto-refetch user status:", error);
+        }
+      }
+    };
+
+    refetchUserStatus();
+  }, [user?.status, apiGet, setCurrentUser]);
 
   return (
     <Panel id={id}>

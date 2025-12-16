@@ -60,6 +60,15 @@ interface RegistrationProps {
   ) => void;
 }
 
+const validateUrl = (url: string, allowedHosts: string[]): boolean => {
+  try {
+    const parsedUrl = new URL(url);
+    return allowedHosts.some(host => parsedUrl.hostname.endsWith(host));
+  } catch (error) {
+    return false;
+  }
+};
+
 export const Registration = ({
   id,
   selectedThemeIds,
@@ -83,6 +92,11 @@ export const Registration = ({
     referrer: "",
   });
   const [useVkProfile, setUseVkProfile] = useState<boolean>(true);
+
+  const [errors, setErrors] = useState({
+    social_link: '',
+    performance_link: ''
+  });
 
   useEffect(() => {
     if (allRegions.length > 0 && !formData.region) {
@@ -108,7 +122,17 @@ export const Registration = ({
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+
+    if (name === 'social_link') {
+      const isValid = validateUrl(value, ["vk.com", "vk.ru", "ok.ru", "rutube.ru", "dzen.ru", "t.me"]);
+      setErrors(prev => ({ ...prev, social_link: isValid ? '' : 'Недопустимая ссылка' }));
+    }
+    if (name === 'performance_link') {
+      const isValid = validateUrl(value, ["disk.yandex.ru", "vk.com", "vk.ru", "rutube.ru", "youtube.com", "vimeo.com", "dzen.ru"]);
+      setErrors(prev => ({ ...prev, performance_link: isValid ? '' : 'Недопустимая ссылка' }));
+    }
   };
+
 
   const handleRegionSelect = (val: string) => {
     setFormData((prev) => ({ ...prev, region: val }));
@@ -119,6 +143,16 @@ export const Registration = ({
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    if (errors.social_link || errors.performance_link) {
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+          Пожалуйста, исправьте ошибки в ссылках.
+        </Snackbar>,
+      );
+      return;
+    }
+
 
     if (!isTopicSelectionValid) {
       setSnackbar(
@@ -190,6 +224,9 @@ export const Registration = ({
     value: region,
   }));
 
+
+
+
   return (
     <Panel id={id}>
       <PanelHeader
@@ -253,7 +290,11 @@ export const Registration = ({
               {formData.region || "Не выбран"}
             </Cell>
           </FormItem>
-          <FormItem top="Ссылка на аккаунт или ваше сообщество">
+          <FormItem
+            top="Ссылка на аккаунт или ваше сообщество"
+            status={errors.social_link ? 'error' : 'default'}
+            bottom={errors.social_link}
+          >
             <FormField>
               <Input
                 type="url"
@@ -286,7 +327,8 @@ export const Registration = ({
           </FormItem>
           <FormItem
             top="Ссылка на пример выступления"
-            bottom="Эта ссылка будет видна только администраторам и организаторам"
+            status={errors.performance_link ? 'error' : 'default'}
+            bottom={errors.performance_link || "Эта ссылка будет видна только администраторам и организаторам"}
           >
             <FormField>
               <Input

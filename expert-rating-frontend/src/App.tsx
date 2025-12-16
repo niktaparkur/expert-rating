@@ -622,17 +622,7 @@ export const App = () => {
     const url = LEGAL_DOCUMENTS[docType].url;
 
     if (url) {
-      if (platform === "vkcom") {
-        // На ПК открываем в новой вкладке стандартным способом
         window.open(url, "_blank");
-      } else {
-        // На мобильных пытаемся открыть через нативный браузер
-        bridge.send("VKWebAppOpenUrl" as any, { url }).catch((error) => {
-          console.warn("VKWebAppOpenUrl failed, using fallback:", error);
-          // Если бридж не сработал (например, в мобильном браузере), тоже открываем через window.open
-          window.open(url, "_blank");
-        });
-      }
     } else {
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
