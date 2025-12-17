@@ -352,15 +352,11 @@ export const Tariffs = ({ id }: TariffsProps) => {
   };
 
   const handleInitiatePayment = async () => {
-    // 1. Валидация email перед отправкой
     if (!email || !EMAIL_REGEX.test(email)) {
       setEmailError("Пожалуйста, введите корректный email.");
       return;
     }
     setEmailError(null);
-
-    // Если URL уже есть (для десктопа), не делаем новый запрос
-    if (paymentUrl) return;
 
     if (!selectedTariff || !user) {
       setSnackbar(
@@ -374,26 +370,19 @@ export const Tariffs = ({ id }: TariffsProps) => {
     setPopout(<Spinner size="xl" />);
 
     try {
-      // 2. Если email в форме отличается от того, что в сторе, обновляем его на сервере
       if (user.email !== email) {
-        const updatedUser = await apiPut<UserData>("/users/me/email", {
-          email,
-        });
-        // Обновляем глобальное состояние пользователя свежими данными с сервера
+        const updatedUser = await apiPut<UserData>("/users/me/email", { email });
         setCurrentUser(updatedUser);
       }
 
-      const finalPrice = promoResult
-        ? promoResult.final_price
-        : selectedTariff.price_votes;
+      const payload = {
+        tariff_id: selectedTariff.id,
+        promo_code: promoResult ? promoCode : undefined,
+      };
 
-      // 3. Создаем платеж в ЮKassa
       const response = await apiPost<{ confirmation_url: string }>(
         "/payment/yookassa/create-payment",
-        {
-          tariff_id: selectedTariff.id,
-          final_price: finalPrice,
-        },
+        payload,
       );
 
       const confirmationUrl = response.confirmation_url;
@@ -403,9 +392,7 @@ export const Tariffs = ({ id }: TariffsProps) => {
 
       setPopout(null);
 
-      // 4. Адаптивно открываем ссылку
       const isDesktopPlatform = platform === "vkcom";
-
       if (isDesktopPlatform) {
         setPaymentUrl(confirmationUrl);
       } else {
