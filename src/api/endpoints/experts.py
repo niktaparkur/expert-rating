@@ -8,6 +8,7 @@ from src.core.config import settings
 from src.core.dependencies import (
     get_current_admin_user,
     get_current_user,
+    get_validated_vk_id,
     get_db,
     get_notifier,
     get_redis,
@@ -25,11 +26,12 @@ async def register_expert(
     db: AsyncSession = Depends(get_db),
     notifier: Notifier = Depends(get_notifier),
     cache: redis.Redis = Depends(get_redis),
+    vk_id_from_token: int = Depends(get_validated_vk_id),
 ):
     try:
-        vk_id = expert_data.user_data.vk_id
+        expert_data.user_data.vk_id = vk_id_from_token
         await expert_crud.create_expert_request(db=db, expert_data=expert_data)
-        cache_key = f"user_profile:{vk_id}"
+        cache_key = f"user_profile:{vk_id_from_token}"
         await cache.delete(cache_key)
         user_info_for_notifier = {
             **expert_data.user_data.model_dump(),
@@ -60,11 +62,13 @@ async def get_top_experts(
     )
     response_users = []
     for user, profile, stats_dict, topics in experts_data:
-        user_data = expert_schemas.UserAdminRead.model_validate(
+        # --- ИСПРАВЛЕНИЕ: UserPublicRead вместо UserAdminRead ---
+        user_data = expert_schemas.UserPublicRead.model_validate(
             user, from_attributes=True
         )
         user_data.status = profile.status
-        user_data.stats = expert_schemas.Stats(**stats_dict)
+        # --- ИСПРАВЛЕНИЕ: StatsPublic вместо Stats ---
+        user_data.stats = expert_schemas.StatsPublic(**stats_dict)
         user_data.topics = topics
         user_data.show_community_rating = profile.show_community_rating
         user_data.regalia = profile.regalia
@@ -79,7 +83,7 @@ async def get_top_experts(
     }
 
 
-@router.get("/{vk_id}", response_model=expert_schemas.UserAdminRead)
+@router.get("/{vk_id}", response_model=expert_schemas.UserPublicRead)
 async def get_expert_profile(
     vk_id: int,
     db: AsyncSession = Depends(get_db),
@@ -89,11 +93,14 @@ async def get_expert_profile(
     if not result:
         raise HTTPException(status_code=404, detail="Expert not found")
     user, profile, stats_dict, my_votes_stats_dict = result
-    response_data = expert_schemas.UserAdminRead.model_validate(
+
+    # --- ИСПРАВЛЕНИЕ: UserPublicRead ---
+    response_data = expert_schemas.UserPublicRead.model_validate(
         user, from_attributes=True
     )
-    response_data.stats = expert_schemas.Stats(**stats_dict)
-    response_data.my_votes_stats = expert_schemas.MyVotesStats(**my_votes_stats_dict)
+    # --- ИСПРАВЛЕНИЕ: StatsPublic ---
+    response_data.stats = expert_schemas.StatsPublic(**stats_dict)
+
     response_data.tariff_plan = profile.tariff_plan if profile else "Начальный"
     vote_info = await expert_crud.get_user_vote_for_expert(
         db=db, expert_vk_id=vk_id, voter_vk_id=current_user["vk_id"]
@@ -117,8 +124,9 @@ async def create_vote_for_expert(
     db: AsyncSession = Depends(get_db),
     cache: redis.Redis = Depends(get_redis),
     notifier: Notifier = Depends(get_notifier),
+    voter_id: int = Depends(get_validated_vk_id),
 ):
-    if vk_id == vote_data.voter_vk_id:
+    if vk_id == voter_id:
         raise HTTPException(status_code=400, detail="Вы не можете голосовать за себя.")
 
     is_comment_missing = (
@@ -132,10 +140,14 @@ async def create_vote_for_expert(
 
     try:
         await expert_crud.create_community_vote(
-            db=db, expert_vk_id=vk_id, vote_data=vote_data, notifier=notifier
+            db=db,
+            expert_vk_id=vk_id,
+            vote_data=vote_data,
+            voter_vk_id=voter_id,
+            notifier=notifier,
         )
         await cache.delete(f"user_profile:{vk_id}")
-        await cache.delete(f"user_profile:{vote_data.voter_vk_id}")
+        await cache.delete(f"user_profile:{voter_id}")
         return {"status": "ok", "message": "Your vote has been processed."}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -210,7 +222,8 @@ async def get_pending_experts(db: AsyncSession = Depends(get_db)):
 
 @router.get(
     "/admin/all_users",
-    response_model=expert_schemas.PaginatedUsersResponse,
+    # --- ИСПРАВЛЕНИЕ: PaginatedAdminUsersResponse для приватных данных ---
+    response_model=expert_schemas.PaginatedAdminUsersResponse,
     dependencies=[Depends(get_current_admin_user)],
 )
 async def get_all_users(
@@ -231,7 +244,8 @@ async def get_all_users(
     )
     response_users = []
     for user, profile in users_with_profiles:
-        user_data = expert_schemas.UserAdminRead.model_validate(
+        # --- ИСПРАВЛЕНИЕ: UserPrivateRead для админов ---
+        user_data = expert_schemas.UserPrivateRead.model_validate(
             user, from_attributes=True
         )
         if profile:
@@ -319,7 +333,6 @@ async def request_profile_update(
             db=db, vk_id=current_user["vk_id"], update_data=update_data
         )
 
-        # Уведомляем админа
         await notifier.send_message(
             settings.ADMIN_ID,
             f"📝 Новая заявка на изменение профиля от ID {current_user['vk_id']}",
@@ -341,7 +354,6 @@ async def request_profile_update(
 async def get_profile_updates(db: AsyncSession = Depends(get_db)):
     requests = await expert_crud.get_pending_update_requests(db)
 
-    # Мапим данные для ответа (включая инфу об эксперте)
     response = []
     for req in requests:
         expert = req.expert
@@ -388,10 +400,8 @@ async def moderate_update_request(
     if not result:
         raise HTTPException(status_code=404, detail="Request not found")
 
-    # Сброс кэша профиля
     await cache.delete(f"user_profile:{result.expert_vk_id}")
 
-    # Уведомление пользователю
     msg = (
         "✅ Ваш профиль успешно обновлен!"
         if action == "approve"

@@ -1,5 +1,3 @@
-# src/api/endpoints/users.py
-
 from typing import Dict, List
 
 import redis.asyncio as redis
@@ -7,11 +5,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
-from src.core.dependencies import get_current_user, get_db, get_redis
+from src.core.dependencies import (
+    get_current_user,
+    get_db,
+    get_redis,
+    get_validated_vk_id,
+)
 from src.crud import expert_crud
 from src.schemas.event_schemas import EventRead
 from src.schemas.expert_schemas import (
-    UserAdminRead,
+    UserPrivateRead,
     UserCreate,
     UserSettingsUpdate,
     MyVoteRead,
@@ -24,7 +27,7 @@ from loguru import logger
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
-@router.put("/me/email", response_model=UserAdminRead)
+@router.put("/me/email", response_model=UserPrivateRead)
 async def update_user_email(
     email_data: dict,
     current_user: Dict = Depends(get_current_user),
@@ -64,7 +67,7 @@ async def update_user_email(
         user, profile, stats_dict, my_votes_stats_dict = result
 
         # 5. Сборка объекта ответа (аналогично get_current_user и другим эндпоинтам)
-        response_data = UserAdminRead.model_validate(user, from_attributes=True)
+        response_data = UserPrivateRead.model_validate(user, from_attributes=True)
         response_data.stats = stats_dict
         response_data.my_votes_stats = my_votes_stats_dict
         response_data.is_admin = user.is_admin or (user.vk_id == settings.ADMIN_ID)
@@ -98,7 +101,7 @@ async def update_user_email(
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
 
-@router.put("/me/regalia", response_model=UserAdminRead)
+@router.put("/me/regalia", response_model=UserPrivateRead)
 async def update_user_regalia(
     regalia_data: UserRegaliaUpdate,
     current_user: Dict = Depends(get_current_user),
@@ -128,7 +131,7 @@ async def update_user_regalia(
             raise HTTPException(status_code=404, detail="User disappeared.")
 
         user, profile, stats_dict, my_votes_stats_dict = result
-        response_data = UserAdminRead.model_validate(user, from_attributes=True)
+        response_data = UserPrivateRead.model_validate(user, from_attributes=True)
         response_data.stats = stats_dict
         response_data.my_votes_stats = my_votes_stats_dict
         response_data.is_admin = user.is_admin or (user.vk_id == settings.ADMIN_ID)
@@ -152,17 +155,23 @@ async def update_user_regalia(
         raise HTTPException(status_code=500, detail="Server error.")
 
 
-@router.get("/me", response_model=UserAdminRead)
+@router.get("/me", response_model=UserPrivateRead)
 async def read_users_me(current_user: Dict = Depends(get_current_user)):
     return current_user
 
 
-@router.post("/register", response_model=UserAdminRead)
-async def register_new_user(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
+@router.post("/register", response_model=UserPrivateRead)
+async def register_new_user(
+    user_data: UserCreate,
+    db: AsyncSession = Depends(get_db),
+    vk_id_from_token: int = Depends(get_validated_vk_id),
+):
     """Регистрирует нового пользователя в системе."""
     try:
+        user_data.vk_id = vk_id_from_token
+
         new_user = await expert_crud.create_user(db=db, user_data=user_data)
-        response_data = UserAdminRead.model_validate(new_user, from_attributes=True)
+        response_data = UserPrivateRead.model_validate(new_user, from_attributes=True)
         response_data.is_admin = new_user.vk_id == settings.ADMIN_ID
         return response_data
     except ValueError as e:
@@ -212,7 +221,7 @@ async def get_my_votes(
     return response_list
 
 
-@router.put("/me/settings", response_model=UserAdminRead)
+@router.put("/me/settings", response_model=UserPrivateRead)
 async def update_user_settings(
     settings_data: UserSettingsUpdate,
     current_user: Dict = Depends(get_current_user),
@@ -237,7 +246,7 @@ async def update_user_settings(
 
     user, profile, stats_dict, my_votes_stats_dict = result
 
-    response_data = UserAdminRead.model_validate(user, from_attributes=True)
+    response_data = UserPrivateRead.model_validate(user, from_attributes=True)
     response_data.stats = stats_dict
     response_data.my_votes_stats = my_votes_stats_dict
     response_data.is_admin = user.is_admin or (user.vk_id == settings.ADMIN_ID)

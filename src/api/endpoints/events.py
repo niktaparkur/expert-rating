@@ -9,6 +9,7 @@ from src.core.dependencies import (
     get_current_user,
     get_db,
     get_notifier,
+    get_validated_vk_id,
 )
 from src.crud import event_crud
 from src.schemas import event_schemas
@@ -158,7 +159,9 @@ async def submit_vote(
     vote_data: event_schemas.VoteCreate,
     db: AsyncSession = Depends(get_db),
     notifier: Notifier = Depends(get_notifier),
+    voter_id: int = Depends(get_validated_vk_id),
 ):
+    vote_data.voter_vk_id = voter_id
     event = await event_crud.get_event_by_promo(db, vote_data.promo_word)
     if not event:
         raise HTTPException(

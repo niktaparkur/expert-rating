@@ -74,7 +74,7 @@ async def get_full_user_profile_with_stats(db: AsyncSession, vk_id: int):
     if not user_profile_tuple:
         return None
 
-    # Считаем народный рейтинг (Community) - раздельно Trust и Distrust
+    # Народный рейтинг: Trust - Distrust
     community_votes_query = select(
         func.sum(case((Vote.vote_type == "trust", 1), else_=0)).label("trust"),
         func.sum(case((Vote.vote_type == "distrust", 1), else_=0)).label("distrust"),
@@ -87,15 +87,22 @@ async def get_full_user_profile_with_stats(db: AsyncSession, vk_id: int):
 
     community_trust = int(community_votes.trust or 0)
     community_distrust = int(community_votes.distrust or 0)
+    community_total = community_trust - community_distrust
 
-    # Экспертный рейтинг (только Trust)
-    expert_query = select(func.count(Vote.id)).where(
+    # Экспертный рейтинг: Trust - Distrust
+    expert_votes_query = select(
+        func.sum(case((Vote.vote_type == "trust", 1), else_=0)).label("trust"),
+        func.sum(case((Vote.vote_type == "distrust", 1), else_=0)).label("distrust"),
+    ).where(
         Vote.expert_vk_id == vk_id,
         Vote.is_expert_vote.is_(True),
-        Vote.vote_type == "trust",
     )
-    expert_res = await db.execute(expert_query)
-    expert_count = expert_res.scalar_one_or_none() or 0
+    expert_votes_res = await db.execute(expert_votes_query)
+    expert_votes = expert_votes_res.first()
+
+    expert_trust = int(expert_votes.trust or 0)
+    expert_distrust = int(expert_votes.distrust or 0)
+    expert_total = expert_trust - expert_distrust
 
     # Количество мероприятий
     events_query = select(func.count(Event.id)).where(
@@ -105,14 +112,16 @@ async def get_full_user_profile_with_stats(db: AsyncSession, vk_id: int):
     events_count = events_res.scalar_one_or_none() or 0
 
     stats = {
-        "community": community_trust,  # Для совместимости
+        "expert": expert_total,
+        "community": community_total,
+        "expert_trust": expert_trust,
+        "expert_distrust": expert_distrust,
         "community_trust": community_trust,
         "community_distrust": community_distrust,
-        "expert": expert_count,
         "events_count": events_count,
     }
 
-    # "Мои голоса" (статистика голосующего)
+    # "Мои голоса"
     my_votes_query = select(
         func.sum(case((Vote.vote_type == "trust", 1), else_=0)).label("trust"),
         func.sum(case((Vote.vote_type == "distrust", 1), else_=0)).label("distrust"),
@@ -128,7 +137,6 @@ async def get_full_user_profile_with_stats(db: AsyncSession, vk_id: int):
 
 
 async def update_user_regalia(db: AsyncSession, vk_id: int, regalia: str) -> bool:
-    """Обновляет поле 'О себе' (regalia)."""
     result = await db.execute(
         select(ExpertProfile).filter(ExpertProfile.user_vk_id == vk_id)
     )
@@ -235,9 +243,16 @@ async def get_top_experts_paginated(
     region: Optional[str] = None,
     category_id: Optional[int] = None,
 ):
-    expert_rating = (
-        select(Vote.expert_vk_id, func.count(Vote.id).label("expert_rating"))
-        .where(Vote.is_expert_vote.is_(True), Vote.vote_type == "trust")
+    # Рейтинг считается как (лайки - дизлайки)
+    expert_rating_subquery = (
+        select(
+            Vote.expert_vk_id,
+            (
+                func.sum(case((Vote.vote_type == "trust", 1), else_=0))
+                - func.sum(case((Vote.vote_type == "distrust", 1), else_=0))
+            ).label("rating_score"),
+        )
+        .where(Vote.is_expert_vote.is_(True))
         .group_by(Vote.expert_vk_id)
         .subquery()
     )
@@ -247,8 +262,8 @@ async def get_top_experts_paginated(
         .join(User)
         .where(ExpertProfile.status == "approved")
         .join(
-            expert_rating,
-            ExpertProfile.user_vk_id == expert_rating.c.expert_vk_id,
+            expert_rating_subquery,
+            ExpertProfile.user_vk_id == expert_rating_subquery.c.expert_vk_id,
             isouter=True,
         )
         .options(
@@ -281,8 +296,11 @@ async def get_top_experts_paginated(
     total_count_res = await db.execute(count_query)
     total_count = total_count_res.scalar_one()
 
+    # Сортировка по рейтингу
     paginated_query = (
-        base_query.order_by(desc(func.coalesce(expert_rating.c.expert_rating, 0)))
+        base_query.order_by(
+            desc(func.coalesce(expert_rating_subquery.c.rating_score, 0))
+        )
         .offset((page - 1) * size)
         .limit(size)
     )
@@ -339,6 +357,7 @@ async def create_community_vote(
     db: AsyncSession,
     expert_vk_id: int,
     vote_data: CommunityVoteCreate,
+    voter_vk_id: int,
     notifier: Notifier,
 ):
     expert_profile_res = await db.execute(
@@ -354,7 +373,7 @@ async def create_community_vote(
 
     existing_vote_res = await db.execute(
         select(Vote).filter(
-            Vote.voter_vk_id == vote_data.voter_vk_id,
+            Vote.voter_vk_id == voter_vk_id,
             Vote.expert_vk_id == expert_vk_id,
             Vote.is_expert_vote.is_(False),
         )
@@ -365,7 +384,7 @@ async def create_community_vote(
         )
 
     db_vote = Vote(
-        voter_vk_id=vote_data.voter_vk_id,
+        voter_vk_id=voter_vk_id,
         expert_vk_id=expert_vk_id,
         event_id=None,
         is_expert_vote=False,
@@ -379,7 +398,7 @@ async def create_community_vote(
 
     expert_name = f"{expert_profile.user.first_name} {expert_profile.user.last_name}"
     await notifier.send_vote_action_notification(
-        user_vk_id=vote_data.voter_vk_id,
+        user_vk_id=voter_vk_id,
         expert_name=expert_name,
         expert_vk_id=expert_vk_id,
         action="submitted",
@@ -425,7 +444,7 @@ async def get_user_vote_for_expert(
     comment = (
         vote.comment_positive if vote.vote_type == "trust" else vote.comment_negative
     )
-    return UserVoteInfo(vote_type=vote.vote_type, comment=comment)  # type: ignore
+    return UserVoteInfo(vote_type=vote.vote_type, comment=comment)
 
 
 async def update_user_settings(
@@ -514,7 +533,6 @@ async def update_user_email(db: AsyncSession, vk_id: int, email: str) -> Optiona
 async def create_profile_update_request(
     db: AsyncSession, vk_id: int, update_data: ExpertProfileUpdate
 ) -> ExpertUpdateRequest:
-    # 1. Проверяем, есть ли уже активная заявка (status='pending')
     existing_request = await db.execute(
         select(ExpertUpdateRequest).filter(
             ExpertUpdateRequest.expert_vk_id == vk_id,
@@ -523,15 +541,12 @@ async def create_profile_update_request(
     )
     request_obj = existing_request.scalars().first()
 
-    # Сериализуем данные в dict для JSON (Pydantic model dump)
     json_data = update_data.model_dump(mode="json")
 
     if request_obj:
-        # Если заявка уже есть, обновляем её данные (перезаписываем)
         request_obj.new_data = json_data
-        request_obj.created_at = func.now()  # Обновляем дату
+        request_obj.created_at = func.now()
     else:
-        # Создаем новую
         request_obj = ExpertUpdateRequest(
             expert_vk_id=vk_id, new_data=json_data, status="pending"
         )
@@ -569,7 +584,6 @@ async def process_update_request(
     request.admin_comment = admin_comment
 
     if action == "approve":
-        # Применяем изменения к профилю
         profile = await db.get(ExpertProfile, request.expert_vk_id)
         if profile:
             new_data = request.new_data

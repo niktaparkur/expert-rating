@@ -56,6 +56,7 @@ import { PromoCodeCard } from "../components/Admin/PromoCodeCard";
 import { PromoCodeEditModal } from "../components/Admin/PromoCodeEditModal";
 import { PromoCodeDetailsModal } from "../components/Admin/PromoCodeDetailsModal";
 import { UserData } from "../types";
+import { useUserStore } from "../store/userStore";
 
 interface MailingRequest {
   id: number;
@@ -112,6 +113,16 @@ export const Admin = ({ id }: AdminPanelProps) => {
   const platform = usePlatform();
   const usersObserverRef = useRef<HTMLDivElement>(null);
   const promoObserverRef = useRef<HTMLDivElement>(null);
+
+  const { currentUser } = useUserStore();
+
+  useEffect(() => {
+    if (currentUser && !currentUser.is_admin) {
+        routeNavigator.push('/');
+    }
+  }, [currentUser, routeNavigator]);
+
+  if (!currentUser?.is_admin) return null;
 
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [selectedTab, setSelectedTab] = useState("moderation");
