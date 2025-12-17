@@ -40,11 +40,15 @@ async def get_redis() -> redis.Redis:
     return redis_pool
 
 
-async def get_current_user(
+async def get_validated_vk_id(
     authorization: Optional[str] = Header(None),
-    db: AsyncSession = Depends(get_db),
     cache: redis.Redis = Depends(get_redis),
-) -> Dict:
+) -> int:
+    """
+    Извлекает и валидирует VK ID из токена.
+    НЕ проверяет наличие пользователя в БД.
+    Используется для регистрации и критических операций.
+    """
     if authorization is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -56,46 +60,66 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format"
         )
 
-    params = {
-        "token": access_token,
-        "access_token": settings.VK_SERVICE_KEY,
-        "v": "5.199",
-    }
+    # Проверка кеша токенов
     token_cache_key = f"token_to_id:{access_token}"
     cached_id = await cache.get(token_cache_key)
 
     if cached_id:
         vk_user_id = int(cached_id)
         logger.trace(f"VK User ID {vk_user_id} found in token cache.")
-    else:
-        logger.trace("Checking token for user via VK API...")
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.get(
-                    "https://api.vk.com/method/secure.checkToken", params=params
-                )
-                response.raise_for_status()
-                data = response.json()
-            except Exception as e:
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail=f"Could not connect to VK API: {e}",
-                )
-        if "error" in data:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Invalid token: {data['error'].get('error_msg')}",
-            )
-        vk_user_id = data["response"]["user_id"]
-        await cache.set(token_cache_key, vk_user_id, ex=300)
+        return vk_user_id
 
+    # Запрос к VK API
+    logger.trace("Checking token via VK API...")
+    params = {
+        "token": access_token,
+        "access_token": settings.VK_SERVICE_KEY,
+        "v": "5.199",
+    }
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                "https://api.vk.com/method/secure.checkToken", params=params
+            )
+            response.raise_for_status()
+            data = response.json()
+        except Exception as e:
+            logger.error(f"VK API connection error: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Could not connect to VK API",
+            )
+
+    if "error" in data:
+        error_msg = data["error"].get("error_msg", "Unknown error")
+        logger.warning(f"Invalid token attempt: {error_msg}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid token: {error_msg}",
+        )
+
+    vk_user_id = data["response"]["user_id"]
+    await cache.set(token_cache_key, vk_user_id, ex=300)
+    return vk_user_id
+
+
+async def get_current_user(
+    vk_user_id: int = Depends(get_validated_vk_id),
+    db: AsyncSession = Depends(get_db),
+    cache: redis.Redis = Depends(get_redis),
+) -> Dict:
+    """
+    Возвращает полный профиль пользователя из БД.
+    Если пользователя нет в БД - 404 (кроме эндпоинтов регистрации).
+    """
     cache_key = f"user_profile:{vk_user_id}"
     cached_user_str = await cache.get(cache_key)
+
     if cached_user_str:
-        logger.trace(f"User {vk_user_id} found in profile cache.")
+        logger.trace(f"User {vk_user_id} profile found in cache.")
         return json.loads(cached_user_str)
 
-    logger.trace(f"User {vk_user_id} not in profile cache. Fetching from DB.")
+    logger.trace(f"User {vk_user_id} fetching from DB.")
 
     result = await expert_crud.get_full_user_profile_with_stats(db, vk_id=vk_user_id)
 
@@ -107,11 +131,11 @@ async def get_current_user(
 
     user, profile, stats_dict, my_votes_stats_dict = result
 
-    response_data = expert_schemas.UserAdminRead.model_validate(
+    response_data = expert_schemas.UserPrivateRead.model_validate(
         user, from_attributes=True
     )
 
-    response_data.stats = expert_schemas.Stats(**stats_dict)
+    response_data.stats = expert_schemas.StatsPrivate(**stats_dict)
     response_data.my_votes_stats = expert_schemas.MyVotesStats(**my_votes_stats_dict)
     response_data.is_admin = user.is_admin or (user.vk_id == settings.ADMIN_ID)
 
@@ -131,8 +155,6 @@ async def get_current_user(
     current_user_dict = response_data.model_dump(mode="json")
 
     await cache.set(cache_key, json.dumps(current_user_dict), ex=3600)
-    logger.trace(f"User {vk_user_id} data has been cached.")
-
     return current_user_dict
 
 

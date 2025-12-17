@@ -762,23 +762,30 @@ export const App = () => {
         voter_vk_id: currentUser?.vk_id,
         ...voteData,
       });
+
+      // Сначала убираем спиннер
+      setPopout(null);
+
+      // Потом закрываем модалку
       setActiveModal(null);
+
+      // И только потом показываем снекбар
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
           Ваш голос учтен!
         </Snackbar>,
       );
+
       await queryClient.invalidateQueries({
         queryKey: ["expertProfile", String(expertForVote.vk_id)],
       });
     } catch (err) {
+      setPopout(null); // Убираем спиннер при ошибке
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
           {(err as Error).message}
         </Snackbar>,
       );
-    } finally {
-      setPopout(null);
     }
   };
 
@@ -787,7 +794,10 @@ export const App = () => {
     setPopout(<Spinner size="xl" />);
     try {
       await apiDelete(`/experts/${expertForVote.vk_id}/vote`);
+
+      setPopout(null);
       setActiveModal(null);
+
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
           Ваш голос отменен.
@@ -797,13 +807,12 @@ export const App = () => {
         queryKey: ["expertProfile", String(expertForVote.vk_id)],
       });
     } catch (err) {
+      setPopout(null);
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
           {(err as Error).message}
         </Snackbar>,
       );
-    } finally {
-      setPopout(null);
     }
   };
 

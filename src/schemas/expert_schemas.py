@@ -5,14 +5,17 @@ from pydantic import BaseModel, Field, HttpUrl, field_validator
 from src.schemas.base_schemas import VotedExpertInfo
 
 
-class Stats(BaseModel):
+class StatsPublic(BaseModel):
     expert: int = 0
+    community: int = 0
+    events_count: int = 0
+
+
+class StatsPrivate(StatsPublic):
     expert_trust: int = 0
     expert_distrust: int = 0
-    community: int = 0
     community_trust: int = 0
     community_distrust: int = 0
-    events_count: int = 0
 
 
 class UserBase(BaseModel):
@@ -20,7 +23,6 @@ class UserBase(BaseModel):
     first_name: str
     last_name: str
     photo_url: str
-    email: Optional[str] = None
 
 
 class UserCreate(UserBase):
@@ -41,21 +43,29 @@ class UserVoteInfo(BaseModel):
     comment: Optional[str] = None
 
 
-class UserAdminRead(UserBase):
-    registration_date: datetime
+class UserPublicRead(UserBase):
     is_expert: bool
-    is_admin: bool
     status: Optional[str] = None
-    stats: Stats = Field(default_factory=Stats)
-    my_votes_stats: MyVotesStats = Field(default_factory=MyVotesStats)
+    stats: StatsPublic = Field(default_factory=StatsPublic)
     topics: List[str] = []
     show_community_rating: bool = True
     regalia: Optional[str] = None
     social_link: Optional[str] = None
     tariff_plan: Optional[str] = "Начальный"
     current_user_vote_info: Optional[UserVoteInfo] = None
+
+    class Config:
+        from_attributes = True
+
+
+class UserPrivateRead(UserPublicRead):
+    registration_date: datetime
+    is_admin: bool
+    email: Optional[str] = None
     allow_notifications: bool = True
     allow_expert_mailings: bool = True
+    my_votes_stats: MyVotesStats = Field(default_factory=MyVotesStats)
+    stats: StatsPrivate = Field(default_factory=StatsPrivate)
 
     class Config:
         from_attributes = True
@@ -88,7 +98,7 @@ class ExpertProfileBase(BaseModel):
         field_name = info.field_name
 
         if field_name == "social_link":
-            allowed_hosts = ["vk.com", "vk.ru", "ok.ru", "rutube.ru", "dzen.ru"]
+            allowed_hosts = ["vk.com", "vk.ru", "ok.ru", "rutube.ru", "dzen.ru", "t.me"]
         elif field_name == "performance_link":
             allowed_hosts = [
                 "disk.yandex.ru",
@@ -127,7 +137,6 @@ class ExpertRequestRead(BaseModel):
 
 
 class CommunityVoteCreate(BaseModel):
-    voter_vk_id: int
     vote_type: str
     comment_positive: Optional[str] = None
     comment_negative: Optional[str] = None
@@ -140,29 +149,31 @@ class UserSettingsUpdate(BaseModel):
 
 
 class PaginatedUsersResponse(BaseModel):
-    items: List[UserAdminRead]
+    items: List[UserPublicRead]
+    total_count: int
+    page: int
+    size: int
+
+
+class PaginatedAdminUsersResponse(BaseModel):
+    items: List[UserPrivateRead]
     total_count: int
     page: int
     size: int
 
 
 class ExpertProfileUpdate(BaseModel):
-    """Данные, которые эксперт может отправить на обновление"""
-
     region: str
     social_link: HttpUrl
     regalia: str = Field(..., max_length=500)
 
 
 class ExpertUpdateRequestRead(BaseModel):
-    """Отображение заявки для админа"""
-
     id: int
     expert_vk_id: int
     new_data: Dict[str, Any]
     status: str
     created_at: datetime
-
     expert_info: Optional[ExpertRequestRead] = None
 
     class Config:

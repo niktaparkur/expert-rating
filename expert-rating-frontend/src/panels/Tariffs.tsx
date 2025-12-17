@@ -23,7 +23,6 @@ import {
   Spinner,
   FormLayoutGroup,
   PanelHeaderBack,
-  usePlatform,
 } from "@vkontakte/vkui";
 import { Icon16HelpOutline, Icon24CheckCircleOn } from "@vkontakte/icons";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
@@ -295,8 +294,6 @@ interface TariffsProps {
 }
 
 export const Tariffs = ({ id }: TariffsProps) => {
-  const platform = usePlatform();
-  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const routeNavigator = useRouteNavigator();
   const { viewWidth } = useAdaptivity();
   const { apiPost, apiPut } = useApi();
@@ -371,7 +368,9 @@ export const Tariffs = ({ id }: TariffsProps) => {
 
     try {
       if (user.email !== email) {
-        const updatedUser = await apiPut<UserData>("/users/me/email", { email });
+        const updatedUser = await apiPut<UserData>("/users/me/email", {
+          email,
+        });
         setCurrentUser(updatedUser);
       }
 
@@ -385,25 +384,35 @@ export const Tariffs = ({ id }: TariffsProps) => {
         payload,
       );
 
-      const confirmationUrl = response.confirmation_url;
-      if (!confirmationUrl) {
+      if (!response.confirmation_url) {
         throw new Error("Не удалось получить ссылку на оплату.");
       }
 
+      window.open(response.confirmation_url, "_blank");
+
       setPopout(null);
 
-      const isDesktopPlatform = platform === "vkcom";
-      if (isDesktopPlatform) {
-        setPaymentUrl(confirmationUrl);
-      } else {
-        window.open(confirmationUrl, "_blank");
-        setSnackbar(
-          <Snackbar duration={5000} onClose={() => setSnackbar(null)}>
-            После успешной оплаты тариф будет обновлен. Уведомление придет в
-            личные сообщения.
-          </Snackbar>,
-        );
-      }
+      setSnackbar(
+        <Snackbar
+          onClose={() => setSnackbar(null)}
+          duration={10000}
+          after={
+            <div
+              onClick={() => setSnackbar(null)}
+              style={{
+                color: "var(--vkui--color_text_accent)",
+                cursor: "pointer",
+                padding: "0 10px",
+              }}
+            >
+              Скрыть
+            </div>
+          }
+        >
+          После успешной оплаты тариф будет обновлен. Уведомление придет в
+          личные сообщения ВКонтакте.
+        </Snackbar>,
+      );
     } catch (error: any) {
       setPopout(null);
       setSnackbar(
@@ -413,10 +422,6 @@ export const Tariffs = ({ id }: TariffsProps) => {
       );
     }
   };
-
-  useEffect(() => {
-    setPaymentUrl(null);
-  }, [selectedTariff, promoResult]);
 
   const handleRegister = () => routeNavigator.push("/registration");
   const getCurrentTariffName = () => user?.tariff_plan || "Начальный";
