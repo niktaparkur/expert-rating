@@ -351,81 +351,75 @@ export const Tariffs = ({ id }: TariffsProps) => {
     }
   };
 
-  const handleInitiatePayment = async () => {
-    // 1. Валидация email перед отправкой
-    if (!email || !EMAIL_REGEX.test(email)) {
-      setEmailError("Пожалуйста, введите корректный email.");
-      return;
+const handleInitiatePayment = async () => {
+  if (!email || !EMAIL_REGEX.test(email)) {
+    setEmailError("Пожалуйста, введите корректный email.");
+    return;
+  }
+  setEmailError(null);
+
+  if (!selectedTariff || !user) {
+    setSnackbar(
+      <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+        Ошибка: не выбраны тариф или пользователь.
+      </Snackbar>,
+    );
+    return;
+  }
+
+  setPopout(<Spinner size="xl" />);
+
+  try {
+    if (user.email !== email) {
+      const updatedUser = await apiPut<UserData>("/users/me/email", { email });
+      setCurrentUser(updatedUser);
     }
-    setEmailError(null);
 
-    // Если URL уже есть (для десктопа), не делаем новый запрос
-    if (paymentUrl) return;
+    const payload = {
+      tariff_id: selectedTariff.id,
+      promo_code: promoResult ? promoCode : undefined,
+    };
 
-    if (!selectedTariff || !user) {
+    const response = await apiPost<{ confirmation_url: string }>(
+      "/payment/yookassa/create-payment",
+      payload,
+    );
+
+    if (!response.confirmation_url) {
+      throw new Error("Не удалось получить ссылку на оплату.");
+    }
+
+    window.open(response.confirmation_url, "_blank");
+
+    setPopout(null);
+
       setSnackbar(
-        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
-          Ошибка: не выбраны тариф или пользователь.
+        <Snackbar
+          onClose={() => setSnackbar(null)}
+          duration={10000}
+          after={
+            <div
+              onClick={() => setSnackbar(null)}
+              style={{ color: 'var(--vkui--color_text_accent)', cursor: 'pointer', padding: '0 10px' }}
+            >
+              Скрыть
+            </div>
+          }
+        >
+          После успешной оплаты тариф будет обновлен. Уведомление придет в
+          личные сообщения ВКонтакте.
         </Snackbar>,
       );
-      return;
-    }
 
-    setPopout(<Spinner size="xl" />);
-
-    try {
-      // 2. Если email в форме отличается от того, что в сторе, обновляем его на сервере
-      if (user.email !== email) {
-        const updatedUser = await apiPut<UserData>("/users/me/email", {
-          email,
-        });
-        // Обновляем глобальное состояние пользователя свежими данными с сервера
-        setCurrentUser(updatedUser);
-      }
-
-      const finalPrice = promoResult
-        ? promoResult.final_price
-        : selectedTariff.price_votes;
-
-      // 3. Создаем платеж в ЮKassa
-      const response = await apiPost<{ confirmation_url: string }>(
-        "/payment/yookassa/create-payment",
-        {
-          tariff_id: selectedTariff.id,
-          final_price: finalPrice,
-        },
-      );
-
-      const confirmationUrl = response.confirmation_url;
-      if (!confirmationUrl) {
-        throw new Error("Не удалось получить ссылку на оплату.");
-      }
-
-      setPopout(null);
-
-      // 4. Адаптивно открываем ссылку
-      const isDesktopPlatform = platform === "vkcom";
-
-      if (isDesktopPlatform) {
-        setPaymentUrl(confirmationUrl);
-      } else {
-        window.open(confirmationUrl, "_blank");
-        setSnackbar(
-          <Snackbar duration={5000} onClose={() => setSnackbar(null)}>
-            После успешной оплаты тариф будет обновлен. Уведомление придет в
-            личные сообщения.
-          </Snackbar>,
-        );
-      }
-    } catch (error: any) {
-      setPopout(null);
-      setSnackbar(
-        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
-          {error.message || "Ошибка подготовки платежа."}
-        </Snackbar>,
-      );
-    }
-  };
+  } catch (error: any) {
+    setPopout(null);
+    setSnackbar(
+      <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+        {error.message || "Ошибка подготовки платежа."}
+      </Snackbar>,
+    );
+  }
+};
 
   useEffect(() => {
     setPaymentUrl(null);

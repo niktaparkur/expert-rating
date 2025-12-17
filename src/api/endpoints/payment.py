@@ -213,7 +213,6 @@ async def create_report_payment(
         raise HTTPException(status_code=500, detail="Ошибка при создании платежа.")
 
 
-# --- ПОЛНОСТЬЮ ПЕРЕРАБОТАННАЯ ФУНКЦИЯ ---
 @router.post("/yookassa/create-payment")
 async def create_yookassa_payment(
     payment_data: payment_schemas.YooKassaPaymentCreate,
