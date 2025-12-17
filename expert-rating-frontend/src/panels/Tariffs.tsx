@@ -23,7 +23,6 @@ import {
   Spinner,
   FormLayoutGroup,
   PanelHeaderBack,
-  usePlatform,
 } from "@vkontakte/vkui";
 import { Icon16HelpOutline, Icon24CheckCircleOn } from "@vkontakte/icons";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
@@ -295,8 +294,6 @@ interface TariffsProps {
 }
 
 export const Tariffs = ({ id }: TariffsProps) => {
-  const platform = usePlatform();
-  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const routeNavigator = useRouteNavigator();
   const { viewWidth } = useAdaptivity();
   const { apiPost, apiPut } = useApi();
@@ -351,47 +348,49 @@ export const Tariffs = ({ id }: TariffsProps) => {
     }
   };
 
-const handleInitiatePayment = async () => {
-  if (!email || !EMAIL_REGEX.test(email)) {
-    setEmailError("Пожалуйста, введите корректный email.");
-    return;
-  }
-  setEmailError(null);
+  const handleInitiatePayment = async () => {
+    if (!email || !EMAIL_REGEX.test(email)) {
+      setEmailError("Пожалуйста, введите корректный email.");
+      return;
+    }
+    setEmailError(null);
 
-  if (!selectedTariff || !user) {
-    setSnackbar(
-      <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
-        Ошибка: не выбраны тариф или пользователь.
-      </Snackbar>,
-    );
-    return;
-  }
-
-  setPopout(<Spinner size="xl" />);
-
-  try {
-    if (user.email !== email) {
-      const updatedUser = await apiPut<UserData>("/users/me/email", { email });
-      setCurrentUser(updatedUser);
+    if (!selectedTariff || !user) {
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+          Ошибка: не выбраны тариф или пользователь.
+        </Snackbar>,
+      );
+      return;
     }
 
-    const payload = {
-      tariff_id: selectedTariff.id,
-      promo_code: promoResult ? promoCode : undefined,
-    };
+    setPopout(<Spinner size="xl" />);
 
-    const response = await apiPost<{ confirmation_url: string }>(
-      "/payment/yookassa/create-payment",
-      payload,
-    );
+    try {
+      if (user.email !== email) {
+        const updatedUser = await apiPut<UserData>("/users/me/email", {
+          email,
+        });
+        setCurrentUser(updatedUser);
+      }
 
-    if (!response.confirmation_url) {
-      throw new Error("Не удалось получить ссылку на оплату.");
-    }
+      const payload = {
+        tariff_id: selectedTariff.id,
+        promo_code: promoResult ? promoCode : undefined,
+      };
 
-    window.open(response.confirmation_url, "_blank");
+      const response = await apiPost<{ confirmation_url: string }>(
+        "/payment/yookassa/create-payment",
+        payload,
+      );
 
-    setPopout(null);
+      if (!response.confirmation_url) {
+        throw new Error("Не удалось получить ссылку на оплату.");
+      }
+
+      window.open(response.confirmation_url, "_blank");
+
+      setPopout(null);
 
       setSnackbar(
         <Snackbar
@@ -400,7 +399,11 @@ const handleInitiatePayment = async () => {
           after={
             <div
               onClick={() => setSnackbar(null)}
-              style={{ color: 'var(--vkui--color_text_accent)', cursor: 'pointer', padding: '0 10px' }}
+              style={{
+                color: "var(--vkui--color_text_accent)",
+                cursor: "pointer",
+                padding: "0 10px",
+              }}
             >
               Скрыть
             </div>
@@ -410,20 +413,15 @@ const handleInitiatePayment = async () => {
           личные сообщения ВКонтакте.
         </Snackbar>,
       );
-
-  } catch (error: any) {
-    setPopout(null);
-    setSnackbar(
-      <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
-        {error.message || "Ошибка подготовки платежа."}
-      </Snackbar>,
-    );
-  }
-};
-
-  useEffect(() => {
-    setPaymentUrl(null);
-  }, [selectedTariff, promoResult]);
+    } catch (error: any) {
+      setPopout(null);
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+          {error.message || "Ошибка подготовки платежа."}
+        </Snackbar>,
+      );
+    }
+  };
 
   const handleRegister = () => routeNavigator.push("/registration");
   const getCurrentTariffName = () => user?.tariff_plan || "Начальный";
