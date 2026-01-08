@@ -320,7 +320,7 @@ export const Profile = ({
           onSettingsClick={() => setActiveModal("profile-settings-modal")}
           onWithdraw={() => {}}
           isWithdrawLoading={isWithdrawLoading}
-          onEditClick={() => setActiveModal("edit-regalia-modal")} // Добавляем обработчик
+          onEditClick={() => setActiveModal("edit-regalia-modal")}
         />
         <TabbedGroup
           tabs={tabsConfig}

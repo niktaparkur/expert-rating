@@ -59,7 +59,6 @@ async def validate_and_get_promo_code(
         f"User '{user_vk_id}' activations for '{promo.code}': {user_activations_count}. Limit: {promo.user_activations_limit}."
     )
 
-    # ИСПРАВЛЕНИЕ: Добавляем проверку, что лимит больше нуля
     if (
         promo.user_activations_limit > 0
         and user_activations_count >= promo.user_activations_limit
@@ -84,7 +83,6 @@ async def log_promo_activation(db: AsyncSession, promo_code_id: int, user_vk_id:
 async def create_promo_code(
     db: AsyncSession, promo_data: promo_schemas.PromoCodeCreate
 ) -> PromoCode:
-    # Проверяем на существование кода без учета статуса и срока действия
     existing_code_res = await db.execute(
         select(PromoCode).where(PromoCode.code == promo_data.code.upper())
     )

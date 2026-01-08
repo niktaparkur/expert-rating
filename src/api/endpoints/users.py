@@ -34,7 +34,6 @@ async def update_user_email(
     db: AsyncSession = Depends(get_db),
     cache: redis.Redis = Depends(get_redis),
 ):
-    """Обновляет email текущего пользователя."""
     vk_id = current_user["vk_id"]
     email_to_update = email_data.get("email")
 
@@ -42,36 +41,30 @@ async def update_user_email(
         raise HTTPException(status_code=400, detail="Email field is required.")
 
     try:
-        # 1. Валидация формата email с помощью Pydantic
         email_validator = TypeAdapter(EmailStr)
         validated_email = email_validator.validate_python(email_to_update)
 
-        # 2. Обновление email в базе данных
         updated_user = await expert_crud.update_user_email(
             db, vk_id=vk_id, email=validated_email
         )
         if not updated_user:
             raise HTTPException(status_code=404, detail="User not found.")
 
-        # 3. Инвалидация кэша профиля пользователя
         await cache.delete(f"user_profile:{vk_id}")
 
-        # 4. Получение полного, обновленного профиля для возврата на фронтенд
         result = await expert_crud.get_full_user_profile_with_stats(db, vk_id=vk_id)
         if not result:
-            # Эта ситуация маловероятна, но лучше ее обработать
             raise HTTPException(
                 status_code=404, detail="User disappeared after update."
             )
 
         user, profile, stats_dict, my_votes_stats_dict = result
 
-        # 5. Сборка объекта ответа (аналогично get_current_user и другим эндпоинтам)
         response_data = UserPrivateRead.model_validate(user, from_attributes=True)
         response_data.stats = stats_dict
         response_data.my_votes_stats = my_votes_stats_dict
         response_data.is_admin = user.is_admin or (user.vk_id == settings.ADMIN_ID)
-        response_data.email = user.email  # Убедимся, что email включен
+        response_data.email = user.email
 
         if profile:
             response_data.is_expert = profile.status == "approved"
@@ -93,10 +86,8 @@ async def update_user_email(
     except ValueError:
         raise HTTPException(status_code=400, detail="Некорректный формат email.")
     except Exception as e:
-        # Обработка ошибки уникальности (специфично для MySQL)
         if "Duplicate entry" in str(e) and "for key 'email'" in str(e):
             raise HTTPException(status_code=409, detail="Этот email уже используется.")
-        # Логирование для других непредвиденных ошибок
         logger.error(f"Failed to update email for user {vk_id}: {e}")
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
@@ -108,7 +99,6 @@ async def update_user_regalia(
     db: AsyncSession = Depends(get_db),
     cache: redis.Redis = Depends(get_redis),
 ):
-    """Обновляет поле 'О себе' текущего пользователя."""
     vk_id = current_user["vk_id"]
     if not current_user.get("is_expert"):
         raise HTTPException(
@@ -122,10 +112,8 @@ async def update_user_regalia(
         if not success:
             raise HTTPException(status_code=404, detail="User profile not found.")
 
-        # Инвалидация кэша
         await cache.delete(f"user_profile:{vk_id}")
 
-        # Возврат обновленного профиля
         result = await expert_crud.get_full_user_profile_with_stats(db, vk_id=vk_id)
         if not result:
             raise HTTPException(status_code=404, detail="User disappeared.")
@@ -166,7 +154,6 @@ async def register_new_user(
     db: AsyncSession = Depends(get_db),
     vk_id_from_token: int = Depends(get_validated_vk_id),
 ):
-    """Регистрирует нового пользователя в системе."""
     try:
         user_data.vk_id = vk_id_from_token
 
@@ -183,7 +170,6 @@ async def get_my_votes(
     current_user: Dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Возвращает список всех голосов, отданных текущим пользователем."""
     vk_id = current_user["vk_id"]
     votes_from_db = await expert_crud.get_user_votes(db, vk_id=vk_id)
 
@@ -228,7 +214,6 @@ async def update_user_settings(
     db: AsyncSession = Depends(get_db),
     cache: redis.Redis = Depends(get_redis),
 ):
-    """Обновляет настройки текущего пользователя."""
     vk_id = current_user["vk_id"]
     try:
         await expert_crud.update_user_settings(

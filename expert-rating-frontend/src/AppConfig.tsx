@@ -26,7 +26,7 @@ export const AppConfig = () => {
   const currentUrl = new URL(window.location.href);
   const vkPlatform = currentUrl.searchParams.get("vk_platform");
 
-  let platform = "android"; // Fallback по умолчанию
+  let platform = "android";
   if (vkPlatform === "desktop_web") {
     platform = "vkcom";
   } else if (
@@ -40,13 +40,12 @@ export const AppConfig = () => {
   ) {
     platform = "android";
   }
-  // --- FIX END ---
 
   return (
     <ConfigProvider
       colorScheme={colorScheme}
       isWebView={vkBridge.isWebView()}
-      platform={platform as "android" | "ios" | "vkcom"} // Явно передаем платформу
+      platform={platform as "android" | "ios" | "vkcom"}
     >
       <AdaptivityProvider {...adaptivity}>
         <AppRoot mode="full" safeAreaInsets={vkBridgeInsets}>

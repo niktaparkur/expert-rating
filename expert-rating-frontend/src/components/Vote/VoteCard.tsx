@@ -62,9 +62,7 @@ export const VoteCard: React.FC<VoteCardProps> = ({
   const handleCancel = async () => {
     try {
       await onCancelVote();
-    } catch (error) {
-      // Error handling is in the parent component
-    }
+    } catch (error) {}
   };
 
   const isSubmitDisabled = !voteType || !comment.trim();

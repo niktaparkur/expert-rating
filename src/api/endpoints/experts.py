@@ -16,6 +16,8 @@ from src.core.dependencies import (
 from src.crud import expert_crud
 from src.schemas import expert_schemas
 from src.services.notifier import Notifier
+from sqlalchemy.exc import IntegrityError
+from redis.exceptions import LockError
 
 router = APIRouter(prefix="/experts", tags=["Experts"])
 
@@ -62,12 +64,10 @@ async def get_top_experts(
     )
     response_users = []
     for user, profile, stats_dict, topics in experts_data:
-        # --- ИСПРАВЛЕНИЕ: UserPublicRead вместо UserAdminRead ---
         user_data = expert_schemas.UserPublicRead.model_validate(
             user, from_attributes=True
         )
         user_data.status = profile.status
-        # --- ИСПРАВЛЕНИЕ: StatsPublic вместо Stats ---
         user_data.stats = expert_schemas.StatsPublic(**stats_dict)
         user_data.topics = topics
         user_data.show_community_rating = profile.show_community_rating
@@ -94,11 +94,9 @@ async def get_expert_profile(
         raise HTTPException(status_code=404, detail="Expert not found")
     user, profile, stats_dict, my_votes_stats_dict = result
 
-    # --- ИСПРАВЛЕНИЕ: UserPublicRead ---
     response_data = expert_schemas.UserPublicRead.model_validate(
         user, from_attributes=True
     )
-    # --- ИСПРАВЛЕНИЕ: StatsPublic ---
     response_data.stats = expert_schemas.StatsPublic(**stats_dict)
 
     response_data.tariff_plan = profile.tariff_plan if profile else "Начальный"
@@ -119,38 +117,51 @@ async def get_expert_profile(
 
 @router.post("/{vk_id}/vote", status_code=201)
 async def create_vote_for_expert(
-    vk_id: int,
-    vote_data: expert_schemas.CommunityVoteCreate,
-    db: AsyncSession = Depends(get_db),
-    cache: redis.Redis = Depends(get_redis),
-    notifier: Notifier = Depends(get_notifier),
-    voter_id: int = Depends(get_validated_vk_id),
+        vk_id: int,
+        vote_data: expert_schemas.CommunityVoteCreate,
+        db: AsyncSession = Depends(get_db),
+        cache: redis.Redis = Depends(get_redis),
+        notifier: Notifier = Depends(get_notifier),
+        voter_id: int = Depends(get_validated_vk_id),
 ):
     if vk_id == voter_id:
         raise HTTPException(status_code=400, detail="Вы не можете голосовать за себя.")
 
     is_comment_missing = (
-        vote_data.vote_type == "trust" and not vote_data.comment_positive
-    ) or (vote_data.vote_type == "distrust" and not vote_data.comment_negative)
+                                 vote_data.vote_type == "trust" and not vote_data.comment_positive
+                         ) or (vote_data.vote_type == "distrust" and not vote_data.comment_negative)
     if is_comment_missing:
         raise HTTPException(
             status_code=400,
             detail="Комментарий является обязательным для этого действия.",
         )
 
+    lock_key = f"lock:vote:community:{voter_id}:{vk_id}"
+
+
     try:
-        await expert_crud.create_community_vote(
-            db=db,
-            expert_vk_id=vk_id,
-            vote_data=vote_data,
-            voter_vk_id=voter_id,
-            notifier=notifier,
-        )
-        await cache.delete(f"user_profile:{vk_id}")
-        await cache.delete(f"user_profile:{voter_id}")
-        return {"status": "ok", "message": "Your vote has been processed."}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        async with cache.lock(lock_key, timeout=5, blocking_timeout=2):
+            try:
+                await expert_crud.create_community_vote(
+                    db=db,
+                    expert_vk_id=vk_id,
+                    vote_data=vote_data,
+                    voter_vk_id=voter_id,
+                    notifier=notifier,
+                )
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            except IntegrityError:
+                await db.rollback()
+                raise HTTPException(status_code=409, detail="Вы уже проголосовали за этого эксперта.")
+
+            await cache.delete(f"user_profile:{vk_id}")
+            await cache.delete(f"user_profile:{voter_id}")
+
+            return {"status": "ok", "message": "Your vote has been processed."}
+
+    except LockError:
+        raise HTTPException(status_code=429, detail="Слишком много запросов. Попробуйте позже.")
 
 
 @router.delete("/{vk_id}/vote", status_code=200)
@@ -222,7 +233,6 @@ async def get_pending_experts(db: AsyncSession = Depends(get_db)):
 
 @router.get(
     "/admin/all_users",
-    # --- ИСПРАВЛЕНИЕ: PaginatedAdminUsersResponse для приватных данных ---
     response_model=expert_schemas.PaginatedAdminUsersResponse,
     dependencies=[Depends(get_current_admin_user)],
 )
@@ -244,7 +254,6 @@ async def get_all_users(
     )
     response_users = []
     for user, profile in users_with_profiles:
-        # --- ИСПРАВЛЕНИЕ: UserPrivateRead для админов ---
         user_data = expert_schemas.UserPrivateRead.model_validate(
             user, from_attributes=True
         )
@@ -388,7 +397,7 @@ async def get_profile_updates(db: AsyncSession = Depends(get_db)):
 @router.post("/admin/updates/{request_id}/{action}")
 async def moderate_update_request(
     request_id: int,
-    action: str,  # approve / reject
+    action: str,
     db: AsyncSession = Depends(get_db),
     notifier: Notifier = Depends(get_notifier),
     cache: redis.Redis = Depends(get_redis),

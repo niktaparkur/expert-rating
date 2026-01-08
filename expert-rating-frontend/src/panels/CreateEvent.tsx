@@ -68,6 +68,7 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [durationError, setDurationError] = useState<string | null>(null);
+  const [dateError, setDateError] = useState<string | null>(null);
 
   const TARIFF_LIMITS: { [key: string]: number } = {
     Начальный: 60,
@@ -120,16 +121,19 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
   );
 
   useEffect(() => {
-    checkAvailability(
-      formData.promo_word,
-      formData.event_date,
-      formData.duration_minutes,
-    );
+    if (!dateError) {
+      checkAvailability(
+        formData.promo_word,
+        formData.event_date,
+        formData.duration_minutes,
+      );
+    }
   }, [
     formData.promo_word,
     formData.event_date,
     formData.duration_minutes,
     checkAvailability,
+    dateError,
   ]);
 
   const handleChange = (
@@ -156,10 +160,22 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
   };
 
   const handleDateChange = (date: Date | null | undefined) => {
-    if (date && date < new Date()) {
+    if (!date) {
+      setFormData((prev) => ({ ...prev, event_date: null }));
+      setDateError(null);
       return;
     }
-    setFormData((prev) => ({ ...prev, event_date: date || null }));
+
+    const now = new Date();
+    if (date < now) {
+      setDateError(
+        "Выбранное время уже прошло. Пожалуйста, выберите будущее время.",
+      );
+    } else {
+      setDateError(null);
+    }
+
+    setFormData((prev) => ({ ...prev, event_date: date }));
   };
 
   const setDuration = (minutes: string) => {
@@ -172,7 +188,8 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
     if (
       isSubmitting ||
       availabilityStatus !== "available" ||
-      !formData.event_date
+      !formData.event_date ||
+      !!dateError
     )
       return;
 
@@ -203,6 +220,7 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
 
   const getAvailabilityBottomText = () => {
     if (!formData.event_date) return "Сначала выберите дату и время начала.";
+    if (dateError) return null;
     if (isCheckingAvailability) return "Проверка...";
     if (availabilityStatus === "invalid")
       return "Минимум 4 символа (кириллица, латиница, цифры).";
@@ -271,7 +289,8 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
           <FormItem
             top="Дата и время начала"
             required
-            status={isTimeConflict ? "error" : "default"}
+            status={isTimeConflict || dateError ? "error" : "default"}
+            bottom={dateError}
           >
             <DateInput
               value={formData.event_date}
@@ -297,7 +316,7 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
                 name="promo_word"
                 value={formData.promo_word}
                 onChange={handleChange}
-                disabled={!formData.event_date}
+                disabled={!formData.event_date || !!dateError}
               />
             </FormField>
           </FormItem>
@@ -452,6 +471,7 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
               availabilityStatus !== "available" ||
               !formData.event_date ||
               !!durationError ||
+              !!dateError ||
               parseInt(formData.duration_minutes) < 1
             }
           >

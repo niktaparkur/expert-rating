@@ -1,5 +1,3 @@
-# src/crud/mailing_crud.py
-
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import and_, func
@@ -7,7 +5,6 @@ from sqlalchemy import and_, func
 from src.models.all_models import Mailings, Vote
 from src.schemas import mailing_schemas
 
-# Лимиты тарифов (дублируем для CRUD)
 TARIFF_MAILING_LIMITS = {"Начальный": 1, "Стандарт": 2, "Профи": 4}
 
 
@@ -17,10 +14,8 @@ async def create_mailing_request(
     mailing_data: mailing_schemas.MailingCreate,
     user_tariff: str,
 ) -> Mailings:
-    # 1. Проверка лимита по тарифу
     limit = TARIFF_MAILING_LIMITS.get(user_tariff, 1)
 
-    # Считаем количество уже созданных (не отклоненных) рассылок в этом месяце
     query = select(func.count(Mailings.id)).where(
         and_(
             Mailings.expert_vk_id == expert_id,
@@ -37,7 +32,6 @@ async def create_mailing_request(
             f"Превышен лимит рассылок для вашего тарифа ({current_mailings_count}/{limit} в этом месяце)."
         )
 
-    # 2. Создание объекта рассылки
     new_mailing = Mailings(
         expert_vk_id=expert_id, message=mailing_data.message, status="pending"
     )
@@ -75,7 +69,6 @@ async def update_mailing_status(
 
 
 async def get_trust_voters_for_expert(db: AsyncSession, expert_id: int) -> list[int]:
-    """Возвращает список VK ID пользователей, проголосовавших 'trust' за эксперта."""
     query = (
         select(Vote.voter_vk_id)
         .where(and_(Vote.expert_vk_id == expert_id, Vote.vote_type == "trust"))

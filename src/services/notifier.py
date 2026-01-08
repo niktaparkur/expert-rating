@@ -54,7 +54,6 @@ class Notifier:
         return None
 
     async def is_messages_allowed(self, user_id: int) -> bool:
-        """Проверяет, разрешил ли пользователь отправку сообщений от сообщества."""
         if not self.client or not self.token:
             return False
 
@@ -90,7 +89,6 @@ class Notifier:
         if not self.client:
             return
         try:
-            # 1. Получаем URL для загрузки
             upload_server_info = await self._call_api(
                 "docs.getMessagesUploadServer", {"type": "doc", "peer_id": user_id}
             )
@@ -98,7 +96,6 @@ class Notifier:
                 raise Exception("Failed to get VK upload URL.")
             upload_url = upload_server_info["upload_url"]
 
-            # 2. Загружаем файл на сервер
             with open(file_path, "rb") as f:
                 upload_response = await self.client.post(
                     upload_url,
@@ -111,7 +108,6 @@ class Notifier:
                     f"Failed to upload file to VK server. Response: {upload_result}"
                 )
 
-            # 3. Сохраняем документ
             saved_doc_info = await self._call_api(
                 "docs.save",
                 {"file": upload_result["file"], "title": os.path.basename(file_path)},
@@ -125,7 +121,6 @@ class Notifier:
             doc = saved_doc_info["doc"]
             doc_attachment = f"doc{doc['owner_id']}_{doc['id']}"
 
-            # 4. Отправляем сообщение с вложением
             await self.send_message(user_id, message, attachment=doc_attachment)
             print(f"Successfully sent document to user {user_id}")
 

@@ -226,11 +226,10 @@ class ExpertUpdateRequest(Base):
         ForeignKey("ExpertProfiles.user_vk_id", ondelete="CASCADE"),
         nullable=False,
     )
-    # Храним новые данные в JSON формате: {"regalia": "...", "region": "..."}
     new_data = Column(JSON, nullable=False)
 
     status = Column(Enum("pending", "approved", "rejected"), default="pending")
-    admin_comment = Column(Text, nullable=True)  # Причина отказа
+    admin_comment = Column(Text, nullable=True)
 
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 

@@ -1,11 +1,11 @@
 .expert-card-container {
-  padding: 8px; /* Уменьшено с 12px */
+  padding: 8px;
 }
 
 .expert-card-main {
   display: flex;
   align-items: center;
-  gap: 8px; /* Уменьшено с 12px */
+  gap: 8px;
   width: 100%;
 }
 
@@ -31,7 +31,7 @@
 }
 
 .expert-name {
-  margin-bottom: 0px; /* Уменьшено */
+  margin-bottom: 0;
   white-space: normal;
   overflow: visible;
   text-overflow: initial;
@@ -41,9 +41,9 @@
 .expert-topics-text {
   font-size: 13px;
   color: var(--vkui--color_text_secondary);
-  line-height: 1.2; /* Уменьшено */
+  line-height: 1.2;
   white-space: normal;
-  margin-top: 2px; /* Немного отступа сверху */
+  margin-top: 2px;
 }
 
 .rating-block {
@@ -56,7 +56,7 @@
 }
 
 .rating-block.double {
-  min-width: 90px; /* Чуть компактнее */
+  min-width: 90px;
 }
 
 .rating-block.single {
@@ -64,13 +64,12 @@
 }
 
 .rating-segment {
-  padding: 4px 6px; /* Уменьшено */
+  padding: 4px 6px;
   flex-grow: 1;
   background-color: var(--vkui--color_background_secondary);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0px; /* Убрали gap */
 }
 
 .rating-separator {
@@ -79,13 +78,12 @@
 }
 
 .rating-value {
-  font-size: 16px; /* Чуть меньше шрифт */
+  font-size: 16px;
   font-weight: 600;
   line-height: 1;
   color: var(--vkui--color_text_primary);
 }
 
-/* --- АДАПТАЦИЯ ДЛЯ МОБИЛЬНЫХ УСТРОЙСТВ --- */
 @media (max-width: 480px) {
   .rating-block.double {
     flex-direction: column;
@@ -101,7 +99,7 @@
 
   .rating-segment svg {
     order: 1;
-    width: 16px; /* Меньше иконка */
+    width: 16px;
     height: 16px;
   }
   .rating-segment .rating-value {

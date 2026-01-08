@@ -12,12 +12,10 @@ import { Icon16Done } from "@vkontakte/icons";
 import bridge from "@vkontakte/vk-bridge";
 import "../css/Onboarding.css";
 
-// --- Типизация входных данных ---
 interface OnboardingProps {
   onFinish: () => void;
 }
 
-// --- Внутренние компоненты-иконки ---
 const IconProfileCheck = () => (
   <div className="onboarding-icon" style={{ backgroundColor: "#4CAF50" }}>
     ✓
@@ -39,12 +37,10 @@ const IconNotifications = () => (
   </div>
 );
 
-// --- Основной компонент ---
 export const Onboarding = ({ onFinish }: OnboardingProps) => {
   const [slideIndex, setSlideIndex] = useState(0);
   const [isPermissionGranted, setIsPermissionGranted] = useState(false);
 
-  // Получаем ID группы из переменных окружения
   const groupId = Number(import.meta.env.VITE_VK_GROUP_ID);
 
   const handleAllowNotifications = async () => {
@@ -60,7 +56,6 @@ export const Onboarding = ({ onFinish }: OnboardingProps) => {
     }
 
     try {
-      // VK Bridge всегда ожидает положительный ID
       const result = await bridge.send("VKWebAppAllowMessagesFromGroup", {
         group_id: Math.abs(groupId),
       });
@@ -90,7 +85,6 @@ export const Onboarding = ({ onFinish }: OnboardingProps) => {
         slideIndex={slideIndex}
         style={{ height: "100%" }}
       >
-        {/* --- Слайд 1 --- */}
         <div className="onboarding-slide">
           <IconProfileCheck />
           <Title level="1">Стань экспертом</Title>
@@ -108,7 +102,6 @@ export const Onboarding = ({ onFinish }: OnboardingProps) => {
           </Text>
         </div>
 
-        {/* --- Слайд 2 --- */}
         <div className="onboarding-slide">
           <IconCalendarPlus />
           <Title level="1">Делись знаниями</Title>
@@ -126,7 +119,6 @@ export const Onboarding = ({ onFinish }: OnboardingProps) => {
           </Text>
         </div>
 
-        {/* --- Слайд 3 --- */}
         <div className="onboarding-slide">
           <IconChartUp />
           <Title level="1">Зарабатывай репутацию</Title>
@@ -144,7 +136,6 @@ export const Onboarding = ({ onFinish }: OnboardingProps) => {
           </Text>
         </div>
 
-        {/* --- Слайд 4 (Уведомления) --- */}
         <div className="onboarding-slide">
           <IconNotifications />
           <Title level="1">Будь в курсе</Title>

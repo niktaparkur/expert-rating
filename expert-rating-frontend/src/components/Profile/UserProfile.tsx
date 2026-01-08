@@ -182,7 +182,6 @@ export const UserProfile = ({
                   marginBottom: 8,
                 }}
               >
-                {/* Экспертный рейтинг */}
                 <Tooltip
                   shown={isDesktop ? undefined : expertTooltipShown}
                   onShownChange={setExpertTooltipShown}
@@ -203,7 +202,6 @@ export const UserProfile = ({
                   </div>
                 </Tooltip>
 
-                {/* Народный рейтинг */}
                 <Tooltip
                   shown={isDesktop ? undefined : communityTooltipShown}
                   onShownChange={setCommunityTooltipShown}
@@ -241,7 +239,6 @@ export const UserProfile = ({
                 </Tooltip>
               </Div>
 
-              {/* Блок "О себе" без кнопки редактирования (она теперь в настройках) */}
               <Div style={{ paddingTop: 4, paddingBottom: 4 }}>
                 <Header style={{ margin: 0 }}>О себе</Header>
               </Div>

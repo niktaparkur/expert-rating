@@ -15,7 +15,6 @@ from src.schemas import event_schemas
 async def check_event_availability(
     db: AsyncSession, promo_word: str, event_date: datetime, duration_minutes: int
 ) -> bool:
-    """Проверяет, доступно ли промо-слово на указанное время."""
     promo_normalized = promo_word.upper().strip()
 
     query = select(Event).where(

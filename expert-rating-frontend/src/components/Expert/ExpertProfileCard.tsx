@@ -85,7 +85,6 @@ export const ExpertProfileCard = ({
     show_community_rating,
   } = expert;
 
-  // ИЗМЕНЕНИЕ: Упрощенные тексты для тултипов (без цифр)
   const communityTooltipText = "Народный рейтинг";
   const expertTooltipText = "Экспертный рейтинг";
 
@@ -120,7 +119,6 @@ export const ExpertProfileCard = ({
       </Div>
 
       <div className="expert-profile-stats">
-        {/* Экспертный рейтинг */}
         <Tooltip
           description={expertTooltipText}
           shown={isDesktop ? undefined : expertTooltipShown}
@@ -136,7 +134,6 @@ export const ExpertProfileCard = ({
           </div>
         </Tooltip>
 
-        {/* Народный рейтинг */}
         {show_community_rating && (
           <Tooltip
             shown={isDesktop ? undefined : ratingTooltipShown}

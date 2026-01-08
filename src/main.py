@@ -61,7 +61,6 @@ notifier_bg = Notifier(token=settings.VK_BOT_TOKEN)
 
 
 async def check_for_reminders():
-    """Задача, которая будет выполняться по расписанию для отправки напоминаний."""
     async with AsyncSessionLocal_bg() as db:
         try:
             events_to_remind = await event_crud.get_events_for_reminding(db)

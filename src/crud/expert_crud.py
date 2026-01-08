@@ -74,7 +74,6 @@ async def get_full_user_profile_with_stats(db: AsyncSession, vk_id: int):
     if not user_profile_tuple:
         return None
 
-    # Народный рейтинг: Trust - Distrust
     community_votes_query = select(
         func.sum(case((Vote.vote_type == "trust", 1), else_=0)).label("trust"),
         func.sum(case((Vote.vote_type == "distrust", 1), else_=0)).label("distrust"),
@@ -89,7 +88,6 @@ async def get_full_user_profile_with_stats(db: AsyncSession, vk_id: int):
     community_distrust = int(community_votes.distrust or 0)
     community_total = community_trust - community_distrust
 
-    # Экспертный рейтинг: Trust - Distrust
     expert_votes_query = select(
         func.sum(case((Vote.vote_type == "trust", 1), else_=0)).label("trust"),
         func.sum(case((Vote.vote_type == "distrust", 1), else_=0)).label("distrust"),
@@ -104,7 +102,6 @@ async def get_full_user_profile_with_stats(db: AsyncSession, vk_id: int):
     expert_distrust = int(expert_votes.distrust or 0)
     expert_total = expert_trust - expert_distrust
 
-    # Количество мероприятий
     events_query = select(func.count(Event.id)).where(
         Event.expert_id == vk_id, Event.status == "approved"
     )
@@ -121,7 +118,6 @@ async def get_full_user_profile_with_stats(db: AsyncSession, vk_id: int):
         "events_count": events_count,
     }
 
-    # "Мои голоса"
     my_votes_query = select(
         func.sum(case((Vote.vote_type == "trust", 1), else_=0)).label("trust"),
         func.sum(case((Vote.vote_type == "distrust", 1), else_=0)).label("distrust"),
@@ -243,7 +239,6 @@ async def get_top_experts_paginated(
     region: Optional[str] = None,
     category_id: Optional[int] = None,
 ):
-    # Рейтинг считается как (лайки - дизлайки)
     expert_rating_subquery = (
         select(
             Vote.expert_vk_id,
@@ -296,7 +291,6 @@ async def get_top_experts_paginated(
     total_count_res = await db.execute(count_query)
     total_count = total_count_res.scalar_one()
 
-    # Сортировка по рейтингу
     paginated_query = (
         base_query.order_by(
             desc(func.coalesce(expert_rating_subquery.c.rating_score, 0))

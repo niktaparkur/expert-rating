@@ -44,11 +44,6 @@ async def get_validated_vk_id(
     authorization: Optional[str] = Header(None),
     cache: redis.Redis = Depends(get_redis),
 ) -> int:
-    """
-    Извлекает и валидирует VK ID из токена.
-    НЕ проверяет наличие пользователя в БД.
-    Используется для регистрации и критических операций.
-    """
     if authorization is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -60,7 +55,6 @@ async def get_validated_vk_id(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format"
         )
 
-    # Проверка кеша токенов
     token_cache_key = f"token_to_id:{access_token}"
     cached_id = await cache.get(token_cache_key)
 
@@ -69,7 +63,6 @@ async def get_validated_vk_id(
         logger.trace(f"VK User ID {vk_user_id} found in token cache.")
         return vk_user_id
 
-    # Запрос к VK API
     logger.trace("Checking token via VK API...")
     params = {
         "token": access_token,
@@ -108,10 +101,6 @@ async def get_current_user(
     db: AsyncSession = Depends(get_db),
     cache: redis.Redis = Depends(get_redis),
 ) -> Dict:
-    """
-    Возвращает полный профиль пользователя из БД.
-    Если пользователя нет в БД - 404 (кроме эндпоинтов регистрации).
-    """
     cache_key = f"user_profile:{vk_user_id}"
     cached_user_str = await cache.get(cache_key)
 

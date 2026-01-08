@@ -14,7 +14,6 @@ from loguru import logger
 
 from src.models.all_models import ExpertProfile, Vote
 
-# --- РЕГИСТРАЦИЯ ЛОКАЛЬНЫХ ШРИФТОВ ---
 try:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     FONT_DIR = os.path.join(BASE_DIR, "..", "assets", "fonts")
@@ -35,7 +34,6 @@ except Exception as e:
 async def generate_expert_report(db: AsyncSession, expert_id: int) -> str | None:
     logger.info(f"Starting PDF report generation for expert_id: {expert_id}")
     try:
-        # 1. Получение данных эксперта
         expert_profile_result = await db.execute(
             select(ExpertProfile)
             .options(selectinload(ExpertProfile.user))
@@ -52,7 +50,6 @@ async def generate_expert_report(db: AsyncSession, expert_id: int) -> str | None
             f"Expert profile for {expert_profile.user.first_name} {expert_profile.user.last_name} found."
         )
 
-        # 2. Получение голосов
         votes_query = (
             select(Vote)
             .where(Vote.expert_vk_id == expert_id)
@@ -63,7 +60,6 @@ async def generate_expert_report(db: AsyncSession, expert_id: int) -> str | None
         votes = votes_result.scalars().all()
         logger.info(f"Found {len(votes)} votes for this expert.")
 
-        # 3. Формирование имени файла
         user = expert_profile.user
         last_name_translit = translit(user.last_name, "ru", reversed=True).replace(
             "'", ""
@@ -77,10 +73,8 @@ async def generate_expert_report(db: AsyncSession, expert_id: int) -> str | None
         file_path = f"/tmp/{filename}"
         logger.debug(f"Generated report filename: {file_path}")
 
-        # 4. Создание и настройка PDF документа
         doc = SimpleDocTemplate(file_path, pagesize=A4)
 
-        # styles = getSampleStyleSheet()
         StyleNormal = ParagraphStyle(
             name="Normal", fontName="DejaVuSans", fontSize=10, leading=12
         )
@@ -103,7 +97,6 @@ async def generate_expert_report(db: AsyncSession, expert_id: int) -> str | None
         story.append(title)
         story.append(Spacer(1, 12))
 
-        # 5. Наполнение таблицы данными
         table_data = [
             [
                 Paragraph("Дата", StyleBold),
@@ -161,7 +154,6 @@ async def generate_expert_report(db: AsyncSession, expert_id: int) -> str | None
             table.setStyle(style)
             story.append(table)
 
-        # 6. Сборка документа
         doc.build(story)
         logger.success(f"PDF report successfully built and saved to {file_path}")
         return file_path

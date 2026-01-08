@@ -31,7 +31,6 @@ export const TabbedGroup: React.FC<TabbedGroupProps> = ({
 
   const activeContent = tabs.find((tab) => tab.id === activeTab)?.content;
 
-  // Если вкладок мало (<= 2), используем SegmentedControl для красоты и растягивания
   const useSegmentedControl = tabs.length <= 2;
 
   return (
@@ -63,7 +62,6 @@ export const TabbedGroup: React.FC<TabbedGroupProps> = ({
               ))}
             </Tabs>
           )}
-          {/* Разделитель нужен только для Tabs, у SegmentedControl свои отступы */}
           {!useSegmentedControl && <Separator />}
         </>
       )}

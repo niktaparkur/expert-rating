@@ -118,7 +118,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
 
   useEffect(() => {
     if (currentUser && !currentUser.is_admin) {
-        routeNavigator.push('/');
+      routeNavigator.push("/");
     }
   }, [currentUser, routeNavigator]);
 
@@ -853,7 +853,6 @@ export const Admin = ({ id }: AdminPanelProps) => {
         </Tabs>
       </HorizontalScroll>
 
-      {/* --- TAB: MODERATION (Registration & Events) --- */}
       <div
         style={{
           display: selectedTab === "moderation" ? "block" : "none",
@@ -894,7 +893,6 @@ export const Admin = ({ id }: AdminPanelProps) => {
         </Group>
       </div>
 
-      {/* --- TAB: UPDATES (Profile Edits) --- */}
       <div
         style={{
           display: selectedTab === "updates" ? "block" : "none",
@@ -951,7 +949,6 @@ export const Admin = ({ id }: AdminPanelProps) => {
                     </SimpleCell>
                   )}
 
-                {/* Сравнение ССЫЛКИ */}
                 {req.new_data.social_link &&
                   req.new_data.social_link !== req.expert_info?.social_link && (
                     <SimpleCell multiline disabled>
@@ -974,7 +971,6 @@ export const Admin = ({ id }: AdminPanelProps) => {
                     </SimpleCell>
                   )}
 
-                {/* Сравнение РЕГАЛИЙ */}
                 {req.new_data.regalia &&
                   req.new_data.regalia !== req.expert_info?.regalia && (
                     <Div>
@@ -1002,7 +998,6 @@ export const Admin = ({ id }: AdminPanelProps) => {
                     </Div>
                   )}
 
-                {/* Сравнение ПРИМЕРА ВЫСТУПЛЕНИЯ */}
                 {req.new_data.performance_link &&
                   req.new_data.performance_link !==
                     req.expert_info?.performance_link && (
@@ -1050,7 +1045,6 @@ export const Admin = ({ id }: AdminPanelProps) => {
         </Group>
       </div>
 
-      {/* --- TAB: MAILINGS --- */}
       <div
         style={{
           display: selectedTab === "mailings" ? "block" : "none",
@@ -1080,7 +1074,6 @@ export const Admin = ({ id }: AdminPanelProps) => {
         </Group>
       </div>
 
-      {/* --- TAB: USERS --- */}
       <div
         style={{
           display: selectedTab === "users" ? "block" : "none",
@@ -1160,7 +1153,6 @@ export const Admin = ({ id }: AdminPanelProps) => {
         </Group>
       </div>
 
-      {/* --- TAB: PROMO CODES --- */}
       <div
         style={{
           display: selectedTab === "promo" ? "block" : "none",

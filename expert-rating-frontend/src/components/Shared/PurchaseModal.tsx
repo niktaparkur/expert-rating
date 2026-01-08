@@ -8,9 +8,6 @@ import {
   Input,
   Button,
   Div,
-  SimpleCell,
-  FormLayoutGroup,
-  Spinner,
   Text,
   Title,
 } from "@vkontakte/vkui";
@@ -54,12 +51,6 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
     setPromoCode("");
     setPromoResult(null);
   }, [id, currentUser]);
-
-  const handleApplyPromo = async () => {
-    // В этой версии модалки логика промокода не используется,
-    // но ее можно будет добавить по аналогии с Tariffs.tsx
-    // Например, передав `tariff_id` для валидации на бэке.
-  };
 
   const handlePayment = () => {
     if (!email || !EMAIL_REGEX.test(email)) {

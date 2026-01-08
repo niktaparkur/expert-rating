@@ -18,6 +18,8 @@ from src.schemas.expert_schemas import VotedExpertInfo
 from src.core.dependencies import get_redis
 from src.models.all_models import User, Event
 import redis.asyncio as redis
+from sqlalchemy.exc import IntegrityError
+from redis.exceptions import LockError
 
 router = APIRouter(prefix="/events", tags=["Events & Voting"])
 
@@ -45,10 +47,11 @@ async def check_event_availability(
 
 @router.post("/create", response_model=event_schemas.EventRead)
 async def create_event(
-    event_data: event_schemas.EventCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: Dict = Depends(get_current_user),
-    notifier: Notifier = Depends(get_notifier),
+        event_data: event_schemas.EventCreate,
+        db: AsyncSession = Depends(get_db),
+        current_user: Dict = Depends(get_current_user),
+        notifier: Notifier = Depends(get_notifier),
+        cache: redis.Redis = Depends(get_redis),
 ):
     if not current_user.get("is_expert"):
         raise HTTPException(
@@ -60,20 +63,32 @@ async def create_event(
     if not current_user.get("is_admin") and event_data.duration_minutes > max_duration:
         raise HTTPException(
             status_code=400,
-            detail=f"Длительность превышает лимит для вашего тарифа '{user_tariff}'. Максимум: {max_duration} минут.",
+            detail=f"Длительность превышает лимит для вашего тарифа. Максимум: {max_duration} мин.",
         )
     expert_id = current_user["vk_id"]
-    try:
-        new_event = await event_crud.create_event(
-            db=db, event_data=event_data, expert_id=expert_id
-        )
 
-        await notifier.send_new_event_to_admin(
-            event_name=new_event.event_name, expert_name=current_user.get("first_name")
-        )
-        return new_event
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    promo_normalized = event_data.promo_word.upper().strip()
+    lock_key = f"lock:event_create:{promo_normalized}"
+
+    try:
+        async with cache.lock(lock_key, timeout=10, blocking_timeout=3):
+            try:
+                new_event = await event_crud.create_event(
+                    db=db, event_data=event_data, expert_id=expert_id
+                )
+
+                await notifier.send_new_event_to_admin(
+                    event_name=new_event.event_name, expert_name=current_user.get("first_name")
+                )
+                return new_event
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            except IntegrityError:
+                await db.rollback()
+                raise HTTPException(status_code=409, detail="Событие с такими параметрами уже создано.")
+
+    except LockError:
+        raise HTTPException(status_code=429, detail="Обработка запроса. Пожалуйста, подождите.")
 
 
 @router.delete("/{event_id}", status_code=200)
@@ -156,49 +171,62 @@ async def get_my_events(
 
 @router.post("/vote")
 async def submit_vote(
-    vote_data: event_schemas.VoteCreate,
-    db: AsyncSession = Depends(get_db),
-    notifier: Notifier = Depends(get_notifier),
-    voter_id: int = Depends(get_validated_vk_id),
+        vote_data: event_schemas.VoteCreate,
+        db: AsyncSession = Depends(get_db),
+        notifier: Notifier = Depends(get_notifier),
+        voter_id: int = Depends(get_validated_vk_id),
+        cache: redis.Redis = Depends(get_redis),
 ):
     vote_data.voter_vk_id = voter_id
-    event = await event_crud.get_event_by_promo(db, vote_data.promo_word)
-    if not event:
-        raise HTTPException(
-            status_code=404,
-            detail="Активное мероприятие с таким промо-словом не найдено.",
-        )
-    if event.expert_id == vote_data.voter_vk_id:
-        raise HTTPException(
-            status_code=403,
-            detail="Эксперт не может голосовать на собственном мероприятии.",
-        )
 
-    # Эта проверка уже внутри get_event_by_promo, но дублируем для надежности
-    now = datetime.now(timezone.utc)
-    start_time = event.event_date.replace(tzinfo=timezone.utc)
-    end_time = start_time + timedelta(minutes=event.duration_minutes)
-    if not (start_time <= now <= end_time):
-        raise HTTPException(
-            status_code=403, detail="Голосование на этом мероприятии сейчас неактивно."
-        )
+    lock_key = f"lock:vote:event:{voter_id}:{vote_data.promo_word}"
+
     try:
-        await event_crud.create_vote(db=db, vote_data=vote_data, event=event)
-        await notifier.send_new_vote_notification(
-            expert_id=event.expert_id, vote_data=vote_data
-        )
-        if event.voter_thank_you_message:
-            await notifier.send_vote_action_notification(
-                user_vk_id=vote_data.voter_vk_id,
-                message_override=event.voter_thank_you_message,
-            )
-        return {
-            "status": "ok",
-            "message": "Your vote has been accepted.",
-            "thank_you_message": event.voter_thank_you_message,
-        }
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        async with cache.lock(lock_key, timeout=5, blocking_timeout=2):
+            event = await event_crud.get_event_by_promo(db, vote_data.promo_word)
+            if not event:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Активное мероприятие с таким промо-словом не найдено.",
+                )
+            if event.expert_id == vote_data.voter_vk_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Эксперт не может голосовать на собственном мероприятии.",
+                )
+
+            now = datetime.now(timezone.utc)
+            start_time = event.event_date.replace(tzinfo=timezone.utc)
+            end_time = start_time + timedelta(minutes=event.duration_minutes)
+            if not (start_time <= now <= end_time):
+                raise HTTPException(
+                    status_code=403, detail="Голосование на этом мероприятии сейчас неактивно."
+                )
+
+            try:
+                await event_crud.create_vote(db=db, vote_data=vote_data, event=event)
+
+                await notifier.send_new_vote_notification(
+                    expert_id=event.expert_id, vote_data=vote_data
+                )
+                if event.voter_thank_you_message:
+                    await notifier.send_vote_action_notification(
+                        user_vk_id=vote_data.voter_vk_id,
+                        message_override=event.voter_thank_you_message,
+                    )
+                return {
+                    "status": "ok",
+                    "message": "Your vote has been accepted.",
+                    "thank_you_message": event.voter_thank_you_message,
+                }
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            except IntegrityError:
+                await db.rollback()
+                raise HTTPException(status_code=409, detail="Вы уже проголосовали в этом мероприятии.")
+
+    except LockError:
+        raise HTTPException(status_code=429, detail="Too many requests.")
 
 
 @router.get("/status/{promo_word}", response_model=Dict)

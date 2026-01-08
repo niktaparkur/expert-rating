@@ -68,7 +68,6 @@ export const PromoCodeDetailsModal = ({
         </SimpleCell>
       </Group>
 
-      {/* --- НОВЫЙ БЛОК --- */}
       <Group header={<Header>Лимиты активаций</Header>}>
         <SimpleCell multiline>
           <InfoRow header="Общий лимит">

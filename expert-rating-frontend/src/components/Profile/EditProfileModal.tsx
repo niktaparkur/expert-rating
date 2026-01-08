@@ -20,7 +20,7 @@ import { Option } from "../Shared/SelectModal";
 interface EditProfileModalProps {
   id: string;
   onClose: () => void;
-  onBack: () => void; // <--- НОВЫЙ ПРОП
+  onBack: () => void;
   currentUser: UserData;
   onSave: (data: any) => Promise<void>;
   openSelectModal: (
@@ -75,7 +75,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     setIsSaving(true);
     try {
       await onSave(formData);
-      // После сохранения логично закрыть всё, или вернуться. Обычно закрыть.
       onClose();
     } catch (error) {
       console.error(error);

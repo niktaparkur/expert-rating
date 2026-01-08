@@ -32,7 +32,6 @@ router = APIRouter(prefix="/payment", tags=["Payment"])
 REPORT_PRICE = 500
 engine = create_async_engine(settings.DATABASE_URL_ASYNC)
 
-# --- НОВЫЙ БЛОК: Список доверенных IP-адресов YooKassa ---
 YOOKASSA_TRUSTED_IPS = [
     "185.71.76.0/27",
     "185.71.77.0/27",
@@ -44,7 +43,6 @@ YOOKASSA_TRUSTED_IPS = [
 ]
 
 
-# --- ИЗМЕНЕННАЯ ФУНКЦИЯ ---
 @router.post("/yookassa/webhook", status_code=status.HTTP_200_OK)
 async def yookassa_webhook(
     notification: payment_schemas.YooKassaNotification,
@@ -54,7 +52,6 @@ async def yookassa_webhook(
     cache: redis.Redis = Depends(get_redis),
     notifier: Notifier = Depends(get_notifier),
 ):
-    # --- НОВЫЙ БЛОК: Проверка IP-адреса ---
     client_ip = request.headers.get("x-forwarded-for") or request.client.host
     is_trusted = any(
         ip_address(client_ip) in ip_network
@@ -236,7 +233,6 @@ async def create_yookassa_payment(
 
     final_price = tariff_info["price"]
 
-    # Применяем промокод, если он есть
     if payment_data.promo_code:
         promo = await promo_crud.validate_and_get_promo_code(
             db, code=payment_data.promo_code, user_vk_id=user_vk_id

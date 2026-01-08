@@ -45,7 +45,8 @@ interface EventStatusData {
 
 export const Voting = ({ id }: VotingProps) => {
   const routeNavigator = useRouteNavigator();
-  const { promo } = useParams<"promo">();
+  const params = useParams<"promo">();
+  const promo = params?.promo;
   const { apiGet, apiPost } = useApi();
   const { currentUser: user } = useUserStore();
   const { setPopout, setSnackbar, activeModal, setActiveModal } = useUiStore();
