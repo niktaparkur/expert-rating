@@ -8,12 +8,12 @@ from typing import Optional
 from loguru import logger
 from dateutil.parser import isoparse
 
-from src.models.all_models import Event, ExpertProfile, Vote, Theme
+from src.models import Event, ExpertProfile, ExpertRating, EventFeedback, Theme
 from src.schemas import event_schemas
 
 
 async def check_event_availability(
-    db: AsyncSession, promo_word: str, event_date: datetime, duration_minutes: int
+        db: AsyncSession, promo_word: str, event_date: datetime, duration_minutes: int
 ) -> bool:
     promo_normalized = promo_word.upper().strip()
 
@@ -77,7 +77,7 @@ async def delete_event_by_id(db: AsyncSession, event_id: int, expert_id: int) ->
 
 
 async def stop_event_voting(
-    db: AsyncSession, event_id: int, expert_id: int
+        db: AsyncSession, event_id: int, expert_id: int
 ) -> Optional[Event]:
     result = await db.execute(select(Event).where(Event.id == event_id))
     event = result.scalars().first()
@@ -103,19 +103,19 @@ async def stop_event_voting(
 
 
 async def check_if_user_voted_on_event(
-    db: AsyncSession, event_id: int, voter_vk_id: int
+        db: AsyncSession, event_id: int, voter_vk_id: int
 ) -> bool:
     if not voter_vk_id:
         return False
-    query = select(Vote).where(
-        and_(Vote.event_id == event_id, Vote.voter_vk_id == voter_vk_id)
+    query = select(EventFeedback).where(
+        and_(EventFeedback.event_id == event_id, EventFeedback.voter_id == voter_vk_id)
     )
     result = await db.execute(query)
     return result.scalars().first() is not None
 
 
 async def create_event(
-    db: AsyncSession, event_data: event_schemas.EventCreate, expert_id: int
+        db: AsyncSession, event_data: event_schemas.EventCreate, expert_id: int
 ):
     is_available = await check_event_availability(
         db,
@@ -129,13 +129,10 @@ async def create_event(
         )
 
     promo_normalized = event_data.promo_word.upper().strip()
-    logger.success(
-        f"No time conflicts found for promo_word '{promo_normalized}'. Proceeding with creation."
-    )
 
     db_event = Event(
         expert_id=expert_id,
-        event_name=event_data.name,
+        name=event_data.name,
         description=event_data.description,
         promo_word=promo_normalized,
         duration_minutes=event_data.duration_minutes,
@@ -156,15 +153,15 @@ async def get_my_events(db: AsyncSession, expert_id: int):
     query = (
         select(
             Event,
-            func.count(Vote.id).label("votes_count"),
-            func.sum(case((Vote.vote_type == "trust", 1), else_=0)).label(
+            func.count(EventFeedback.id).label("votes_count"),
+            func.sum(case((EventFeedback.rating_snapshot == 1, 1), else_=0)).label(
                 "trust_count"
             ),
-            func.sum(case((Vote.vote_type == "distrust", 1), else_=0)).label(
+            func.sum(case((EventFeedback.rating_snapshot == -1, 1), else_=0)).label(
                 "distrust_count"
             ),
         )
-        .outerjoin(Vote, Event.id == Vote.event_id)
+        .outerjoin(EventFeedback, Event.id == EventFeedback.event_id)
         .where(Event.expert_id == expert_id)
         .group_by(Event.id)
         .order_by(Event.event_date.desc())
@@ -192,29 +189,62 @@ async def get_event_by_promo(db: AsyncSession, promo_word: str):
 
 
 async def create_vote(
-    db: AsyncSession, vote_data: event_schemas.VoteCreate, event: Event
+        db: AsyncSession, vote_data: event_schemas.VoteCreate, event: Event
 ):
-    existing_vote_result = await db.execute(
-        select(Vote).filter(
-            Vote.voter_vk_id == vote_data.voter_vk_id, Vote.event_id == event.id
+    existing_feedback = await db.execute(
+        select(EventFeedback).filter(
+            EventFeedback.voter_id == vote_data.voter_vk_id,
+            EventFeedback.event_id == event.id
         )
     )
-    if existing_vote_result.scalars().first():
-        raise ValueError("You have already voted in this event.")
+    if existing_feedback.scalars().first():
+        raise ValueError("Вы уже оставили отзыв к этому мероприятию.")
 
-    db_vote = Vote(
-        voter_vk_id=vote_data.voter_vk_id,
-        expert_vk_id=event.expert_id,
-        event_id=event.id,
-        is_expert_vote=True,
-        vote_type=vote_data.vote_type,
-        comment_positive=vote_data.comment_positive,
-        comment_negative=vote_data.comment_negative,
+    target_value = 0
+    if vote_data.vote_type == "trust":
+        target_value = 1
+    elif vote_data.vote_type == "distrust":
+        target_value = -1
+
+    rating_query = select(ExpertRating).filter(
+        ExpertRating.expert_id == event.expert_id,
+        ExpertRating.voter_id == vote_data.voter_vk_id
     )
-    db.add(db_vote)
+    rating_res = await db.execute(rating_query)
+    existing_rating = rating_res.scalars().first()
+
+    if vote_data.vote_type == "remove":
+        if existing_rating:
+            await db.delete(existing_rating)
+    elif vote_data.vote_type in ["trust", "distrust"]:
+        if existing_rating:
+            existing_rating.vote_value = target_value
+        else:
+            new_rating = ExpertRating(
+                expert_id=event.expert_id,
+                voter_id=vote_data.voter_vk_id,
+                vote_value=target_value
+            )
+            db.add(new_rating)
+
+    snapshot_val = 0
+    if vote_data.vote_type == "trust":
+        snapshot_val = 1
+    elif vote_data.vote_type == "distrust":
+        snapshot_val = -1
+
+    db_feedback = EventFeedback(
+        voter_id=vote_data.voter_vk_id,
+        expert_id=event.expert_id,
+        event_id=event.id,
+        comment=vote_data.comment,
+        rating_snapshot=snapshot_val
+    )
+    db.add(db_feedback)
+
     await db.commit()
-    await db.refresh(db_vote)
-    return db_vote
+    await db.refresh(db_feedback)
+    return db_feedback
 
 
 async def get_pending_events(db: AsyncSession):
@@ -223,7 +253,7 @@ async def get_pending_events(db: AsyncSession):
 
 
 async def set_event_status(
-    db: AsyncSession, event_id: int, status: str, reason: str = None
+        db: AsyncSession, event_id: int, status: str, reason: str = None
 ):
     result = await db.execute(select(Event).filter(Event.id == event_id))
     db_event = result.scalars().first()
@@ -284,12 +314,12 @@ async def get_events_by_expert_id(db: AsyncSession, expert_id: int):
 
 
 async def get_public_events_feed(
-    db: AsyncSession,
-    page: int,
-    size: int,
-    search_query: Optional[str] = None,
-    region: Optional[str] = None,
-    category_id: Optional[int] = None,
+        db: AsyncSession,
+        page: int,
+        size: int,
+        search_query: Optional[str] = None,
+        region: Optional[str] = None,
+        category_id: Optional[int] = None,
 ):
     now = datetime.now(timezone.utc)
 
@@ -307,7 +337,7 @@ async def get_public_events_feed(
     )
 
     if search_query:
-        query = query.where(Event.event_name.ilike(f"%{search_query}%"))
+        query = query.where(Event.name.ilike(f"%{search_query}%"))
     if region:
         query = query.where(ExpertProfile.region == region)
     if category_id:
@@ -328,10 +358,9 @@ async def get_public_events_feed(
 
 
 async def delete_event_vote(db: AsyncSession, vote_id: int, voter_vk_id: int) -> bool:
-    query = select(Vote).where(
-        Vote.id == vote_id,
-        Vote.voter_vk_id == voter_vk_id,
-        Vote.is_expert_vote.is_(True),
+    query = select(EventFeedback).where(
+        EventFeedback.id == vote_id,
+        EventFeedback.voter_id == voter_vk_id
     )
     result = await db.execute(query)
     vote_to_delete = result.scalars().first()

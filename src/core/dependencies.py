@@ -14,6 +14,10 @@ from src.crud import expert_crud
 from src.services.notifier import Notifier
 from src.schemas import expert_schemas
 
+# --- FIX: Убрали импорт моделей, он тут не нужен напрямую,
+# либо используем правильный путь, если понадобится в будущем ---
+# from src.models import User ...
+
 load_dotenv()
 
 DATABASE_URL = settings.DATABASE_URL_ASYNC
@@ -92,6 +96,12 @@ async def get_validated_vk_id(
         )
 
     vk_user_id = data["response"]["user_id"]
+
+    # # --- ЗАГЛУШКА ДЛЯ ТЕСТОВ (Удалить на проде и раскомментировать код выше!) ---
+    # # Для локальной разработки без реального токена VK
+    # vk_user_id = 100001  # Берем ID из seed_database
+    # # --------------------------------------------------------------------------
+
     await cache.set(token_cache_key, vk_user_id, ex=300)
     return vk_user_id
 
@@ -105,14 +115,14 @@ async def get_current_user(
     cached_user_str = await cache.get(cache_key)
 
     if cached_user_str:
-        logger.trace(f"User {vk_user_id} profile found in cache.")
+        # logger.trace(f"User {vk_user_id} profile found in cache.")
         return json.loads(cached_user_str)
-
-    logger.trace(f"User {vk_user_id} fetching from DB.")
 
     result = await expert_crud.get_full_user_profile_with_stats(db, vk_id=vk_user_id)
 
     if not result:
+        # Если юзер есть в токене, но нет в БД - это новый юзер, но он еще не зарегался
+        # Возвращаем 404, фронт перекинет на регистрацию
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found in database. Please register.",
@@ -132,7 +142,7 @@ async def get_current_user(
         response_data.is_expert = profile.status == "approved"
         response_data.status = profile.status
         response_data.show_community_rating = profile.show_community_rating
-        response_data.tariff_plan = profile.tariff_plan
+        response_data.tariff_plan = "Начальный"  # Заглушка, позже Donut
         response_data.regalia = profile.regalia
         response_data.social_link = str(profile.social_link)
         if profile.selected_themes:

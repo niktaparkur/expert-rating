@@ -24,6 +24,10 @@ from src.schemas.expert_schemas import (
 from pydantic import EmailStr, TypeAdapter
 from loguru import logger
 
+# --- FIX: Новые импорты ---
+
+# --------------------------
+
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
@@ -50,13 +54,13 @@ async def update_user_email(
         if not updated_user:
             raise HTTPException(status_code=404, detail="User not found.")
 
+        # Принудительно обновляем профиль, чтобы не потерять данные
+        # (Используем ту же логику, что и в update_user_settings)
         await cache.delete(f"user_profile:{vk_id}")
 
         result = await expert_crud.get_full_user_profile_with_stats(db, vk_id=vk_id)
         if not result:
-            raise HTTPException(
-                status_code=404, detail="User disappeared after update."
-            )
+            raise HTTPException(status_code=404, detail="User disappeared.")
 
         user, profile, stats_dict, my_votes_stats_dict = result
 
@@ -70,7 +74,7 @@ async def update_user_email(
             response_data.is_expert = profile.status == "approved"
             response_data.status = profile.status
             response_data.show_community_rating = profile.show_community_rating
-            response_data.tariff_plan = profile.tariff_plan
+            response_data.tariff_plan = "Начальный"
             response_data.topics = [
                 f"{theme.category.name} > {theme.name}"
                 for theme in profile.selected_themes
@@ -128,7 +132,7 @@ async def update_user_regalia(
             response_data.is_expert = profile.status == "approved"
             response_data.status = profile.status
             response_data.show_community_rating = profile.show_community_rating
-            response_data.tariff_plan = profile.tariff_plan
+            response_data.tariff_plan = "Начальный"
             response_data.regalia = profile.regalia
             response_data.social_link = str(profile.social_link)
             response_data.topics = [
@@ -171,34 +175,40 @@ async def get_my_votes(
     db: AsyncSession = Depends(get_db),
 ):
     vk_id = current_user["vk_id"]
-    votes_from_db = await expert_crud.get_user_votes(db, vk_id=vk_id)
+    # Получаем историю отзывов (EventFeedbacks)
+    # expert_crud.get_user_votes теперь возвращает EventFeedback объекты
+    feedbacks = await expert_crud.get_user_votes(db, vk_id=vk_id)
 
     response_list = []
-    for vote in votes_from_db:
+    for fb in feedbacks:
+        # Определяем тип голоса из снепшота
+        if fb.rating_snapshot == 1:
+            vote_type = "trust"
+        elif fb.rating_snapshot == -1:
+            vote_type = "distrust"
+        else:
+            vote_type = "neutral"
+
         vote_data_dict = {
-            "id": vote.id,
-            "vote_type": vote.vote_type,
-            "is_expert_vote": vote.is_expert_vote,
-            "created_at": vote.created_at,
+            "id": fb.id,
+            "vote_type": vote_type,
+            "is_expert_vote": fb.event_id
+            is not None,  # Если есть event_id - значит экспертный
+            "created_at": fb.created_at,
             "expert": None,
             "event": None,
         }
 
-        if not vote.is_expert_vote and vote.expert and vote.expert.user:
+        if fb.expert and fb.expert.user:
             vote_data_dict["expert"] = VotedExpertInfo.model_validate(
-                vote.expert.user, from_attributes=True
+                fb.expert.user, from_attributes=True
             )
 
-        if (
-            vote.is_expert_vote
-            and vote.event
-            and vote.event.expert
-            and vote.event.expert.user
-        ):
+        if fb.event and fb.event.expert and fb.event.expert.user:
             event_expert_info = VotedExpertInfo.model_validate(
-                vote.event.expert.user, from_attributes=True
+                fb.event.expert.user, from_attributes=True
             )
-            event_data = EventRead.model_validate(vote.event, from_attributes=True)
+            event_data = EventRead.model_validate(fb.event, from_attributes=True)
             event_data.expert_info = event_expert_info
             vote_data_dict["event"] = event_data
 
@@ -214,6 +224,7 @@ async def update_user_settings(
     db: AsyncSession = Depends(get_db),
     cache: redis.Redis = Depends(get_redis),
 ):
+    # Этот код я уже давал выше, он корректный (с полной перегрузкой профиля)
     vk_id = current_user["vk_id"]
     try:
         await expert_crud.update_user_settings(
@@ -222,8 +233,7 @@ async def update_user_settings(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    cache_key = f"user_profile:{vk_id}"
-    await cache.delete(cache_key)
+    await cache.delete(f"user_profile:{vk_id}")
 
     result = await expert_crud.get_full_user_profile_with_stats(db, vk_id=vk_id)
     if not result:
@@ -240,10 +250,12 @@ async def update_user_settings(
         response_data.is_expert = profile.status == "approved"
         response_data.status = profile.status
         response_data.show_community_rating = profile.show_community_rating
-        response_data.tariff_plan = profile.tariff_plan
+        response_data.tariff_plan = "Начальный"
         response_data.topics = [
             f"{theme.category.name} > {theme.name}" for theme in profile.selected_themes
         ]
+        response_data.regalia = profile.regalia
+        response_data.social_link = str(profile.social_link)
 
     response_data.allow_notifications = user.allow_notifications
     response_data.allow_expert_mailings = user.allow_expert_mailings

@@ -43,7 +43,7 @@ export const Profile = ({
   onOpenCreateEventModal,
   onEventClick,
 }: ProfileProps) => {
-  const { apiGet, apiDelete } = useApi();
+  const { apiGet, apiDelete, apiPost } = useApi();
   const { currentUser: user, setCurrentUser } = useUserStore();
   const { setPopout, setSnackbar, setActiveModal } = useUiStore();
   const queryClient = useQueryClient();
@@ -101,6 +101,32 @@ export const Profile = ({
       );
     } finally {
       setPopout(null);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    setIsWithdrawLoading(true);
+    try {
+      await apiPost("/experts/withdraw", {});
+
+      await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
+
+      const updatedUser = await apiGet<any>("/users/me");
+      setCurrentUser(updatedUser);
+
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
+          Заявка успешно отозвана.
+        </Snackbar>,
+      );
+    } catch (error: any) {
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+          {error.message || "Не удалось отозвать заявку"}
+        </Snackbar>,
+      );
+    } finally {
+      setIsWithdrawLoading(false);
     }
   };
 
@@ -318,7 +344,7 @@ export const Profile = ({
         <UserProfile
           user={user}
           onSettingsClick={() => setActiveModal("profile-settings-modal")}
-          onWithdraw={() => {}}
+          onWithdraw={handleWithdraw}
           isWithdrawLoading={isWithdrawLoading}
           onEditClick={() => setActiveModal("edit-regalia-modal")}
         />

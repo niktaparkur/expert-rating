@@ -86,7 +86,11 @@ export const EventActionModal = ({
           overTitle={getStatusText(event.status)}
           disabled
         >
-          <Text weight="1" useAccentWeight>
+          <Text
+            weight="1"
+            useAccentWeight
+            style={{ wordBreak: "break-word", whiteSpace: "normal" }}
+          >
             {event.name}
           </Text>
         </RichCell>

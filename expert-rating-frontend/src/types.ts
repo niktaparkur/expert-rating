@@ -8,8 +8,10 @@ export interface ExpertInfo {
 export interface Stats {
   expert?: number;
   community?: number;
-  community_trust?: number; // Добавлено
-  community_distrust?: number; // Добавлено
+  expert_trust?: number;
+  expert_distrust?: number;
+  community_trust?: number;
+  community_distrust?: number;
   events_count?: number;
 }
 
@@ -25,7 +27,7 @@ export interface EventData {
   name: string;
   description?: string;
   promo_word: string;
-  event_date: string; // ISO-строка
+  event_date: string;
   duration_minutes: number;
   event_link?: string;
   is_private: boolean;
@@ -37,7 +39,7 @@ export interface EventData {
 }
 
 export interface UserVoteInfo {
-  vote_type: "trust" | "distrust";
+  vote_type: string;
   comment?: string;
 }
 
@@ -62,4 +64,20 @@ export interface UserData {
   allow_notifications: boolean;
   allow_expert_mailings: boolean;
   email?: string;
+  rank?: number;
+}
+
+export interface CurrentVoteStatus {
+  has_voted: boolean;
+  vote_value: number; // 1, -1, 0
+  last_comment?: string;
+}
+
+export interface EventStatusData {
+  status: "active" | "not_started" | "finished" | "not_found";
+  event_name: string;
+  start_time: string;
+  end_time: string;
+  current_vote?: CurrentVoteStatus;
+  expert: Partial<UserData>;
 }

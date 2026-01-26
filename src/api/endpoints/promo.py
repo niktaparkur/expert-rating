@@ -9,7 +9,7 @@ from src.schemas import promo_schemas
 from .tariffs import TARIFFS_DATA_LIST
 from sqlalchemy import select
 
-from ...models.all_models import PromoCode
+from ...models import PromoCode
 
 router = APIRouter(prefix="/promo", tags=["Promo Codes"])
 

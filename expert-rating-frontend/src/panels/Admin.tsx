@@ -287,7 +287,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
 
   useEffect(() => {
     if (selectedTab === "moderation") fetchModerationData();
-    if (selectedTab === "mailings") fetchMailingData();
+    // if (selectedTab === "mailings") fetchMailingData();
     if (selectedTab === "updates") fetchUpdatesData();
   }, [selectedTab, fetchModerationData, fetchMailingData]);
 
@@ -300,14 +300,14 @@ export const Admin = ({ id }: AdminPanelProps) => {
     }
   }, [selectedTab, debouncedSearch, usersFilter]);
 
-  useEffect(() => {
-    if (selectedTab === "promo") {
-      setPromoCodes([]);
-      setPromoCodesPage(1);
-      setHasMorePromoCodes(true);
-      fetchPromoCodes(true);
-    }
-  }, [selectedTab]);
+  // useEffect(() => {
+  //   if (selectedTab === "promo") {
+  //     setPromoCodes([]);
+  //     setPromoCodesPage(1);
+  //     setHasMorePromoCodes(true);
+  //     fetchPromoCodes(true);
+  //   }
+  // }, [selectedTab]);
 
   useEffect(() => {
     if (selectedTab !== "users") return;
@@ -829,13 +829,13 @@ export const Admin = ({ id }: AdminPanelProps) => {
           >
             Обновления
           </TabsItem>
-          <TabsItem
-            selected={selectedTab === "mailings"}
-            onClick={() => setSelectedTab("mailings")}
-            id="tab-mailings"
-          >
-            Рассылки
-          </TabsItem>
+          {/*<TabsItem*/}
+          {/*  selected={selectedTab === "mailings"}*/}
+          {/*  onClick={() => setSelectedTab("mailings")}*/}
+          {/*  id="tab-mailings"*/}
+          {/*>*/}
+          {/*  Рассылки*/}
+          {/*</TabsItem>*/}
           <TabsItem
             selected={selectedTab === "users"}
             onClick={() => setSelectedTab("users")}
@@ -843,13 +843,13 @@ export const Admin = ({ id }: AdminPanelProps) => {
           >
             Пользователи
           </TabsItem>
-          <TabsItem
-            selected={selectedTab === "promo"}
-            onClick={() => setSelectedTab("promo")}
-            id="tab-promo"
-          >
-            Промокоды
-          </TabsItem>
+          {/*<TabsItem*/}
+          {/*  selected={selectedTab === "promo"}*/}
+          {/*  onClick={() => setSelectedTab("promo")}*/}
+          {/*  id="tab-promo"*/}
+          {/*>*/}
+          {/*  Промокоды*/}
+          {/*</TabsItem>*/}
         </Tabs>
       </HorizontalScroll>
 
@@ -1045,34 +1045,34 @@ export const Admin = ({ id }: AdminPanelProps) => {
         </Group>
       </div>
 
-      <div
-        style={{
-          display: selectedTab === "mailings" ? "block" : "none",
-          paddingBottom: 60,
-        }}
-      >
-        <Group header={<Header>Рассылки на модерацию</Header>}>
-          {loadingMailings ? (
-            <Spinner size="l" style={{ margin: "20px 0" }} />
-          ) : mailingRequests.length === 0 ? (
-            <Placeholder title="Новых рассылок нет" />
-          ) : (
-            mailingRequests.map((req) => (
-              <SimpleCell
-                key={req.id}
-                multiline
-                onClick={() => {
-                  setSelectedMailing(req);
-                  setActiveModal("mailing-details");
-                }}
-                subtitle={`От эксперта ID: ${req.expert_vk_id}`}
-              >
-                {req.message.slice(0, 100)}...
-              </SimpleCell>
-            ))
-          )}
-        </Group>
-      </div>
+      {/*<div*/}
+      {/*  style={{*/}
+      {/*    display: selectedTab === "mailings" ? "block" : "none",*/}
+      {/*    paddingBottom: 60,*/}
+      {/*  }}*/}
+      {/*>*/}
+      {/*  <Group header={<Header>Рассылки на модерацию</Header>}>*/}
+      {/*    {loadingMailings ? (*/}
+      {/*      <Spinner size="l" style={{ margin: "20px 0" }} />*/}
+      {/*    ) : mailingRequests.length === 0 ? (*/}
+      {/*      <Placeholder title="Новых рассылок нет" />*/}
+      {/*    ) : (*/}
+      {/*      mailingRequests.map((req) => (*/}
+      {/*        <SimpleCell*/}
+      {/*          key={req.id}*/}
+      {/*          multiline*/}
+      {/*          onClick={() => {*/}
+      {/*            setSelectedMailing(req);*/}
+      {/*            setActiveModal("mailing-details");*/}
+      {/*          }}*/}
+      {/*          subtitle={`От эксперта ID: ${req.expert_vk_id}`}*/}
+      {/*        >*/}
+      {/*          {req.message.slice(0, 100)}...*/}
+      {/*        </SimpleCell>*/}
+      {/*      ))*/}
+      {/*    )}*/}
+      {/*  </Group>*/}
+      {/*</div>*/}
 
       <div
         style={{
@@ -1153,41 +1153,41 @@ export const Admin = ({ id }: AdminPanelProps) => {
         </Group>
       </div>
 
-      <div
-        style={{
-          display: selectedTab === "promo" ? "block" : "none",
-          paddingBottom: 60,
-        }}
-      >
-        <Group>
-          <Div>
-            <Button
-              stretched
-              size="l"
-              mode="secondary"
-              onClick={() => openPromoCodeModal(null)}
-            >
-              Создать промокод
-            </Button>
-          </Div>
-        </Group>
-        <Group header={<Header>Список промокодов</Header>}>
-          {promoCodes.map((promo) => (
-            <PromoCodeCard
-              key={promo.id}
-              promoCode={promo}
-              onMenuClick={openPromoMenu}
-            />
-          ))}
-          <div ref={promoObserverRef} style={{ height: "1px" }} />
-          {loadingPromoCodes && (
-            <Spinner size="l" style={{ margin: "20px 0" }} />
-          )}
-          {!loadingPromoCodes && promoCodes.length === 0 && (
-            <Placeholder title="Промокоды не найдены" />
-          )}
-        </Group>
-      </div>
+      {/*<div*/}
+      {/*  style={{*/}
+      {/*    display: selectedTab === "promo" ? "block" : "none",*/}
+      {/*    paddingBottom: 60,*/}
+      {/*  }}*/}
+      {/*>*/}
+      {/*  <Group>*/}
+      {/*    <Div>*/}
+      {/*      <Button*/}
+      {/*        stretched*/}
+      {/*        size="l"*/}
+      {/*        mode="secondary"*/}
+      {/*        onClick={() => openPromoCodeModal(null)}*/}
+      {/*      >*/}
+      {/*        Создать промокод*/}
+      {/*      </Button>*/}
+      {/*    </Div>*/}
+      {/*  </Group>*/}
+      {/*  <Group header={<Header>Список промокодов</Header>}>*/}
+      {/*    {promoCodes.map((promo) => (*/}
+      {/*      <PromoCodeCard*/}
+      {/*        key={promo.id}*/}
+      {/*        promoCode={promo}*/}
+      {/*        onMenuClick={openPromoMenu}*/}
+      {/*      />*/}
+      {/*    ))}*/}
+      {/*    <div ref={promoObserverRef} style={{ height: "1px" }} />*/}
+      {/*    {loadingPromoCodes && (*/}
+      {/*      <Spinner size="l" style={{ margin: "20px 0" }} />*/}
+      {/*    )}*/}
+      {/*    {!loadingPromoCodes && promoCodes.length === 0 && (*/}
+      {/*      <Placeholder title="Промокоды не найдены" />*/}
+      {/*    )}*/}
+      {/*  </Group>*/}
+      {/*</div>*/}
     </Panel>
   );
 };

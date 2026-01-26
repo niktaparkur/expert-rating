@@ -11,12 +11,12 @@ from loguru import logger
 from src.api.endpoints import (
     experts,
     events,
-    payment,
-    tariffs,
+    # payment,
+    # tariffs,
     users,
     meta,
-    promo,
-    mailings,
+    # promo,
+    # mailings,
 )
 from src.core.config import settings
 from src.crud import event_crud
@@ -112,12 +112,12 @@ app.add_middleware(
 
 app.include_router(experts.router, prefix="/api/v1")
 app.include_router(events.router, prefix="/api/v1")
-app.include_router(payment.router, prefix="/api/v1")
-app.include_router(tariffs.router, prefix="/api/v1")
+# app.include_router(payment.router, prefix="/api/v1")
+# app.include_router(tariffs.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(meta.router, prefix="/api/v1")
-app.include_router(promo.router, prefix="/api/v1")
-app.include_router(mailings.router, prefix="/api/v1")
+# app.include_router(promo.router, prefix="/api/v1")
+# app.include_router(mailings.router, prefix="/api/v1")
 
 
 @app.get("/")

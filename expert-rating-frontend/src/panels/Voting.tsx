@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Panel,
   PanelHeader,
   PanelHeaderBack,
   Group,
   Spinner,
-  Div,
-  Text,
   ModalRoot,
   ModalPage,
   ModalPageHeader,
@@ -14,6 +12,7 @@ import {
   Button,
   Header,
   Snackbar,
+  Text,
 } from "@vkontakte/vkui";
 import { useRouteNavigator, useParams } from "@vkontakte/vk-mini-apps-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -27,20 +26,12 @@ import {
   Icon56CheckCircleOutline,
   Icon56ErrorTriangleOutline,
   Icon56RecentOutline,
+  Icon16Cancel
 } from "@vkontakte/icons";
-import { UserData } from "../types";
+import { EventStatusData } from "../types";
 
 interface VotingProps {
   id: string;
-}
-
-interface EventStatusData {
-  status: "active" | "not_started" | "finished" | "not_found";
-  event_name: string;
-  start_time: string;
-  end_time: string;
-  current_user_has_voted: boolean;
-  expert: Partial<UserData>;
 }
 
 export const Voting = ({ id }: VotingProps) => {
@@ -69,9 +60,8 @@ export const Voting = ({ id }: VotingProps) => {
   });
 
   const handleEventVoteSubmit = async (voteData: {
-    vote_type: "trust" | "distrust";
-    comment_positive?: string | null;
-    comment_negative?: string | null;
+    vote_type: "trust" | "distrust" | "remove";
+    comment: string;
   }) => {
     if (!user?.vk_id) {
       setSnackbar(
@@ -93,10 +83,11 @@ export const Voting = ({ id }: VotingProps) => {
       const response = await apiPost<any>("/events/vote", finalData);
       setThankYouMessage(response.thank_you_message);
       await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
+      await queryClient.invalidateQueries({ queryKey: ["eventStatus", promo] });
       setActiveModal("vote-success-modal");
     } catch (err: any) {
       setSnackbar(
-        <Snackbar onClose={() => setSnackbar(null)}>{err.message}</Snackbar>,
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>{err.message}</Snackbar>,
       );
     } finally {
       setPopout(null);
@@ -112,15 +103,6 @@ export const Voting = ({ id }: VotingProps) => {
         </Placeholder>
       );
     if (!eventData) return <Placeholder title="Загрузка..." />;
-    if (eventData.current_user_has_voted)
-      return (
-        <Placeholder
-          icon={<Icon56CheckCircleOutline />}
-          title="Вы уже проголосовали"
-        >
-          Ваш голос на этом мероприятии учтен.
-        </Placeholder>
-      );
 
     switch (eventData.status) {
       case "active":
@@ -131,8 +113,7 @@ export const Voting = ({ id }: VotingProps) => {
             </Group>
             <VoteCard
               onSubmit={handleEventVoteSubmit}
-              onCancelVote={async () => {}}
-              initialVote={undefined}
+              initialVoteValue={eventData.current_vote?.vote_value || 0}
               setPopout={setPopout}
             />
           </>

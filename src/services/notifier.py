@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 import os
 import httpx
@@ -7,7 +7,7 @@ from loguru import logger
 
 from src.core.config import settings
 from src.schemas import event_schemas
-from src.models.all_models import Event
+from src.models import Event
 
 VK_API_VERSION = "5.199"
 VK_API_URL = "https://api.vk.com/method/"
@@ -64,7 +64,7 @@ class Notifier:
         return response and response.get("is_allowed") == 1
 
     async def send_message(
-        self, peer_id: int, message: str, keyboard=None, attachment=None
+            self, peer_id: int, message: str, keyboard=None, attachment=None
     ):
         can_send = await self.is_messages_allowed(user_id=peer_id)
         if not can_send:
@@ -131,16 +131,26 @@ class Notifier:
                 os.remove(file_path)
 
     async def post_announcement_to_wall(
-        self, event: Event, expert_name: str
+            self, event: Event, expert_name: str
     ) -> int | None:
-        event_date_str = event.event_date.strftime("%d.%m.%Y в %H:%M")
+        if event.event_date.tzinfo is None:
+            event_date_utc = event.event_date.replace(tzinfo=timezone.utc)
+        else:
+            event_date_utc = event.event_date
+
+        msk_tz = timezone(timedelta(hours=3))
+        event_date_msk = event_date_utc.astimezone(msk_tz)
+
+        event_date_str = event_date_msk.strftime("%d.%m.%Y в %H:%M")
+
         app_link = f"https://vk.com/app{settings.VK_APP_ID}"
 
         message = (
             f"📢 Анонс мероприятия!\n\n"
-            f"Эксперт {expert_name} проведет «{event.event_name}».\n"
+            f"Эксперт {expert_name} проведет «{event.name}».\n"
             f"📅 Когда: {event_date_str} (МСК)\n\n"
         )
+
         if event.description:
             message += f"{event.description}\n\n"
 
@@ -213,7 +223,7 @@ class Notifier:
         await self.send_message(settings.ADMIN_ID, message, keyboard=keyboard)
 
     async def send_moderation_result(
-        self, vk_id: int, approved: bool, reason: Optional[str] = None
+            self, vk_id: int, approved: bool, reason: Optional[str] = None
     ):
         if approved:
             message = "✅ Ваша заявка на регистрацию в 'Рейтинге экспертов' одобрена! Теперь вам доступен личный кабинет в приложении."
@@ -222,12 +232,12 @@ class Notifier:
         await self.send_message(vk_id, message)
 
     async def send_event_status_notification(
-        self,
-        expert_id: int,
-        event_name: str,
-        approved: bool,
-        is_private: bool,
-        reason: Optional[str] = None,
+            self,
+            expert_id: int,
+            event_name: str,
+            approved: bool,
+            is_private: bool,
+            reason: Optional[str] = None,
     ):
         if approved:
             if is_private:
@@ -239,7 +249,7 @@ class Notifier:
         await self.send_message(expert_id, message)
 
     async def send_new_vote_notification(
-        self, expert_id: int, vote_data: event_schemas.VoteCreate
+            self, expert_id: int, vote_data: event_schemas.VoteCreate
     ):
         vote_type_text = (
             "👍 (доверяю)" if vote_data.vote_type == "trust" else "👎 (не доверяю)"
@@ -248,13 +258,13 @@ class Notifier:
         await self.send_message(expert_id, message)
 
     async def send_vote_action_notification(
-        self,
-        user_vk_id: int,
-        expert_name: Optional[str] = None,
-        expert_vk_id: Optional[int] = None,
-        action: Optional[str] = None,
-        vote_type: Optional[str] = None,
-        message_override: Optional[str] = None,
+            self,
+            user_vk_id: int,
+            expert_name: Optional[str] = None,
+            expert_vk_id: Optional[int] = None,
+            action: Optional[str] = None,
+            vote_type: Optional[str] = None,
+            message_override: Optional[str] = None,
     ):
         if message_override:
             await self.send_message(user_vk_id, message_override)
@@ -294,7 +304,7 @@ class Notifier:
         await self.send_message(user_vk_id, message, keyboard=keyboard)
 
     async def send_event_reminder(
-        self, expert_id: int, event_name: str, event_date: datetime
+            self, expert_id: int, event_name: str, event_date: datetime
     ):
         time_str = event_date.strftime("%H:%M")
         message = f"⏰ Напоминание!\n\nВаше мероприятие «{event_name}» начнется сегодня в {time_str}."

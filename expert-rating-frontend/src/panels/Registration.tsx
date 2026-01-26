@@ -80,6 +80,8 @@ export const Registration = ({
   const routeNavigator = useRouteNavigator();
   const queryClient = useQueryClient();
 
+
+
   const { apiPost, apiGet } = useApi();
   const { currentUser: user, setCurrentUser } = useUserStore();
   const { setPopout, setSnackbar, setActiveModal } = useUiStore();

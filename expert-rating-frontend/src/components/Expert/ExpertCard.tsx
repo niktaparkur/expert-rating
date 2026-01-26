@@ -22,8 +22,7 @@ interface ExpertData {
 }
 
 interface ExpertCardProps {
-  expert: ExpertData;
-  topPosition: number;
+  expert: ExpertData & { rank?: number };
   onClick: () => void;
 }
 
@@ -65,11 +64,7 @@ const RatingBlock = ({
   );
 };
 
-export const ExpertCard = ({
-  expert,
-  topPosition,
-  onClick,
-}: ExpertCardProps) => {
+export const ExpertCard = ({ expert, onClick }: ExpertCardProps) => {
   if (!expert) {
     return null;
   }
@@ -87,12 +82,13 @@ export const ExpertCard = ({
 
   const expertRating = expert.stats?.expert || 0;
   const communityRating = expert.stats?.community || 0;
+  const displayRank = expert.rank ? expert.rank : "-";
 
   return (
     <Card mode="shadow" onClick={onClick} className="expert-card-container">
       <div className="expert-card-main">
         <div className="expert-card-position">
-          <Text className="position-number">{topPosition}</Text>
+          <Text className="position-number">{displayRank}</Text>
         </div>
         <Avatar size={48} src={photo} />
         <div className="expert-card-info">

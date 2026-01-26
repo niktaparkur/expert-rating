@@ -3,6 +3,10 @@ from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
+import redis.asyncio as redis
+from sqlalchemy import select, and_
+from sqlalchemy.exc import IntegrityError
+from redis.exceptions import LockError
 
 from src.core.dependencies import (
     get_current_admin_user,
@@ -10,26 +14,20 @@ from src.core.dependencies import (
     get_db,
     get_notifier,
     get_validated_vk_id,
+    get_redis
 )
 from src.crud import event_crud
 from src.schemas import event_schemas
 from src.services.notifier import Notifier
 from src.schemas.expert_schemas import VotedExpertInfo
-from src.core.dependencies import get_redis
-from src.models.all_models import User, Event
-import redis.asyncio as redis
-from sqlalchemy.exc import IntegrityError
-from redis.exceptions import LockError
+from src.models import Event, User, ExpertRating
 
 router = APIRouter(prefix="/events", tags=["Events & Voting"])
-
-TARIFF_DURATION_LIMITS = {"Начальный": 60, "Стандарт": 720, "Профи": 1440}
-TARIFF_VOTES_LIMITS = {"Начальный": 100, "Стандарт": 200, "Профи": 1000}
 
 
 @router.post("/check-availability", response_model=Dict)
 async def check_event_availability(
-    check_data: event_schemas.EventAvailabilityCheck, db: AsyncSession = Depends(get_db)
+        check_data: event_schemas.EventAvailabilityCheck, db: AsyncSession = Depends(get_db)
 ):
     is_available = await event_crud.check_event_availability(
         db,
@@ -58,13 +56,7 @@ async def create_event(
             status_code=403,
             detail="Только одобренные эксперты могут создавать мероприятия.",
         )
-    user_tariff = current_user.get("tariff_plan", "Начальный")
-    max_duration = TARIFF_DURATION_LIMITS.get(user_tariff, 60)
-    if not current_user.get("is_admin") and event_data.duration_minutes > max_duration:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Длительность превышает лимит для вашего тарифа. Максимум: {max_duration} мин.",
-        )
+
     expert_id = current_user["vk_id"]
 
     promo_normalized = event_data.promo_word.upper().strip()
@@ -78,7 +70,7 @@ async def create_event(
                 )
 
                 await notifier.send_new_event_to_admin(
-                    event_name=new_event.event_name, expert_name=current_user.get("first_name")
+                    event_name=new_event.name, expert_name=current_user.get("first_name")
                 )
                 return new_event
             except ValueError as e:
@@ -93,18 +85,18 @@ async def create_event(
 
 @router.delete("/{event_id}", status_code=200)
 async def delete_event(
-    event_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: Dict = Depends(get_current_user),
-    notifier: Notifier = Depends(get_notifier),
+        event_id: int,
+        db: AsyncSession = Depends(get_db),
+        current_user: Dict = Depends(get_current_user),
+        notifier: Notifier = Depends(get_notifier),
 ):
     expert_id = current_user["vk_id"]
     try:
         event_to_delete = await db.get(Event, event_id)
         if (
-            event_to_delete
-            and event_to_delete.expert_id == expert_id
-            and event_to_delete.wall_post_id
+                event_to_delete
+                and event_to_delete.expert_id == expert_id
+                and event_to_delete.wall_post_id
         ):
             await notifier.delete_wall_post(event_to_delete.wall_post_id)
 
@@ -123,9 +115,9 @@ async def delete_event(
 
 @router.post("/{event_id}/stop", response_model=event_schemas.EventRead)
 async def stop_event_voting(
-    event_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: Dict = Depends(get_current_user),
+        event_id: int,
+        db: AsyncSession = Depends(get_db),
+        current_user: Dict = Depends(get_current_user),
 ):
     expert_id = current_user["vk_id"]
     try:
@@ -144,7 +136,7 @@ async def stop_event_voting(
 
 @router.get("/my", response_model=List[event_schemas.EventRead])
 async def get_my_events(
-    db: AsyncSession = Depends(get_db), current_user: Dict = Depends(get_current_user)
+        db: AsyncSession = Depends(get_db), current_user: Dict = Depends(get_current_user)
 ):
     if not current_user.get("is_expert"):
         raise HTTPException(
@@ -152,19 +144,13 @@ async def get_my_events(
         )
     expert_id = current_user["vk_id"]
     results = await event_crud.get_my_events(db=db, expert_id=expert_id)
-    user_tariff = current_user.get("tariff_plan", "Начальный")
-    limit = (
-        TARIFF_VOTES_LIMITS.get(user_tariff, 100)
-        if not current_user.get("is_admin")
-        else float("inf")
-    )
+
     response_events = []
     for event, votes, trust, distrust in results:
         event_data = event_schemas.EventRead.model_validate(event, from_attributes=True)
         event_data.votes_count = votes or 0
         event_data.trust_count = trust or 0
         event_data.distrust_count = distrust or 0
-        event_data.has_tariff_warning = (votes or 0) > limit
         response_events.append(event_data)
     return response_events
 
@@ -178,6 +164,12 @@ async def submit_vote(
         cache: redis.Redis = Depends(get_redis),
 ):
     vote_data.voter_vk_id = voter_id
+
+    if not vote_data.comment or len(vote_data.comment.strip()) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Комментарий обязателен (минимум 3 символа).",
+        )
 
     lock_key = f"lock:vote:event:{voter_id}:{vote_data.promo_word}"
 
@@ -223,21 +215,21 @@ async def submit_vote(
                 raise HTTPException(status_code=400, detail=str(e))
             except IntegrityError:
                 await db.rollback()
-                raise HTTPException(status_code=409, detail="Вы уже проголосовали в этом мероприятии.")
+                raise HTTPException(status_code=409, detail="Ошибка сохранения голоса.")
 
     except LockError:
         raise HTTPException(status_code=429, detail="Too many requests.")
 
 
-@router.get("/status/{promo_word}", response_model=Dict)
+@router.get("/status/{promo_word}", response_model=event_schemas.EventStatusResponse)
 async def get_event_status_by_promo(
-    promo_word: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: Dict = Depends(get_current_user),
+        promo_word: str,
+        db: AsyncSession = Depends(get_db),
+        current_user: Dict = Depends(get_current_user),
 ):
     event = await event_crud.get_event_by_promo(db, promo_word)
     if not event:
-        return {"status": "not_found"}
+        raise HTTPException(status_code=404, detail="Мероприятие не найдено")
 
     now = datetime.now(timezone.utc)
     start_time = event.event_date.replace(tzinfo=timezone.utc)
@@ -247,17 +239,38 @@ async def get_event_status_by_promo(
         if start_time <= now <= end_time
         else "not_started" if now < start_time else "finished"
     )
-    has_voted = await event_crud.check_if_user_voted_on_event(
-        db=db, event_id=event.id, voter_vk_id=current_user.get("vk_id")
-    )
+
+    voter_id = current_user.get("vk_id")
+    current_vote_data = None
+
+    if voter_id:
+        rating_query = select(ExpertRating).where(
+            and_(
+                ExpertRating.expert_id == event.expert_id,
+                ExpertRating.voter_id == voter_id
+            )
+        )
+        rating_res = await db.execute(rating_query)
+        rating = rating_res.scalars().first()
+
+        vote_val = rating.vote_value if rating else 0
+        has_voted_global = rating is not None
+
+        current_vote_data = {
+            "has_voted": has_voted_global,
+            "vote_value": vote_val,
+            "last_comment": ""
+        }
+
     expert_profile = event.expert
     user = expert_profile.user
+
     return {
         "status": status,
-        "event_name": event.event_name,
+        "event_name": event.name,
         "start_time": start_time.isoformat(),
         "end_time": end_time.isoformat(),
-        "current_user_has_voted": has_voted,
+        "current_vote": current_vote_data,
         "expert": {
             "vk_id": user.vk_id,
             "first_name": user.first_name,
@@ -279,12 +292,12 @@ async def get_public_events(db: AsyncSession = Depends(get_db)):
 
 @router.get("/feed", response_model=event_schemas.PaginatedEventsResponse)
 async def get_events_feed(
-    db: AsyncSession = Depends(get_db),
-    page: int = 1,
-    size: int = 20,
-    search: Optional[str] = None,
-    region: Optional[str] = None,
-    category_id: Optional[int] = None,
+        db: AsyncSession = Depends(get_db),
+        page: int = 1,
+        size: int = 20,
+        search: Optional[str] = None,
+        region: Optional[str] = None,
+        category_id: Optional[int] = None,
 ):
     events, total_count = await event_crud.get_public_events_feed(
         db=db,
@@ -326,9 +339,9 @@ async def get_pending_events_for_admin(db: AsyncSession = Depends(get_db)):
 
 @router.post("/admin/{event_id}/approve")
 async def approve_event(
-    event_id: int,
-    db: AsyncSession = Depends(get_db),
-    notifier: Notifier = Depends(get_notifier),
+        event_id: int,
+        db: AsyncSession = Depends(get_db),
+        notifier: Notifier = Depends(get_notifier),
 ):
     event = await event_crud.set_event_status(
         db=db, event_id=event_id, status="approved"
@@ -347,7 +360,7 @@ async def approve_event(
 
     await notifier.send_event_status_notification(
         expert_id=event.expert_id,
-        event_name=event.event_name,
+        event_name=event.name,
         approved=True,
         is_private=event.is_private,
     )
@@ -356,10 +369,10 @@ async def approve_event(
 
 @router.post("/admin/{event_id}/reject")
 async def reject_event(
-    event_id: int,
-    body: dict = Body(...),
-    db: AsyncSession = Depends(get_db),
-    notifier: Notifier = Depends(get_notifier),
+        event_id: int,
+        body: dict = Body(...),
+        db: AsyncSession = Depends(get_db),
+        notifier: Notifier = Depends(get_notifier),
 ):
     reason = body.get("reason", "Причина не указана")
     event = await event_crud.set_event_status(
@@ -369,7 +382,7 @@ async def reject_event(
         raise HTTPException(status_code=404, detail="Event not found.")
     await notifier.send_event_status_notification(
         expert_id=event.expert_id,
-        event_name=event.event_name,
+        event_name=event.name,
         approved=False,
         is_private=event.is_private,
         reason=reason,
@@ -379,10 +392,10 @@ async def reject_event(
 
 @router.delete("/vote/{vote_id}/cancel", status_code=200)
 async def cancel_event_vote(
-    vote_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: Dict = Depends(get_current_user),
-    cache: redis.Redis = Depends(get_redis),
+        vote_id: int,
+        db: AsyncSession = Depends(get_db),
+        current_user: Dict = Depends(get_current_user),
+        cache: redis.Redis = Depends(get_redis),
 ):
     voter_vk_id = current_user["vk_id"]
     success = await event_crud.delete_event_vote(

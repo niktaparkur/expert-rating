@@ -74,6 +74,7 @@ import { useApi } from "./hooks/useApi";
 import { useUserStore } from "./store/userStore";
 import { useUiStore } from "./store/uiStore";
 import { VoteCard } from "./components/Vote/VoteCard";
+import { Platform } from "@vkontakte/vkui";
 import {
   Home,
   Registration,
@@ -143,6 +144,9 @@ export const App = () => {
     useActiveVkuiLocation();
   const hasLaunchParams = searchParams.toString().length > 0;
   const isMobilePlatform = platform === "ios" || platform === "android";
+
+  const isMobile = platform === Platform.IOS || platform === Platform.ANDROID;
+
 
   const { currentUser, setCurrentUser } = useUserStore();
   const {
@@ -429,7 +433,7 @@ export const App = () => {
 
     try {
       const updatedUser = await apiPut<UserData>("/users/me/settings", payload);
-      setCurrentUser(updatedUser);
+      setCurrentUser({ ...currentUser, ...updatedUser });
     } catch (err) {
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
@@ -440,6 +444,20 @@ export const App = () => {
     } finally {
       setPopout(null);
     }
+  };
+
+  const promoLength = promoInput.trim().length;
+
+  const isPromoLengthError = promoLength > 0 && (promoLength < 4 || promoLength > 20);
+
+  const isPromoErrorState =
+    isPromoLengthError ||
+    promoCheckResult?.status === "not_found" ||
+    promoCheckResult?.status === "error";
+
+  const getPromoBottomText = () => {
+    if (isPromoLengthError) return "Код должен содержать от 4 до 20 символов";
+    return getPromoStatusMessage();
   };
 
   const toggleNotificationSettings = async (
@@ -949,26 +967,32 @@ export const App = () => {
           <FormItem
             top={<Text>Введите промо-слово или наведите камеру на QR-код</Text>}
             bottom={getPromoStatusMessage()}
-            status={
-              promoCheckResult?.status === "not_found" ||
-              promoCheckResult?.status === "error"
-                ? "error"
-                : "default"
-            }
+            status={isPromoErrorState ? "error" : "default"}
           >
-            <FormField>
+            <FormField
+              status={isPromoErrorState ? "error" : "default"}
+            >
               <Input
                 value={promoInput}
                 onChange={(e) => setPromoInput(e.target.value)}
+                maxLength={20}
+                style={isMobilePlatform ? { paddingRight: "40px" } : {}}
               />
             </FormField>
+            {isPromoLengthError && (
+               <Text style={{ fontSize: 12, color: "var(--vkui--color_text_negative)", marginTop: 4 }}>
+                 Код должен содержать от 4 до 20 символов
+               </Text>
+            )}
           </FormItem>
           <FormItem>
             <Button
               size="l"
               stretched
               onClick={navigateToVoteByPromo}
-              disabled={promoCheckResult?.status !== "active"}
+              disabled={
+                promoCheckResult?.status !== "active" || isPromoLengthError
+              }
             >
               Проголосовать
             </Button>
@@ -987,6 +1011,7 @@ export const App = () => {
                   value={topicSearchQuery}
                   onChange={(e) => setTopicSearchQuery(e.target.value)}
                   placeholder="Поиск по темам"
+                  style={isMobile ? { paddingRight: "82px" } : {}}
                 />
               </div>
             </ModalPageHeader>

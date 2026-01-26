@@ -86,7 +86,7 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
   const checkAvailability = useCallback(
     debounce(async (word: string, date: Date | null, duration: string) => {
       const normalizedWord = word.trim();
-      if (!date || !/^[A-Z0-9А-ЯЁ]{4,}$/i.test(normalizedWord)) {
+      if (!date || !/^[A-Z0-9А-ЯЁ]{4,20}$/i.test(normalizedWord)) {
         if (normalizedWord.length > 0 && date) {
           setAvailabilityStatus("invalid");
         } else {
@@ -167,10 +167,15 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
     }
 
     const now = new Date();
+    const maxDate = new Date();
+    maxDate.setFullYear(now.getFullYear() + 5);
+
     if (date < now) {
       setDateError(
         "Выбранное время уже прошло. Пожалуйста, выберите будущее время.",
       );
+    } else if (date > maxDate) {
+      setDateError("Дата мероприятия не может быть более чем через 5 лет.");
     } else {
       setDateError(null);
     }
@@ -317,6 +322,7 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
                 value={formData.promo_word}
                 onChange={handleChange}
                 disabled={!formData.event_date || !!dateError}
+                maxLength={20}
               />
             </FormField>
           </FormItem>
@@ -442,6 +448,7 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
           <SimpleCell
             Component="label"
             before={<Icon28NotificationWaves />}
+            multiline
             after={
               <Switch
                 name="send_reminder"
