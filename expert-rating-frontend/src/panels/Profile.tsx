@@ -208,7 +208,11 @@ export const Profile = ({
       <Group
         header={
           <Header
-            indicator={`${planned.length}`}
+            indicator={
+              user?.event_usage
+                ? `${user.event_usage.current_count} / ${user.event_usage.limit}`
+                : `${planned.length}`
+            }
             after={
               planned.length > 0 ? (
                 <Button

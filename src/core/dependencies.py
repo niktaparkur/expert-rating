@@ -14,9 +14,7 @@ from src.crud import expert_crud
 from src.services.notifier import Notifier
 from src.schemas import expert_schemas
 
-# --- FIX: Убрали импорт моделей, он тут не нужен напрямую,
-# либо используем правильный путь, если понадобится в будущем ---
-# from src.models import User ...
+from src.crud import event_crud
 
 load_dotenv()
 
@@ -97,10 +95,6 @@ async def get_validated_vk_id(
 
     vk_user_id = data["response"]["user_id"]
 
-    # # --- ЗАГЛУШКА ДЛЯ ТЕСТОВ (Удалить на проде и раскомментировать код выше!) ---
-    # # Для локальной разработки без реального токена VK
-    # vk_user_id = 100001  # Берем ID из seed_database
-    # # --------------------------------------------------------------------------
 
     await cache.set(token_cache_key, vk_user_id, ex=300)
     return vk_user_id
@@ -115,14 +109,15 @@ async def get_current_user(
     cached_user_str = await cache.get(cache_key)
 
     if cached_user_str:
-        # logger.trace(f"User {vk_user_id} profile found in cache.")
-        return json.loads(cached_user_str)
+        user_dict = json.loads(cached_user_str)
+        if user_dict.get("is_expert") and "event_usage" not in user_dict:
+            logger.info(f"Cache for user {vk_user_id} is outdated (missing event_usage), refreshing...")
+        else:
+            return user_dict
 
     result = await expert_crud.get_full_user_profile_with_stats(db, vk_id=vk_user_id)
 
     if not result:
-        # Если юзер есть в токене, но нет в БД - это новый юзер, но он еще не зарегался
-        # Возвращаем 404, фронт перекинет на регистрацию
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found in database. Please register.",
@@ -150,7 +145,6 @@ async def get_current_user(
                 for theme in profile.selected_themes
             ]
 
-    # Tariff logic based on DonutSubscription
     if user.subscription and user.subscription.is_active:
         if user.subscription.amount >= 3999:
             response_data.tariff_plan = "Профи"
@@ -163,6 +157,15 @@ async def get_current_user(
             response_data.next_payment_date = user.subscription.next_payment_date
     else:
             response_data.tariff_plan = "Начальный"
+
+    if response_data.is_expert:
+        tariff = response_data.tariff_plan or "Начальный"
+        limit = settings.TARIFF_EVENT_LIMITS.get(tariff, 3)
+        current_count = await event_crud.get_expert_approved_event_count_current_month(db, vk_user_id)
+        response_data.event_usage = expert_schemas.EventUsage(
+            current_count=current_count,
+            limit=limit
+        )
 
     current_user_dict = response_data.model_dump(mode="json")
 

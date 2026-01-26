@@ -58,6 +58,11 @@ class UserPublicRead(UserBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class EventUsage(BaseModel):
+    current_count: int
+    limit: int
+
+
 class UserPrivateRead(UserPublicRead):
     registration_date: datetime
     is_admin: bool
@@ -67,6 +72,7 @@ class UserPrivateRead(UserPublicRead):
     my_votes_stats: MyVotesStats = Field(default_factory=MyVotesStats)
     stats: StatsPrivate = Field(default_factory=StatsPrivate)
     next_payment_date: Optional[datetime] = None
+    event_usage: Optional[EventUsage] = None
 
     model_config = ConfigDict(from_attributes=True)
 

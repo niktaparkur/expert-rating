@@ -11,7 +11,7 @@ from src.core.dependencies import (
     get_redis,
     get_validated_vk_id,
 )
-from src.crud import expert_crud
+from src.crud import expert_crud, event_crud
 from src.schemas.event_schemas import EventRead
 from src.schemas.expert_schemas import (
     UserPrivateRead,
@@ -21,6 +21,7 @@ from src.schemas.expert_schemas import (
     VotedExpertInfo,
     UserRegaliaUpdate,
 )
+from src.schemas import expert_schemas
 from pydantic import EmailStr, TypeAdapter
 from loguru import logger
 
@@ -87,6 +88,17 @@ async def update_user_email(
                     response_data.next_payment_date = user.subscription.next_payment_date
             else:
                  response_data.tariff_plan = "Начальный"
+
+            # Event usage logic
+            if response_data.is_expert:
+                tariff = response_data.tariff_plan or "Начальный"
+                limit = settings.TARIFF_EVENT_LIMITS.get(tariff, 3)
+                current_count = await event_crud.get_expert_approved_event_count_current_month(db, vk_id)
+                response_data.event_usage = expert_schemas.EventUsage(
+                    current_count=current_count,
+                    limit=limit
+                )
+
             response_data.topics = [
                 f"{theme.category.name} > {theme.name}"
                 for theme in profile.selected_themes
@@ -157,6 +169,17 @@ async def update_user_regalia(
                     response_data.next_payment_date = user.subscription.next_payment_date
             else:
                  response_data.tariff_plan = "Начальный"
+            
+            # Event usage logic
+            if response_data.is_expert:
+                tariff = response_data.tariff_plan or "Начальный"
+                limit = settings.TARIFF_EVENT_LIMITS.get(tariff, 3)
+                current_count = await event_crud.get_expert_approved_event_count_current_month(db, vk_id)
+                response_data.event_usage = expert_schemas.EventUsage(
+                    current_count=current_count,
+                    limit=limit
+                )
+
             response_data.regalia = profile.regalia
             response_data.social_link = str(profile.social_link)
             response_data.topics = [
@@ -286,6 +309,17 @@ async def update_user_settings(
                 response_data.next_payment_date = user.subscription.next_payment_date
         else:
              response_data.tariff_plan = "Начальный"
+
+        # Event usage logic
+        if response_data.is_expert:
+            tariff = response_data.tariff_plan or "Начальный"
+            limit = settings.TARIFF_EVENT_LIMITS.get(tariff, 3)
+            current_count = await event_crud.get_expert_approved_event_count_current_month(db, vk_id)
+            response_data.event_usage = expert_schemas.EventUsage(
+                current_count=current_count,
+                limit=limit
+            )
+
         response_data.topics = [
             f"{theme.category.name} > {theme.name}" for theme in profile.selected_themes
         ]

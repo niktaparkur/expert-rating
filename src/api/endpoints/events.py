@@ -59,6 +59,19 @@ async def create_event(
 
     expert_id = current_user["vk_id"]
 
+    # Check event creation limits
+    tariff = current_user.get("tariff_plan", "Начальный")
+    from src.core.config import settings
+    limit = settings.TARIFF_EVENT_LIMITS.get(tariff, 3)
+    
+    approved_count = await event_crud.get_expert_approved_event_count_current_month(db, expert_id)
+    
+    if approved_count >= limit:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Вы достигли лимита создания мероприятий для тарифа '{tariff}' ({limit} в месяц). Повысьте тариф для увеличения лимита."
+        )
+
     promo_normalized = event_data.promo_word.upper().strip()
     lock_key = f"lock:event_create:{promo_normalized}"
 

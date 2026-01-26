@@ -66,6 +66,10 @@ export interface UserData {
   email?: string;
   rank?: number;
   next_payment_date?: string;
+  event_usage?: {
+    current_count: number;
+    limit: number;
+  };
 }
 
 export interface CurrentVoteStatus {

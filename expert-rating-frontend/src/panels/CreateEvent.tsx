@@ -493,6 +493,15 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
           </SimpleCell>
         </Group>
         <Div>
+          {user?.event_usage && (
+            <SimpleCell
+              disabled
+              subtitle={`Лимит мероприятий в месяц: ${user.event_usage.current_count} из ${user.event_usage.limit} одобрено.`}
+              indicator={user.event_usage.current_count >= user.event_usage.limit ? "Лимит!" : undefined}
+            >
+              Использование лимита
+            </SimpleCell>
+          )}
           <Button
             size="l"
             stretched
@@ -504,10 +513,13 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
               !formData.event_date ||
               !!durationError ||
               !!dateError ||
-              parseInt(formData.duration_minutes) < 1
+              parseInt(formData.duration_minutes) < 1 ||
+              (user?.event_usage && user.event_usage.current_count >= user.event_usage.limit)
             }
           >
-            Отправить на модерацию
+            {user?.event_usage && user.event_usage.current_count >= user.event_usage.limit
+              ? "Лимит исчерпан"
+              : "Отправить на модерацию"}
           </Button>
         </Div>
       </form>

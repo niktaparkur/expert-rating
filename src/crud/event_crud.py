@@ -12,6 +12,20 @@ from src.models import Event, ExpertProfile, ExpertRating, EventFeedback, Theme
 from src.schemas import event_schemas
 
 
+async def get_expert_approved_event_count_current_month(db: AsyncSession, expert_id: int) -> int:
+    now = datetime.now(timezone.utc)
+    # Текущий календарный месяц (с начала 1-го числа)
+    start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    query = select(func.count(Event.id)).where(
+        Event.expert_id == expert_id,
+        Event.status == "approved",
+        Event.created_at >= start_of_month
+    )
+    result = await db.execute(query)
+    return result.scalar_one()
+
+
 async def check_event_availability(
         db: AsyncSession, promo_word: str, event_date: datetime, duration_minutes: int
 ) -> bool:
