@@ -65,6 +65,7 @@ export interface UserData {
   allow_expert_mailings: boolean;
   email?: string;
   rank?: number;
+  next_payment_date?: string;
 }
 
 export interface CurrentVoteStatus {

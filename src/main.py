@@ -17,10 +17,13 @@ from src.api.endpoints import (
     meta,
     # promo,
     # mailings,
+    vk_callback,
 )
 from src.core.config import settings
 from src.crud import event_crud
 from src.services.notifier import Notifier
+from src.core.exceptions import validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 
 logger.remove()
 logger.add(
@@ -100,6 +103,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+
 origin_regex = r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|https?://.*\.potokrechi\.ru|https://vk\.com)$"
 
 app.add_middleware(
@@ -116,6 +121,7 @@ app.include_router(events.router, prefix="/api/v1")
 # app.include_router(tariffs.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(meta.router, prefix="/api/v1")
+app.include_router(vk_callback.router, prefix="/api/v1")
 # app.include_router(promo.router, prefix="/api/v1")
 # app.include_router(mailings.router, prefix="/api/v1")
 

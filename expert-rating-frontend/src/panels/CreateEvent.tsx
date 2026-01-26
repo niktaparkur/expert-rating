@@ -50,7 +50,7 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
   const { setPopout } = useUiStore();
   const { currentUser: user } = useUserStore();
 
-  const [formData, setFormData] = useState<FormData>({
+  const INITIAL_FORM_DATA: FormData = {
     name: "",
     description: "",
     promo_word: "",
@@ -60,7 +60,17 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
     is_private: false,
     send_reminder: false,
     voter_thank_you_message: "",
-  });
+  };
+
+  const resetForm = () => {
+    setFormData(INITIAL_FORM_DATA);
+    setAvailabilityStatus(null);
+    setDurationError(null);
+    setDateError(null);
+    setIsCheckingAvailability(false);
+  };
+
+  const [formData, setFormData] = useState<FormData>(INITIAL_FORM_DATA);
 
   const [availabilityStatus, setAvailabilityStatus] = useState<
     "available" | "taken" | "error" | "invalid" | null
@@ -188,6 +198,17 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
     setFormData((prev) => ({ ...prev, duration_minutes: minutes }));
   };
 
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    if (name === "event_link" && value.trim() !== "") {
+      let fixedValue = value.trim();
+      if (!/^https?:\/\//i.test(fixedValue)) {
+        fixedValue = `https://${fixedValue}`;
+      }
+      setFormData((prev) => ({ ...prev, event_link: fixedValue }));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (
@@ -215,6 +236,9 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
       await apiPost("/events/create", finalData);
       onSuccess();
       onClose();
+
+      // Reset form state for next usage
+      resetForm();
     } catch (error: any) {
       alert(error.message || "Произошла неизвестная ошибка");
     } finally {
@@ -287,6 +311,7 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
                 type="url"
                 value={formData.event_link}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 placeholder="https://vk.com/event123"
               />
             </FormField>

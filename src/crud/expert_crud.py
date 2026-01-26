@@ -66,7 +66,8 @@ async def get_user_with_profile(db: AsyncSession, vk_id: int):
         .outerjoin(ExpertProfile, User.vk_id == ExpertProfile.user_vk_id)
         .filter(User.vk_id == vk_id)
         .options(
-            selectinload(ExpertProfile.selected_themes).selectinload(Theme.category)
+            selectinload(ExpertProfile.selected_themes).selectinload(Theme.category),
+            selectinload(User.subscription),
         )
     )
     result = await db.execute(query)

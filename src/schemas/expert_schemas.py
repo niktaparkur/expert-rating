@@ -66,6 +66,7 @@ class UserPrivateRead(UserPublicRead):
     allow_expert_mailings: bool = True
     my_votes_stats: MyVotesStats = Field(default_factory=MyVotesStats)
     stats: StatsPrivate = Field(default_factory=StatsPrivate)
+    next_payment_date: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 

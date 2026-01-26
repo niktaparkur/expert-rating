@@ -74,7 +74,19 @@ async def update_user_email(
             response_data.is_expert = profile.status == "approved"
             response_data.status = profile.status
             response_data.show_community_rating = profile.show_community_rating
-            response_data.tariff_plan = "Начальный"
+            # Tariff logic based on DonutSubscription
+            if user.subscription and user.subscription.is_active:
+                if user.subscription.amount >= 3999:
+                    response_data.tariff_plan = "Профи"
+                elif user.subscription.amount >= 999:
+                    response_data.tariff_plan = "Стандарт"
+                else:
+                    response_data.tariff_plan = "Начальный"
+                
+                if user.subscription.next_payment_date:
+                    response_data.next_payment_date = user.subscription.next_payment_date
+            else:
+                 response_data.tariff_plan = "Начальный"
             response_data.topics = [
                 f"{theme.category.name} > {theme.name}"
                 for theme in profile.selected_themes
@@ -132,7 +144,19 @@ async def update_user_regalia(
             response_data.is_expert = profile.status == "approved"
             response_data.status = profile.status
             response_data.show_community_rating = profile.show_community_rating
-            response_data.tariff_plan = "Начальный"
+            # Tariff logic based on DonutSubscription
+            if user.subscription and user.subscription.is_active:
+                if user.subscription.amount >= 3999:
+                    response_data.tariff_plan = "Профи"
+                elif user.subscription.amount >= 999:
+                    response_data.tariff_plan = "Стандарт"
+                else:
+                    response_data.tariff_plan = "Начальный"
+
+                if user.subscription.next_payment_date:
+                    response_data.next_payment_date = user.subscription.next_payment_date
+            else:
+                 response_data.tariff_plan = "Начальный"
             response_data.regalia = profile.regalia
             response_data.social_link = str(profile.social_link)
             response_data.topics = [
@@ -250,7 +274,18 @@ async def update_user_settings(
         response_data.is_expert = profile.status == "approved"
         response_data.status = profile.status
         response_data.show_community_rating = profile.show_community_rating
-        response_data.tariff_plan = "Начальный"
+        if user.subscription and user.subscription.is_active:
+            if user.subscription.amount >= 3999:
+                response_data.tariff_plan = "Профи"
+            elif user.subscription.amount >= 999:
+                response_data.tariff_plan = "Стандарт"
+            else:
+                response_data.tariff_plan = "Начальный"
+
+            if user.subscription.next_payment_date:
+                response_data.next_payment_date = user.subscription.next_payment_date
+        else:
+             response_data.tariff_plan = "Начальный"
         response_data.topics = [
             f"{theme.category.name} > {theme.name}" for theme in profile.selected_themes
         ]
