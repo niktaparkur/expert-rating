@@ -162,7 +162,7 @@ async def get_current_user(
     if response_data.is_expert:
         tariff = response_data.tariff_plan or "Начальный"
         limit = settings.TARIFF_EVENT_LIMITS.get(tariff, 3)
-        current_count = await event_crud.get_expert_approved_event_count_current_month(
+        current_count = await event_crud.get_expert_active_event_count_current_month(
             db, vk_user_id
         )
         response_data.event_usage = expert_schemas.EventUsage(
