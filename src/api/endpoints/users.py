@@ -83,20 +83,25 @@ async def update_user_email(
                     response_data.tariff_plan = "Стандарт"
                 else:
                     response_data.tariff_plan = "Начальный"
-                
+
                 if user.subscription.next_payment_date:
-                    response_data.next_payment_date = user.subscription.next_payment_date
+                    response_data.next_payment_date = (
+                        user.subscription.next_payment_date
+                    )
             else:
-                 response_data.tariff_plan = "Начальный"
+                response_data.tariff_plan = "Начальный"
 
             # Event usage logic
             if response_data.is_expert:
                 tariff = response_data.tariff_plan or "Начальный"
                 limit = settings.TARIFF_EVENT_LIMITS.get(tariff, 3)
-                current_count = await event_crud.get_expert_approved_event_count_current_month(db, vk_id)
+                current_count = (
+                    await event_crud.get_expert_active_event_count_current_month(
+                        db, vk_id
+                    )
+                )
                 response_data.event_usage = expert_schemas.EventUsage(
-                    current_count=current_count,
-                    limit=limit
+                    current_count=current_count, limit=limit
                 )
 
             response_data.topics = [
@@ -166,18 +171,23 @@ async def update_user_regalia(
                     response_data.tariff_plan = "Начальный"
 
                 if user.subscription.next_payment_date:
-                    response_data.next_payment_date = user.subscription.next_payment_date
+                    response_data.next_payment_date = (
+                        user.subscription.next_payment_date
+                    )
             else:
-                 response_data.tariff_plan = "Начальный"
-            
+                response_data.tariff_plan = "Начальный"
+
             # Event usage logic
             if response_data.is_expert:
                 tariff = response_data.tariff_plan or "Начальный"
                 limit = settings.TARIFF_EVENT_LIMITS.get(tariff, 3)
-                current_count = await event_crud.get_expert_approved_event_count_current_month(db, vk_id)
+                current_count = (
+                    await event_crud.get_expert_active_event_count_current_month(
+                        db, vk_id
+                    )
+                )
                 response_data.event_usage = expert_schemas.EventUsage(
-                    current_count=current_count,
-                    limit=limit
+                    current_count=current_count, limit=limit
                 )
 
             response_data.regalia = profile.regalia
@@ -214,6 +224,54 @@ async def register_new_user(
         return response_data
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/me/votes/{expert_id}/history", response_model=List[MyVoteRead])
+async def get_my_vote_history(
+    expert_id: int,
+    rating_type: str,  # "expert" or "community"
+    current_user: Dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    vk_id = current_user["vk_id"]
+    feedbacks = await expert_crud.get_interaction_history(
+        db, expert_id=expert_id, voter_id=vk_id, rating_type=rating_type
+    )
+
+    response_list = []
+    for fb in feedbacks:
+        if fb.rating_snapshot == 1:
+            vote_type = "trust"
+        elif fb.rating_snapshot == -1:
+            vote_type = "distrust"
+        else:
+            vote_type = "neutral"
+
+        vote_data_dict = {
+            "id": fb.id,
+            "vote_type": vote_type,
+            "is_expert_vote": fb.event_id is not None,
+            "created_at": fb.created_at,
+            "expert": None,
+            "event": None,
+        }
+
+        if fb.expert and fb.expert.user:
+            vote_data_dict["expert"] = VotedExpertInfo.model_validate(
+                fb.expert.user, from_attributes=True
+            )
+
+        if fb.event and fb.event.expert and fb.event.expert.user:
+            event_expert_info = VotedExpertInfo.model_validate(
+                fb.event.expert.user, from_attributes=True
+            )
+            event_data = EventRead.model_validate(fb.event, from_attributes=True)
+            event_data.expert_info = event_expert_info
+            vote_data_dict["event"] = event_data
+
+        response_list.append(MyVoteRead.model_validate(vote_data_dict))
+
+    return response_list
 
 
 @router.get("/me/votes", response_model=List[MyVoteRead])
@@ -308,16 +366,17 @@ async def update_user_settings(
             if user.subscription.next_payment_date:
                 response_data.next_payment_date = user.subscription.next_payment_date
         else:
-             response_data.tariff_plan = "Начальный"
+            response_data.tariff_plan = "Начальный"
 
         # Event usage logic
         if response_data.is_expert:
             tariff = response_data.tariff_plan or "Начальный"
             limit = settings.TARIFF_EVENT_LIMITS.get(tariff, 3)
-            current_count = await event_crud.get_expert_approved_event_count_current_month(db, vk_id)
+            current_count = (
+                await event_crud.get_expert_active_event_count_current_month(db, vk_id)
+            )
             response_data.event_usage = expert_schemas.EventUsage(
-                current_count=current_count,
-                limit=limit
+                current_count=current_count, limit=limit
             )
 
         response_data.topics = [

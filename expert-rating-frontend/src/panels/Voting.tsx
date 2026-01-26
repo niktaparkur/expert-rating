@@ -113,7 +113,17 @@ export const Voting = ({ id }: VotingProps) => {
             </Group>
             <VoteCard
               onSubmit={handleEventVoteSubmit}
-              initialVoteValue={eventData.current_vote?.vote_value || 0}
+              initialVote={
+                eventData.current_vote?.vote_value
+                  ? {
+                    vote_type:
+                      eventData.current_vote.vote_value === 1
+                        ? "trust"
+                        : "distrust",
+                    comment: eventData.current_vote.last_comment,
+                  }
+                  : null
+              }
               setPopout={setPopout}
             />
           </>

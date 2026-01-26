@@ -86,3 +86,14 @@ export interface EventStatusData {
   current_vote?: CurrentVoteStatus;
   expert: Partial<UserData>;
 }
+
+export interface VoteData {
+  id: number;
+  vote_type: "trust" | "distrust" | "neutral";
+  is_expert_vote: boolean;
+  created_at: string;
+  rating_snapshot: number;
+  comment?: string;
+  expert?: ExpertInfo;
+  event?: EventData & { expert_info: ExpertInfo };
+}

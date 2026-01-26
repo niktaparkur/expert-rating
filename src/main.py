@@ -22,7 +22,13 @@ from src.api.endpoints import (
 from src.core.config import settings
 from src.crud import event_crud
 from src.services.notifier import Notifier
-from src.core.exceptions import validation_exception_handler
+from src.core.exceptions import (
+    validation_exception_handler,
+    IdempotentException,
+    idempotent_exception_handler,
+)
+from src.core.middlewares import integrity_error_handler
+from sqlalchemy.exc import IntegrityError
 from fastapi.exceptions import RequestValidationError
 
 logger.remove()
@@ -104,6 +110,8 @@ app = FastAPI(
 )
 
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(IntegrityError, integrity_error_handler)
+app.add_exception_handler(IdempotentException, idempotent_exception_handler)
 
 origin_regex = r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|https?://.*\.potokrechi\.ru|https://vk\.com)$"
 

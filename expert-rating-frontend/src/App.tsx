@@ -68,6 +68,7 @@ import { AfishaEventModal } from "./components/Afisha/AfishaEventModal";
 import { FiltersModal } from "./components/Shared/FiltersModal";
 import { PurchaseModal } from "./components/Shared/PurchaseModal";
 import { MobilePaymentStubModal } from "./components/Shared/MobilePaymentStubModal";
+import { InteractionHistoryModal } from "./components/Profile/InteractionHistoryModal";
 import { EditProfileModal } from "./components/Profile/EditProfileModal";
 import { SelectModal, Option } from "./components/Shared/SelectModal";
 import { useApi } from "./hooks/useApi";
@@ -157,6 +158,8 @@ export const App = () => {
     setPopout,
     setSnackbar,
     targetExpertId,
+    historyTargetId,
+    historyRatingType,
   } = useUiStore();
 
   const [promoInput, setPromoInput] = useState("");
@@ -166,6 +169,7 @@ export const App = () => {
   const [topicSearchQuery, setTopicSearchQuery] = useState("");
   const [themeCategories, setThemeCategories] = useState<any[]>([]);
   const [activeThemeIds, setActiveThemeIds] = useState<number[]>([]);
+  const [tempThemeIds, setTempThemeIds] = useState<number[]>([]);
 
   const [interactionEvent, setInteractionEvent] = useState<EventData | null>(
     null,
@@ -523,7 +527,7 @@ export const App = () => {
   };
 
   const isTopicSelectionValid =
-    activeThemeIds.length >= 1 && activeThemeIds.length <= 3;
+    tempThemeIds.length >= 1 && tempThemeIds.length <= 3;
 
   const filteredTopicGroups = useMemo(() => {
     if (!themeCategories) return [];
@@ -551,9 +555,13 @@ export const App = () => {
       try {
         const response = await apiGet(`/events/status/${normalizedWord}`);
         setPromoCheckResult(response);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Promo check failed:", error);
-        setPromoCheckResult({ status: "error" });
+        if (error.message?.includes("404") || error.message?.includes("найдено")) {
+          setPromoCheckResult({ status: "not_found" });
+        } else {
+          setPromoCheckResult({ status: "error" });
+        }
       } finally {
         setIsValidatingPromo(false);
       }
@@ -778,7 +786,10 @@ export const App = () => {
         </Snackbar>,
       );
       await queryClient.invalidateQueries({
-        queryKey: ["expertProfile", String(voteExpertData.vk_id)],
+        queryKey: ["expertProfile"],
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["userVotes"],
       });
     } catch (err) {
       setPopout(null);
@@ -922,7 +933,10 @@ export const App = () => {
               <Registration
                 id={PANEL_REGISTRATION}
                 selectedThemeIds={activeThemeIds}
-                onOpenTopicsModal={() => setActiveModal("topics-modal")}
+                onOpenTopicsModal={() => {
+                  setTempThemeIds(activeThemeIds);
+                  setActiveModal("topics-modal");
+                }}
                 allThemes={themeCategories}
                 allRegions={regionList}
                 openSelectModal={configureSelectModal}
@@ -980,9 +994,9 @@ export const App = () => {
               />
             </FormField>
             {isPromoLengthError && (
-               <Text style={{ fontSize: 12, color: "var(--vkui--color_text_negative)", marginTop: 4 }}>
-                 Код должен содержать от 4 до 20 символов
-               </Text>
+              <Text style={{ fontSize: 12, color: "var(--vkui--color_text_negative)", marginTop: 4 }}>
+                Код должен содержать от 4 до 20 символов
+              </Text>
             )}
           </FormItem>
           <FormItem>
@@ -1019,7 +1033,14 @@ export const App = () => {
           footer={
             isTopicSelectionValid && (
               <Div>
-                <Button size="l" stretched onClick={() => setActiveModal(null)}>
+                <Button
+                  size="l"
+                  stretched
+                  onClick={() => {
+                    setActiveThemeIds(tempThemeIds);
+                    setActiveModal(null);
+                  }}
+                >
                   Сохранить
                 </Button>
               </Div>
@@ -1034,11 +1055,20 @@ export const App = () => {
                 {group.items.map((item: any) => (
                   <Checkbox
                     key={item.id}
-                    checked={activeThemeIds.includes(item.id)}
-                    onChange={(e) => toggleTopicSelection(e, item.id)}
+                    checked={tempThemeIds.includes(item.id)}
+                    onChange={(e) => {
+                      const { checked } = e.target;
+                      if (checked) {
+                        if (tempThemeIds.length < 3) {
+                          setTempThemeIds([...tempThemeIds, item.id]);
+                        }
+                      } else {
+                        setTempThemeIds(tempThemeIds.filter((id) => id !== item.id));
+                      }
+                    }}
                     disabled={
-                      activeThemeIds.length >= 3 &&
-                      !activeThemeIds.includes(item.id)
+                      tempThemeIds.length >= 3 &&
+                      !tempThemeIds.includes(item.id)
                     }
                   >
                     {item.name}
@@ -1240,7 +1270,7 @@ export const App = () => {
           title={selectModalState?.title || ""}
           options={selectModalState?.options || []}
           selected={selectModalState?.selected || null}
-          onSelect={selectModalState?.onSelect || (() => {})}
+          onSelect={selectModalState?.onSelect || (() => { })}
           searchable={selectModalState?.searchable || false}
         />
 
@@ -1281,7 +1311,7 @@ export const App = () => {
           <VoteCard
             onSubmit={submitCommunityVote}
             onCancelVote={cancelCommunityVote}
-            initialVote={currentUser?.current_user_vote_info || null}
+            initialVote={voteExpertData?.current_user_vote_info || null}
             setPopout={setPopout}
           />
         </ModalPage>
@@ -1302,6 +1332,13 @@ export const App = () => {
         <MobilePaymentStubModal
           id="mobile-payment-stub"
           onClose={() => setActiveModal(null)}
+        />
+
+        <InteractionHistoryModal
+          id="interaction-history-modal"
+          onClose={() => setActiveModal(null)}
+          expertId={historyTargetId}
+          ratingType={historyRatingType}
         />
 
         <EditProfileModal

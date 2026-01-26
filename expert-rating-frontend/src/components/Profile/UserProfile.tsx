@@ -185,7 +185,7 @@ export const UserProfile = ({
                 <Tooltip
                   shown={isDesktop ? undefined : expertTooltipShown}
                   onShownChange={setExpertTooltipShown}
-                  description={`Экспертный рейтинг (👍 ${stats.community_trust ?? 0} | 👎 ${stats.community_distrust ?? 0})`}
+                  description={`Экспертный рейтинг (👍 ${stats.expert_trust ?? 0} | 👎 ${stats.expert_distrust ?? 0})`}
                 >
                   <div
                     className="stat-item"

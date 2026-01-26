@@ -74,9 +74,10 @@ export const Home = ({ id }: HomeProps) => {
     queryFn: fetchExperts,
     initialPageParam: 1,
     getNextPageParam: (lastPage, allPages) => {
-      const currentPage = allPages.length;
+      if (!lastPage || lastPage.items.length === 0) return undefined;
       const totalCount = lastPage.total_count;
-      return currentPage * PAGE_SIZE < totalCount ? currentPage + 1 : undefined;
+      const loadedCount = allPages.length * PAGE_SIZE;
+      return loadedCount < totalCount ? allPages.length + 1 : undefined;
     },
   });
 

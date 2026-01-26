@@ -95,7 +95,6 @@ async def get_validated_vk_id(
 
     vk_user_id = data["response"]["user_id"]
 
-
     await cache.set(token_cache_key, vk_user_id, ex=300)
     return vk_user_id
 
@@ -111,7 +110,9 @@ async def get_current_user(
     if cached_user_str:
         user_dict = json.loads(cached_user_str)
         if user_dict.get("is_expert") and "event_usage" not in user_dict:
-            logger.info(f"Cache for user {vk_user_id} is outdated (missing event_usage), refreshing...")
+            logger.info(
+                f"Cache for user {vk_user_id} is outdated (missing event_usage), refreshing..."
+            )
         else:
             return user_dict
 
@@ -152,19 +153,20 @@ async def get_current_user(
             response_data.tariff_plan = "Стандарт"
         else:
             response_data.tariff_plan = "Начальный"
-        
+
         if user.subscription.next_payment_date:
             response_data.next_payment_date = user.subscription.next_payment_date
     else:
-            response_data.tariff_plan = "Начальный"
+        response_data.tariff_plan = "Начальный"
 
     if response_data.is_expert:
         tariff = response_data.tariff_plan or "Начальный"
         limit = settings.TARIFF_EVENT_LIMITS.get(tariff, 3)
-        current_count = await event_crud.get_expert_approved_event_count_current_month(db, vk_user_id)
+        current_count = await event_crud.get_expert_approved_event_count_current_month(
+            db, vk_user_id
+        )
         response_data.event_usage = expert_schemas.EventUsage(
-            current_count=current_count,
-            limit=limit
+            current_count=current_count, limit=limit
         )
 
     current_user_dict = response_data.model_dump(mode="json")
@@ -179,3 +181,26 @@ async def get_current_admin_user(current_user: Dict = Depends(get_current_user))
             status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
         )
     return current_user
+
+
+async def check_idempotency_key(
+    x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
+    cache: redis.Redis = Depends(get_redis),
+) -> Optional[str]:
+    if not x_idempotency_key:
+        return None
+
+    cached_res = await cache.get(f"idempotency:{x_idempotency_key}")
+    if cached_res:
+        from src.core.exceptions import IdempotentException
+
+        raise IdempotentException(content=json.loads(cached_res))
+
+    return x_idempotency_key
+
+
+async def save_idempotency_result(
+    key: str, result: dict, cache: redis.Redis, expire: int = 86400  # 24 hours
+):
+    if key:
+        await cache.set(f"idempotency:{key}", json.dumps(result), ex=expire)

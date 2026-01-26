@@ -12,6 +12,8 @@ from src.core.dependencies import (
     get_db,
     get_notifier,
     get_redis,
+    check_idempotency_key,
+    save_idempotency_result,
 )
 from src.crud import expert_crud
 from src.schemas import expert_schemas
@@ -133,15 +135,12 @@ async def create_vote_for_expert(
     cache: redis.Redis = Depends(get_redis),
     notifier: Notifier = Depends(get_notifier),
     voter_id: int = Depends(get_validated_vk_id),
+    idempotency_key: Optional[str] = Depends(check_idempotency_key),
 ):
     if vk_id == voter_id:
         raise HTTPException(status_code=400, detail="Вы не можете голосовать за себя.")
 
-    is_comment_missing = (
-        vote_data.vote_type == "trust" and not vote_data.comment_positive
-    ) or (vote_data.vote_type == "distrust" and not vote_data.comment_negative)
-
-    if is_comment_missing:
+    if not vote_data.comment or len(vote_data.comment.strip()) < 3:
         raise HTTPException(
             status_code=400,
             detail="Комментарий является обязательным для этого действия.",
@@ -168,7 +167,10 @@ async def create_vote_for_expert(
             await cache.delete(f"user_profile:{vk_id}")
             await cache.delete(f"user_profile:{voter_id}")
 
-            return {"status": "ok", "message": "Your vote has been processed."}
+            res = {"status": "ok", "message": "Your vote has been processed."}
+            if idempotency_key:
+                await save_idempotency_result(idempotency_key, res, cache)
+            return res
 
     except LockError:
         raise HTTPException(status_code=429, detail="Слишком много запросов.")
@@ -177,13 +179,14 @@ async def create_vote_for_expert(
 @router.delete("/{vk_id}/vote", status_code=200)
 async def cancel_vote_for_expert(
     vk_id: int,
+    rating_type: str = "community",
     current_user: Dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     cache: redis.Redis = Depends(get_redis),
 ):
     voter_vk_id = current_user["vk_id"]
-    success = await expert_crud.delete_community_vote(
-        db=db, expert_vk_id=vk_id, voter_vk_id=voter_vk_id
+    success = await expert_crud.withdraw_rating_vote(
+        db=db, expert_vk_id=vk_id, voter_vk_id=voter_vk_id, rating_type=rating_type
     )
 
     if not success:

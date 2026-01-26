@@ -7,7 +7,7 @@ from pydantic import (
     field_serializer,
     Field,
     field_validator,
-    ConfigDict
+    ConfigDict,
 )
 from typing import Optional, Any, List
 
@@ -37,6 +37,10 @@ class EventCreate(EventBase):
     @field_validator("event_date")
     @classmethod
     def event_date_must_be_in_future(cls, v: datetime) -> datetime:
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        if v <= datetime.now(timezone.utc):
+            raise ValueError("Дата начала не может быть в прошлом")
         return v
 
     duration_minutes: int = Field(

@@ -47,7 +47,7 @@ interface ExpertProfileCardProps {
   expert?: ExpertProfileData | null;
   onVoteClick: () => void;
   onFutureFeatureClick: () => void;
-  onReportClick: (event: React.MouseEvent<HTMLElement>) => void;
+  onReportClick?: (event: React.MouseEvent<HTMLElement>) => void;
 }
 
 export const ExpertProfileCard = ({
@@ -90,13 +90,13 @@ export const ExpertProfileCard = ({
 
   return (
     <Card mode="shadow" style={{ position: "relative" }}>
-      <IconButton
+      {/* <IconButton
         onClick={onReportClick}
         aria-label="Скачать отчет"
         style={{ position: "absolute", top: 4, right: 4, zIndex: 2 }}
       >
         <Icon28DocumentTextOutline />
-      </IconButton>
+      </IconButton> */}
 
       <Div className="expert-profile-header">
         <Avatar size={96} src={photo_url} />

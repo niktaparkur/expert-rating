@@ -111,7 +111,9 @@ export const EventActionModal = ({
       {event.description && (
         <Group header={<Header>Описание</Header>}>
           <Div>
-            <Text>{event.description}</Text>
+            <Text style={{ wordBreak: "break-word", whiteSpace: "pre-wrap" }}>
+              {event.description}
+            </Text>
           </Div>
         </Group>
       )}

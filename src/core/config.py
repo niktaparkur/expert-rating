@@ -23,11 +23,7 @@ class Settings:
     YOOKASSA_SHOP_ID: str = os.environ.get("YOOKASSA_SHOP_ID")
     YOOKASSA_SECRET_KEY: str = os.environ.get("YOOKASSA_SECRET_KEY")
 
-    TARIFF_EVENT_LIMITS = {
-        "Начальный": 3,
-        "Стандарт": 10,
-        "Профи": 30
-    }
+    TARIFF_EVENT_LIMITS = {"Начальный": 3, "Стандарт": 10, "Профи": 30}
 
 
 settings = Settings()

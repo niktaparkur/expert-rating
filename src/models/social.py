@@ -1,4 +1,13 @@
-from sqlalchemy import Column, BigInteger, Integer, Text, TIMESTAMP, func, ForeignKey
+from sqlalchemy import (
+    Column,
+    BigInteger,
+    Integer,
+    Text,
+    TIMESTAMP,
+    func,
+    ForeignKey,
+    String,
+)
 from sqlalchemy.orm import relationship
 from .base import Base
 
@@ -6,8 +15,8 @@ from .base import Base
 class ExpertRating(Base):
     """
     Текущее состояние рейтинга (Стейт).
-    Один пользователь - один голос за одного эксперта.
-    Здесь хранится только ПОСЛЕДНЕЕ актуальное решение.
+    Здесь хранится только ПОСЛЕДНЕЕ актуальное решение для каждого типа.
+    Один пользователь может иметь один "expert" и один "community" голос за одного эксперта.
     """
 
     __tablename__ = "expert_ratings"
@@ -20,9 +29,10 @@ class ExpertRating(Base):
     voter_id = Column(
         BigInteger, ForeignKey("users.vk_id", ondelete="CASCADE"), primary_key=True
     )
+    # "expert" или "community"
+    rating_type = Column(String(20), primary_key=True, default="community")
 
     # 1 = Trust, -1 = Distrust, 0 = Neutral (снял голос / воздержался)
-    # Используем Integer для удобства суммирования в SQL
     vote_value = Column(Integer, nullable=False, default=0)
 
     updated_at = Column(

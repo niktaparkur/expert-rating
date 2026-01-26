@@ -6,32 +6,45 @@ import {
   Textarea,
   Group,
   FormStatus,
-  ButtonGroup
+  ButtonGroup,
 } from "@vkontakte/vkui";
-import { Icon24Like, Icon24LikeOutline, Icon24DeleteOutline } from "@vkontakte/icons";
+import {
+  Icon24Like,
+  Icon24LikeOutline,
+  Icon16CancelCircleOutline,
+} from "@vkontakte/icons";
 
 interface VoteCardProps {
   onSubmit: (payload: {
     vote_type: "trust" | "distrust" | "remove";
     comment: string;
   }) => void;
-  initialVoteValue: number; // 1 (Trust), -1 (Distrust), 0 (None)
+  initialVote: {
+    vote_type: string;
+    comment?: string;
+  } | null;
   setPopout: (popout: React.ReactNode | null) => void;
   onCancelVote?: () => Promise<void>;
 }
 
 export const VoteCard: React.FC<VoteCardProps> = ({
   onSubmit,
-  initialVoteValue,
+  initialVote,
 }) => {
-  const [selection, setSelection] = useState<number>(initialVoteValue);
-  const [comment, setComment] = useState("");
+  const getInitialValue = () => {
+    if (!initialVote) return 0;
+    return initialVote.vote_type === "trust" ? 1 : -1;
+  };
+
+  const [selection, setSelection] = useState<number>(getInitialValue());
+  const [comment, setComment] = useState(initialVote?.comment || "");
   const [isRemoveMode, setIsRemoveMode] = useState(false);
 
   useEffect(() => {
-    setSelection(initialVoteValue);
+    setSelection(getInitialValue());
+    setComment(initialVote?.comment || "");
     setIsRemoveMode(false);
-  }, [initialVoteValue]);
+  }, [initialVote]);
 
   const handleSubmit = () => {
     let type: "trust" | "distrust" | "remove" = "trust";
@@ -50,81 +63,114 @@ export const VoteCard: React.FC<VoteCardProps> = ({
     });
   };
 
+  const initialVoteValue = getInitialValue();
+
+  const handleButtonClick = (val: number) => {
+    if (selection === val && initialVoteValue === val) {
+      // If clicking the already selected initial vote, switch to remove mode
+      setIsRemoveMode(!isRemoveMode);
+      setComment(""); // Clear comment on toggle
+    } else {
+      setSelection(val);
+      setIsRemoveMode(false);
+      setComment(""); // Clear comment on change
+    }
+  };
+
   const getButtonMode = (val: number) => {
-    if (isRemoveMode) return "secondary";
-    if (selection === val) return "primary";
+    if (selection === val && !isRemoveMode) return "primary";
     return "secondary";
   };
 
   const getStatusText = () => {
     if (initialVoteValue === 0) return "Проголосуйте за эксперта";
 
-    if (selection === initialVoteValue && !isRemoveMode) {
-        return "Вы уже голосовали так. Оставьте отзыв, чтобы подтвердить мнение.";
-    }
     if (isRemoveMode) {
-        return "Вы собираетесь отозвать свой голос.";
+      return "Вы собираетесь отозвать свой голос. Пожалуйста, укажите причину.";
     }
+
+    if (selection === initialVoteValue) {
+      return "Вы можете изменить свой отзыв или нажать на выбранный вариант еще раз, чтобы отозвать голос.";
+    }
+
     return "Вы меняете свое мнение об эксперте.";
   };
 
-  const isSubmitDisabled = (!isRemoveMode && selection === 0) || comment.trim().length < 3;
+  const isSubmitDisabled =
+    (selection === 0 && !isRemoveMode) ||
+    comment.trim().length < 3;
 
   return (
     <>
       <Group>
-        <FormStatus mode="default">
+        <FormStatus mode={isRemoveMode ? "error" : "default"}>
           {getStatusText()}
         </FormStatus>
 
-        <Div style={{paddingBottom: 0}}>
-            <ButtonGroup mode="horizontal" gap="m" stretched>
-              <Button
-                size="l"
-                stretched
-                mode={getButtonMode(1)}
-                before={selection === 1 && !isRemoveMode ? <Icon24Like /> : <Icon24LikeOutline />}
-                onClick={() => {
-                    setSelection(1);
-                    setIsRemoveMode(false);
-                }}
-              >
-                Доверяю
-              </Button>
-              <Button
-                size="l"
-                stretched
-                mode={getButtonMode(-1)}
-                before={selection === -1 && !isRemoveMode ? <Icon24Like style={{transform: "rotate(180deg)"}}/> : <Icon24LikeOutline style={{transform: "rotate(180deg)"}}/>}
-                onClick={() => {
-                    setSelection(-1);
-                    setIsRemoveMode(false);
-                }}
-              >
-                Не доверяю
-              </Button>
-            </ButtonGroup>
+        <Div>
+          <ButtonGroup mode="horizontal" gap="m" stretched>
+            <Button
+              size="l"
+              stretched
+              mode={getButtonMode(1)}
+              before={
+                selection === 1 && !isRemoveMode ? (
+                  <Icon24Like />
+                ) : (
+                  <Icon24LikeOutline />
+                )
+              }
+              after={
+                initialVoteValue === 1 && (
+                  <Icon16CancelCircleOutline
+                    style={{
+                      opacity: isRemoveMode && selection === 1 ? 1 : 0.5,
+                      color: isRemoveMode && selection === 1 ? "var(--vkui--color_icon_negative)" : "inherit"
+                    }}
+                  />
+                )
+              }
+              onClick={() => handleButtonClick(1)}
+            >
+              {initialVoteValue === 1 ? "Убрать голос" : "Доверяю"}
+            </Button>
+            <Button
+              size="l"
+              stretched
+              mode={getButtonMode(-1)}
+              before={
+                selection === -1 && !isRemoveMode ? (
+                  <Icon24Like style={{ transform: "rotate(180deg)" }} />
+                ) : (
+                  <Icon24LikeOutline style={{ transform: "rotate(180deg)" }} />
+                )
+              }
+              after={
+                initialVoteValue === -1 && (
+                  <Icon16CancelCircleOutline
+                    style={{
+                      opacity: isRemoveMode && selection === -1 ? 1 : 0.5,
+                      color: isRemoveMode && selection === -1 ? "var(--vkui--color_icon_negative)" : "inherit"
+                    }}
+                  />
+                )
+              }
+              onClick={() => handleButtonClick(-1)}
+            >
+              {initialVoteValue === -1 ? "Убрать голос" : "Не доверяю"}
+            </Button>
+          </ButtonGroup>
         </Div>
 
-        {initialVoteValue !== 0 && (
-            <Div style={{paddingTop: 8}}>
-                <Button
-                    size="m"
-                    mode={isRemoveMode ? "primary" : "tertiary"}
-                    appearance={isRemoveMode ? "negative" : "accent"}
-                    before={<Icon24DeleteOutline />}
-                    onClick={() => setIsRemoveMode(!isRemoveMode)}
-                >
-                    {isRemoveMode ? "Отменить отзыв голоса" : "Отозвать голос"}
-                </Button>
-            </Div>
-        )}
-
-        <FormItem top="Ваш отзыв (обязательно)">
+        <FormItem top={isRemoveMode ? "Причина отзыва голоса (обязательно)" : "Ваш отзыв (обязательно)"}>
           <Textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder={isRemoveMode ? "Почему вы решили отозвать голос?" : "Что вам понравилось или не понравилось?"}
+            placeholder={
+              isRemoveMode
+                ? "Почему вы решили отозвать голос?"
+                : "Что вам понравилось или не понравилось?"
+            }
           />
         </FormItem>
       </Group>
@@ -133,11 +179,11 @@ export const VoteCard: React.FC<VoteCardProps> = ({
         <Button
           size="l"
           stretched
-          mode={isRemoveMode ? "tertiary" : "primary"}
+          appearance={isRemoveMode ? "negative" : "accent"}
           onClick={handleSubmit}
           disabled={isSubmitDisabled}
         >
-          {isRemoveMode ? "Удалить голос" : "Отправить"}
+          {isRemoveMode ? "Удалить голос" : initialVoteValue !== 0 ? "Сохранить изменения" : "Отправить"}
         </Button>
       </Div>
     </>

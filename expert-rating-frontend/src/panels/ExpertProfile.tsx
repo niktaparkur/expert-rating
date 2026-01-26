@@ -46,11 +46,23 @@ const mapUserDataToExpertProfileData = (
   topics: userData.topics,
   stats: userData.stats
     ? {
-        expert: userData.stats.expert ?? 0,
-        community: userData.stats.community ?? 0,
-        events_count: userData.stats.events_count ?? 0,
-      }
-    : { expert: 0, community: 0, events_count: 0 },
+      expert: userData.stats.expert ?? 0,
+      expert_trust: userData.stats.expert_trust ?? 0,
+      expert_distrust: userData.stats.expert_distrust ?? 0,
+      community: userData.stats.community ?? 0,
+      community_trust: userData.stats.community_trust ?? 0,
+      community_distrust: userData.stats.community_distrust ?? 0,
+      events_count: userData.stats.events_count ?? 0,
+    }
+    : {
+      expert: 0,
+      expert_trust: 0,
+      expert_distrust: 0,
+      community: 0,
+      community_trust: 0,
+      community_distrust: 0,
+      events_count: 0,
+    },
   show_community_rating: userData.show_community_rating,
 });
 
@@ -168,7 +180,7 @@ export const ExpertProfile = ({ id, onReportPurchase }: ExpertProfileProps) => {
               expert={mapUserDataToExpertProfileData(expert)}
               onVoteClick={handleVoteClick}
               onFutureFeatureClick={showFutureFeatureAlert}
-              onReportClick={handleReportClick}
+            // onReportClick={handleReportClick}
             />
           </Group>
           <Group style={{ marginTop: "8px" }}>

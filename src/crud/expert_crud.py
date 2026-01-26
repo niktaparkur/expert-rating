@@ -2,7 +2,7 @@ from typing import Optional
 
 import redis.asyncio as redis
 from loguru import logger
-from sqlalchemy import func, and_, case, or_, String, desc, literal_column
+from sqlalchemy import func, and_, case, or_, String, desc, Integer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -82,18 +82,40 @@ async def get_full_user_profile_with_stats(db: AsyncSession, vk_id: int):
     # НОВАЯ ЛОГИКА ПОДСЧЕТА (ExpertRating)
     # Считаем сумму vote_value (1, 0, -1)
 
-    # 1. Рейтинг эксперта (как его оценили другие)
-    rating_query = select(
-        func.sum(case((ExpertRating.vote_value == 1, 1), else_=0)).label("trust"),
-        func.sum(case((ExpertRating.vote_value == -1, 1), else_=0)).label("distrust"),
-    ).where(ExpertRating.expert_id == vk_id)
+    # 1. Рейтинг (как его оценили другие)
+    # Используем рейтинг по типам (expert vs community)
+    rating_query = (
+        select(
+            ExpertRating.rating_type,
+            func.cast(
+                func.sum(case((ExpertRating.vote_value == 1, 1), else_=0)), Integer
+            ).label("trust"),
+            func.cast(
+                func.sum(case((ExpertRating.vote_value == -1, 1), else_=0)), Integer
+            ).label("distrust"),
+        )
+        .where(ExpertRating.expert_id == vk_id)
+        .group_by(ExpertRating.rating_type)
+    )
 
     rating_res = await db.execute(rating_query)
-    rating_counts = rating_res.first()
+    results = rating_res.all()
 
-    trust_count = int(rating_counts.trust or 0)
-    distrust_count = int(rating_counts.distrust or 0)
-    total_rating = trust_count - distrust_count
+    expert_trust = 0
+    expert_distrust = 0
+    community_trust = 0
+    community_distrust = 0
+
+    for row in results:
+        if row.rating_type == "expert":
+            expert_trust = int(row.trust or 0)
+            expert_distrust = int(row.distrust or 0)
+        elif row.rating_type == "community":
+            community_trust = int(row.trust or 0)
+            community_distrust = int(row.distrust or 0)
+
+    expert_total = expert_trust - expert_distrust
+    community_total = community_trust - community_distrust
 
     # Events count
     events_query = select(func.count(Event.id)).where(
@@ -103,12 +125,12 @@ async def get_full_user_profile_with_stats(db: AsyncSession, vk_id: int):
     events_count = events_res.scalar_one_or_none() or 0
 
     stats = {
-        "expert": total_rating,  # Теперь общий рейтинг
-        "community": 0,  # "Народный" и "Экспертный" теперь объединены в один общий ExpertRating
-        "expert_trust": trust_count,
-        "expert_distrust": distrust_count,
-        "community_trust": 0,
-        "community_distrust": 0,
+        "expert": expert_total,
+        "community": community_total,
+        "expert_trust": expert_trust,
+        "expert_distrust": expert_distrust,
+        "community_trust": community_trust,
+        "community_distrust": community_distrust,
         "events_count": events_count,
     }
 
@@ -235,65 +257,94 @@ async def get_top_experts_paginated(
     region: Optional[str] = None,
     category_id: Optional[int] = None,
 ):
-    # НОВАЯ ЛОГИКА ТОПА: ExpertRating
-    # Суммируем vote_value
-    votes_subquery = (
+    # НОВАЯ ЛОГИКА ТОПА: Expert -> Community -> Alphabetical
+    # 1. Расчет раздельных баллов (Expert vs Community)
+    scores_subquery = (
         select(
             ExpertRating.expert_id,
-            func.sum(ExpertRating.vote_value).label("rating_score"),
+            func.cast(
+                func.sum(
+                    case(
+                        (ExpertRating.rating_type == "expert", ExpertRating.vote_value),
+                        else_=0,
+                    )
+                ),
+                Integer,
+            ).label("expert_score"),
+            func.cast(
+                func.sum(
+                    case(
+                        (
+                            ExpertRating.rating_type == "community",
+                            ExpertRating.vote_value,
+                        ),
+                        else_=0,
+                    )
+                ),
+                Integer,
+            ).label("community_score"),
         )
         .group_by(ExpertRating.expert_id)
         .subquery()
     )
 
-    total_score_expr = func.coalesce(votes_subquery.c.rating_score, 0)
-
-    base_query = (
+    # 1. Сначала рассчитываем ГЛОБАЛЬНЫЙ РАНГ для всех одобренных экспертов
+    global_ranking_base = (
         select(
             ExpertProfile.user_vk_id,
             User.first_name,
             User.last_name,
-            total_score_expr.label("total_expert_score"),
-            literal_column("0").label(
-                "total_community_score"
-            ),  # Заглушка для совместимости со схемой
+            func.coalesce(scores_subquery.c.expert_score, 0).label("expert_score"),
+            func.coalesce(scores_subquery.c.community_score, 0).label(
+                "community_score"
+            ),
         )
         .join(User, ExpertProfile.user_vk_id == User.vk_id)
         .outerjoin(
-            votes_subquery, ExpertProfile.user_vk_id == votes_subquery.c.expert_id
+            scores_subquery, ExpertProfile.user_vk_id == scores_subquery.c.expert_id
         )
         .where(ExpertProfile.status == "approved")
-    )
-
-    if region:
-        base_query = base_query.where(ExpertProfile.region == region)
-
-    if category_id:
-        base_query = base_query.join(ExpertProfile.selected_themes).where(
-            Theme.category_id == category_id
-        )
+    ).subquery()
 
     rank_column = (
         func.row_number()
         .over(
             order_by=[
-                desc(total_score_expr),
-                User.vk_id.asc(),
+                desc(global_ranking_base.c.expert_score),
+                desc(global_ranking_base.c.community_score),
+                global_ranking_base.c.first_name.asc(),
+                global_ranking_base.c.last_name.asc(),
+                global_ranking_base.c.user_vk_id.asc(),  # Последнее для абсолютной стабильности (устраняет дубли при пагинации)
             ]
         )
         .label("rank")
     )
 
-    ranked_cte = base_query.add_columns(rank_column).cte("ranked_experts")
+    ranked_cte = select(global_ranking_base.c.user_vk_id, rank_column).cte(
+        "ranked_experts"
+    )
 
-    final_query = select(ranked_cte.c.user_vk_id, ranked_cte.c.rank)
+    # 2. Теперь строим основной запрос с фильтрами, используя готовые ранги
+    final_query = (
+        select(ranked_cte.c.user_vk_id, ranked_cte.c.rank)
+        .join(User, User.vk_id == ranked_cte.c.user_vk_id)
+        .join(ExpertProfile, ExpertProfile.user_vk_id == ranked_cte.c.user_vk_id)
+    )
+
+    if region:
+        final_query = final_query.where(ExpertProfile.region == region)
+
+    if category_id:
+        final_query = final_query.join(ExpertProfile.selected_themes).where(
+            Theme.category_id == category_id
+        )
 
     if search_query:
         search_term = f"%{search_query.lower()}%"
         final_query = final_query.where(
             or_(
-                func.lower(ranked_cte.c.first_name).like(search_term),
-                func.lower(ranked_cte.c.last_name).like(search_term),
+                func.lower(User.first_name).like(search_term),
+                func.lower(User.last_name).like(search_term),
             )
         )
 
@@ -369,30 +420,45 @@ async def create_community_vote(
         raise ValueError("Эксперт не найден или не одобрен.")
 
     # 2. Определяем значение голоса
-    vote_val = 1 if vote_data.vote_type == "trust" else -1
+    if vote_data.vote_type == "remove":
+        vote_val = 0
+    else:
+        vote_val = 1 if vote_data.vote_type == "trust" else -1
 
     # 3. Обновляем или создаем рейтинг (ExpertRating)
     rating_query = select(ExpertRating).filter(
-        ExpertRating.expert_id == expert_vk_id, ExpertRating.voter_id == voter_vk_id
+        ExpertRating.expert_id == expert_vk_id,
+        ExpertRating.voter_id == voter_vk_id,
+        ExpertRating.rating_type == "community",
     )
     rating_res = await db.execute(rating_query)
     existing_rating = rating_res.scalars().first()
 
-    if existing_rating:
-        if existing_rating.vote_value == vote_val:
-            raise ValueError("Вы уже оставили такой голос.")
-        existing_rating.vote_value = vote_val
+    if vote_data.vote_type == "remove":
+        if existing_rating:
+            await db.delete(existing_rating)
+        else:
+            # Если голоса и так нет, ничего не делаем или кидаем ошибку
+            pass
     else:
-        new_rating = ExpertRating(
-            expert_id=expert_vk_id, voter_id=voter_vk_id, vote_value=vote_val
-        )
-        db.add(new_rating)
+        if existing_rating:
+            if existing_rating.vote_value == vote_val:
+                # Если значение то же самое, мы все равно позволяем обновить коммент
+                # (хотя в эндпоинте может быть проверка)
+                pass
+            existing_rating.vote_value = vote_val
+        else:
+            new_rating = ExpertRating(
+                expert_id=expert_vk_id,
+                voter_id=voter_vk_id,
+                vote_value=vote_val,
+                rating_type="community",
+            )
+            db.add(new_rating)
 
     # 4. Пишем в историю (EventFeedback) - это "Народный" (event_id=None)
     # В EventFeedbacks мы храним комменты
-    comment = (
-        vote_data.comment_positive if vote_val == 1 else vote_data.comment_negative
-    )
+    comment = vote_data.comment
 
     feedback = EventFeedback(  # Импортировать модель!
         expert_id=expert_vk_id,
@@ -410,25 +476,65 @@ async def create_community_vote(
         user_vk_id=voter_vk_id,
         expert_name=expert_name,
         expert_vk_id=expert_vk_id,
-        action="submitted",
+        action="deleted" if vote_data.vote_type == "remove" else "submitted",
         vote_type=vote_data.vote_type,
     )
     return feedback
 
 
-async def delete_community_vote(
-    db: AsyncSession, expert_vk_id: int, voter_vk_id: int
+async def withdraw_rating_vote(
+    db: AsyncSession,
+    expert_vk_id: int,
+    voter_vk_id: int,
+    rating_type: str,
+    comment: str = "Голос отозван пользователем",
 ) -> bool:
-    # Удаляем из ExpertRating (обнуляем влияние на рейтинг)
+    # 1. Удаляем из текущих состояний (ExpertRating)
     query = select(ExpertRating).where(
-        ExpertRating.voter_id == voter_vk_id, ExpertRating.expert_id == expert_vk_id
+        ExpertRating.voter_id == voter_vk_id,
+        ExpertRating.expert_id == expert_vk_id,
+        ExpertRating.rating_type == rating_type,
     )
     result = await db.execute(query)
     rating = result.scalars().first()
 
     if rating:
         await db.delete(rating)
-        # В историю можно добавить запись о снятии голоса, если нужно
+
+        # 2. Добавляем запись в историю о нейтралитете
+        feedback = EventFeedback(
+            expert_id=expert_vk_id,
+            voter_id=voter_vk_id,
+            event_id=(
+                None if rating_type == "community" else -1
+            ),  # Костыль для разделения типов в истории, если нет ивента
+            comment=comment,
+            rating_snapshot=0,
+        )
+        # На самом деле лучше оставить event_id=None и добавить поле rating_type в EventFeedback,
+        # но пока будем ориентироваться на то, как мы ищем историю.
+        # В get_interaction_history мы проверяем event_id.is_not(None) для экспертных.
+        # Чтобы отзыв экспертного рейтинга попал в Историю экспертных, ему нужен какой-то event_id.
+        # Но у нас его нет при отзыве из профиля.
+        # Давайте просто использовать event_id последнего отзыва этого типа?
+
+        if rating_type == "expert":
+            # Ищем любое прошлое событие этого эксперта для этого юзера
+            last_ev_query = (
+                select(EventFeedback.event_id)
+                .where(
+                    EventFeedback.expert_id == expert_vk_id,
+                    EventFeedback.voter_id == voter_vk_id,
+                    EventFeedback.event_id.is_not(None),
+                )
+                .order_by(EventFeedback.created_at.desc())
+                .limit(1)
+            )
+            last_ev_res = await db.execute(last_ev_query)
+            last_ev_id = last_ev_res.scalar_one_or_none()
+            feedback.event_id = last_ev_id
+
+        db.add(feedback)
         await db.commit()
         return True
     return False
@@ -527,23 +633,52 @@ async def withdraw_expert_request(db: AsyncSession, vk_id: int) -> bool:
     return False
 
 
-async def get_user_votes(
-    db: AsyncSession, vk_id: int
-) -> list[ExpertRating]:  # Временно возвращаем Rating, но лучше Feedback
-    # Возвращаем историю отзывов
-    query = (
-        select(EventFeedback)  # <-- NEW MODEL
-        .where(EventFeedback.voter_id == vk_id)
-        .options(
-            selectinload(EventFeedback.expert).selectinload(ExpertProfile.user),
-            selectinload(EventFeedback.event)
-            .selectinload(Event.expert)
-            .selectinload(ExpertProfile.user),
+async def get_user_votes(db: AsyncSession, vk_id: int) -> list[EventFeedback]:
+    # Реестр: Находим последние записи для каждого эксперта по каждому типу (expert/community)
+    # Нам нужны именно те ExpertRating, которые есть сейчас
+    # И к ним прицепить последний коммент из EventFeedback
+
+    # 1. Получаем все текущие состояния рейтингов пользователя
+    ratings_query = select(ExpertRating).where(ExpertRating.voter_id == vk_id)
+    ratings_res = await db.execute(ratings_query)
+    current_ratings = ratings_res.scalars().all()
+
+    results = []
+    for r in current_ratings:
+        # Для каждого рейтинга ищем последний коммент
+        # Если это expert рейтинг - ищем по expert_id и voter_id где event_id НЕ NULL
+        # Если это community рейтинг - ищем по expert_id и voter_id где event_id IS NULL
+
+        fb_query = select(EventFeedback).where(
+            EventFeedback.expert_id == r.expert_id,
+            EventFeedback.voter_id == r.voter_id,
         )
-        .order_by(EventFeedback.created_at.desc())
-    )
-    result = await db.execute(query)
-    return result.scalars().all()
+        if r.rating_type == "expert":
+            fb_query = fb_query.where(EventFeedback.event_id.is_not(None))
+        else:
+            fb_query = fb_query.where(EventFeedback.event_id.is_(None))
+
+        fb_query = (
+            fb_query.options(
+                selectinload(EventFeedback.expert).selectinload(ExpertProfile.user),
+                selectinload(EventFeedback.event)
+                .selectinload(Event.expert)
+                .selectinload(ExpertProfile.user),
+            )
+            .order_by(EventFeedback.created_at.desc())
+            .limit(1)
+        )
+
+        fb_res = await db.execute(fb_query)
+        fb = fb_res.scalars().first()
+
+        if fb:
+            # Важно: прокидываем актуальный vote_value из ExpertRating в snapshot для отображения ТЕКУЩЕГО статуса в карточке
+            # (Хотя в идиале надо расширить схему)
+            fb.rating_snapshot = r.vote_value
+            results.append(fb)
+
+    return results
 
 
 async def update_user_email(db: AsyncSession, vk_id: int, email: str) -> Optional[User]:
@@ -624,3 +759,26 @@ async def process_update_request(
     await db.commit()
     await db.refresh(request)
     return request
+
+
+async def get_interaction_history(
+    db: AsyncSession, expert_id: int, voter_id: int, rating_type: str
+) -> list[EventFeedback]:
+    query = select(EventFeedback).where(
+        EventFeedback.expert_id == expert_id,
+        EventFeedback.voter_id == voter_id,
+    )
+    if rating_type == "expert":
+        query = query.where(EventFeedback.event_id.is_not(None))
+    else:
+        query = query.where(EventFeedback.event_id.is_(None))
+
+    query = query.options(
+        selectinload(EventFeedback.expert).selectinload(ExpertProfile.user),
+        selectinload(EventFeedback.event)
+        .selectinload(Event.expert)
+        .selectinload(ExpertProfile.user),
+    ).order_by(EventFeedback.created_at.desc())
+
+    result = await db.execute(query)
+    return result.scalars().all()

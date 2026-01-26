@@ -9,13 +9,14 @@ class StatsPublic(BaseModel):
     expert: int = 0
     community: int = 0
     events_count: int = 0
-
-
-class StatsPrivate(StatsPublic):
     expert_trust: int = 0
     expert_distrust: int = 0
     community_trust: int = 0
     community_distrust: int = 0
+
+
+class StatsPrivate(StatsPublic):
+    pass
 
 
 class UserBase(BaseModel):
@@ -126,9 +127,8 @@ class ExpertRequestRead(BaseModel):
 
 
 class CommunityVoteCreate(BaseModel):
-    vote_type: str  # "trust" / "distrust"
-    comment_positive: Optional[str] = None
-    comment_negative: Optional[str] = None
+    vote_type: str  # "trust" / "distrust" / "remove"
+    comment: str
 
 
 class UserSettingsUpdate(BaseModel):

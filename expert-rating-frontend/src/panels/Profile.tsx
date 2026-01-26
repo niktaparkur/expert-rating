@@ -45,7 +45,7 @@ export const Profile = ({
 }: ProfileProps) => {
   const { apiGet, apiDelete, apiPost } = useApi();
   const { currentUser: user, setCurrentUser } = useUserStore();
-  const { setPopout, setSnackbar, setActiveModal } = useUiStore();
+  const { setPopout, setSnackbar, setActiveModal, setHistoryTargetId, setHistoryRatingType } = useUiStore();
   const queryClient = useQueryClient();
 
   const [isFetching, setFetching] = useState(false);
@@ -78,19 +78,22 @@ export const Profile = ({
     setFetching(false);
   }, [queryClient, user?.vk_id, user?.is_expert]);
 
-  const performCancelVote = async (voteId: number, isExpertVote: boolean) => {
-    const endpoint = isExpertVote
-      ? `/events/vote/${voteId}/cancel`
-      : `/experts/vote/${voteId}/cancel`;
+  const handleOpenHistory = (expertId: number, ratingType: "expert" | "community") => {
+    setHistoryTargetId(expertId);
+    setHistoryRatingType(ratingType);
+    setActiveModal("interaction-history-modal");
+  };
+
+  const performRemoveVote = async (expertId: number, ratingType: "expert" | "community") => {
     setPopout(<Spinner size="xl" />);
     try {
-      await apiDelete(endpoint);
+      await apiDelete(`/experts/${expertId}/vote?rating_type=${ratingType}`);
       await queryClient.invalidateQueries({
         queryKey: ["userVotes", user?.vk_id],
       });
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
-          Голос отменен
+          Голос отозван
         </Snackbar>,
       );
     } catch (error) {
@@ -108,12 +111,9 @@ export const Profile = ({
     setIsWithdrawLoading(true);
     try {
       await apiPost("/experts/withdraw", {});
-
       await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
-
       const updatedUser = await apiGet<any>("/users/me");
       setCurrentUser(updatedUser);
-
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
           Заявка успешно отозвана.
@@ -130,20 +130,20 @@ export const Profile = ({
     }
   };
 
-  const handleCancelVote = (voteId: number, isExpertVote: boolean) => {
+  const handleRemoveVote = (expertId: number, ratingType: "expert" | "community") => {
     setPopout(
       <Alert
         actions={[
           { title: "Отмена", mode: "cancel" },
           {
-            title: "Подтвердить",
+            title: "Удалить голос",
             mode: "destructive",
-            action: () => performCancelVote(voteId, isExpertVote),
+            action: () => performRemoveVote(expertId, ratingType),
           },
         ]}
         onClose={() => setPopout(null)}
         title="Подтверждение"
-        description="Вы уверены, что хотите отменить свой голос?"
+        description="Вы уверены, что хотите убрать этот голос и перевести его в нейтральный статус?"
       />,
     );
   };
@@ -155,10 +155,8 @@ export const Profile = ({
       const target = vote.is_expert_vote
         ? vote.event?.expert_info
         : vote.expert;
-      const eventName = vote.event?.name || "";
       const expertName = `${target?.first_name || ""} ${target?.last_name || ""}`;
       return (
-        eventName.toLowerCase().includes(query) ||
         expertName.toLowerCase().includes(query)
       );
     });
@@ -274,7 +272,7 @@ export const Profile = ({
       <Search
         value={searchQueryVotes}
         onChange={(e) => setSearchQueryVotes(e.target.value)}
-        placeholder="Поиск по имени или мероприятию"
+        placeholder="Поиск по имени"
       />
       {isLoadingVotes ? (
         <Spinner size="l" />
@@ -289,9 +287,10 @@ export const Profile = ({
         >
           {filteredVotes.map((vote) => (
             <VoteHistoryCard
-              key={vote.id}
+              key={`${vote.expert_id}_${vote.is_expert_vote}`}
               vote={vote}
-              onCancelVote={handleCancelVote}
+              onOpenHistory={handleOpenHistory}
+              onRemoveVote={handleRemoveVote}
             />
           ))}
         </div>

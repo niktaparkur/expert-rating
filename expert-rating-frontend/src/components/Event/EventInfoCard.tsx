@@ -87,7 +87,7 @@ export const EventInfoCard = ({
             />
           </Tooltip>
         )}
-        <Text weight="1" useAccentWeight>
+        <Text weight="1" useAccentWeight className="event-name-text">
           {event.name}
         </Text>
       </div>

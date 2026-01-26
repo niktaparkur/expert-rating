@@ -184,13 +184,14 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
       setDateError(
         "Выбранное время уже прошло. Пожалуйста, выберите будущее время.",
       );
+      setFormData((prev) => ({ ...prev, event_date: null }));
     } else if (date > maxDate) {
       setDateError("Дата мероприятия не может быть более чем через 5 лет.");
+      setFormData((prev) => ({ ...prev, event_date: date }));
     } else {
       setDateError(null);
+      setFormData((prev) => ({ ...prev, event_date: date }));
     }
-
-    setFormData((prev) => ({ ...prev, event_date: date }));
   };
 
   const setDuration = (minutes: string) => {
@@ -496,7 +497,7 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
           {user?.event_usage && (
             <SimpleCell
               disabled
-              subtitle={`Лимит мероприятий в месяц: ${user.event_usage.current_count} из ${user.event_usage.limit} одобрено.`}
+              subtitle={`Лимит мероприятий в месяц: ${user.event_usage.current_count} из ${user.event_usage.limit} (одобрено или на модерации).`}
               indicator={user.event_usage.current_count >= user.event_usage.limit ? "Лимит!" : undefined}
             >
               Использование лимита

@@ -1,5 +1,11 @@
 .expert-card-container {
   padding: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out;
+}
+
+.expert-card-container:hover {
+  background-color: var(--vkui--color_background_secondary_alpha);
 }
 
 .expert-card-main {
@@ -36,6 +42,8 @@
   overflow: visible;
   text-overflow: initial;
   word-break: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .expert-topics-text {
@@ -102,6 +110,7 @@
     width: 16px;
     height: 16px;
   }
+
   .rating-segment .rating-value {
     order: 2;
     font-size: 14px;
