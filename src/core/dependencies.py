@@ -165,6 +165,7 @@ async def get_current_user(
         current_count = await event_crud.get_expert_active_event_count_current_month(
             db, vk_user_id
         )
+        
         response_data.event_usage = expert_schemas.EventUsage(
             current_count=current_count, limit=limit
         )
