@@ -17,13 +17,7 @@ export const MobilePaymentStubModal: React.FC<MobilePaymentStubModalProps> = ({
         Подробный отчет с аналитикой доступен в веб-версии приложения.
         Пожалуйста, зайдите с компьютера.
       </Placeholder>
-      <Button
-        size="l"
-        stretched
-        sizeY="regular"
-        mode="primary"
-        onClick={onClose}
-      >
+      <Button size="l" stretched mode="primary" onClick={onClose}>
         Понятно
       </Button>
     </ModalCard>

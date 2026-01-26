@@ -68,12 +68,14 @@ import { AfishaEventModal } from "./components/Afisha/AfishaEventModal";
 import { FiltersModal } from "./components/Shared/FiltersModal";
 import { PurchaseModal } from "./components/Shared/PurchaseModal";
 import { MobilePaymentStubModal } from "./components/Shared/MobilePaymentStubModal";
+import { InteractionHistoryModal } from "./components/Profile/InteractionHistoryModal";
 import { EditProfileModal } from "./components/Profile/EditProfileModal";
 import { SelectModal, Option } from "./components/Shared/SelectModal";
 import { useApi } from "./hooks/useApi";
 import { useUserStore } from "./store/userStore";
 import { useUiStore } from "./store/uiStore";
-import "./styles/global.css";
+import { VoteCard } from "./components/Vote/VoteCard";
+import { Platform } from "@vkontakte/vkui";
 import {
   Home,
   Registration,
@@ -100,7 +102,16 @@ import {
   PANEL_PROFILE,
 } from "./routes";
 import { EventData, UserData } from "./types";
-import { VoteCard } from "./components/Vote/VoteCard";
+import "./styles/global.css";
+
+const GROUP_ID = Number(import.meta.env.VITE_VK_GROUP_ID);
+const TARIFF_MAILING_LIMITS: { [key: string]: number } = {
+  Начальный: 1,
+  Стандарт: 2,
+  Профи: 4,
+};
+
+const ENABLE_MAILINGS = false;
 
 const PopoutWrapper: React.FC<{ children: ReactNode }> = ({ children }) => {
   return (
@@ -123,24 +134,20 @@ const PopoutWrapper: React.FC<{ children: ReactNode }> = ({ children }) => {
   );
 };
 
-const GROUP_ID = Number(import.meta.env.VITE_VK_GROUP_ID);
-const TARIFF_MAILING_LIMITS: { [key: string]: number } = {
-  Начальный: 1,
-  Стандарт: 2,
-  Профи: 4,
-};
-
-const ENABLE_MAILINGS = false;
-
 export const App = () => {
   const platform = usePlatform();
-  const { view: activeView = VIEW_MAIN, panel: activePanel = PANEL_HOME } =
-    useActiveVkuiLocation();
   const routeNavigator = useRouteNavigator();
   const { apiGet, apiPost, apiPut, apiDelete } = useApi();
-  const [searchParams] = useSearchParams();
-  const hasLaunchParams = searchParams.toString().length > 0;
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+
+  const { view: activeView = VIEW_MAIN, panel: activePanel = PANEL_HOME } =
+    useActiveVkuiLocation();
+  const hasLaunchParams = searchParams.toString().length > 0;
+  const isMobilePlatform = platform === "ios" || platform === "android";
+
+  const isMobile = platform === Platform.IOS || platform === Platform.ANDROID;
+
 
   const { currentUser, setCurrentUser } = useUserStore();
   const {
@@ -151,25 +158,26 @@ export const App = () => {
     setPopout,
     setSnackbar,
     targetExpertId,
+    historyTargetId,
+    historyRatingType,
   } = useUiStore();
 
-  const [promoWord, setPromoWord] = useState("");
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showLegalConsent, setShowLegalConsent] = useState(false);
-  const [isLoadingApp, setIsLoadingApp] = useState(true);
-  const [promoStatus, setPromoStatus] = useState<any | null>(null);
-  const [isCheckingPromo, setIsCheckingPromo] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [allThemes, setAllThemes] = useState<any[]>([]);
-  const [selectedThemeIds, setSelectedThemeIds] = useState<number[]>([]);
+  const [promoInput, setPromoInput] = useState("");
+  const [promoCheckResult, setPromoCheckResult] = useState<any | null>(null);
+  const [isValidatingPromo, setIsValidatingPromo] = useState(false);
 
-  const [selectedEvent, setSelectedEvent] = useState<EventData | null>(null);
-  const [mailingsUsed, setMailingsUsed] = useState(0);
-  const [expertIdForReport, setExpertIdForReport] = useState<number | null>(
+  const [topicSearchQuery, setTopicSearchQuery] = useState("");
+  const [themeCategories, setThemeCategories] = useState<any[]>([]);
+  const [activeThemeIds, setActiveThemeIds] = useState<number[]>([]);
+  const [tempThemeIds, setTempThemeIds] = useState<number[]>([]);
+
+  const [interactionEvent, setInteractionEvent] = useState<EventData | null>(
     null,
   );
+  const [dailyMailingsSent, setDailyMailingsSent] = useState(0);
+  const [reportTargetId, setReportTargetId] = useState<number | null>(null);
 
-  const [selectModalConfig, setSelectModalConfig] = useState<{
+  const [selectModalState, setSelectModalState] = useState<{
     title: string;
     options: Option[];
     selected: string | number | null;
@@ -178,10 +186,23 @@ export const App = () => {
     fallbackModal?: string | null;
   } | null>(null);
 
-  const isMobilePlatform = platform === "ios" || platform === "android";
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showLegalConsent, setShowLegalConsent] = useState(false);
+  const [isAppInitializing, setIsAppInitializing] = useState(true);
 
-  const handleOpenEventModal = (event: EventData) => {
-    setSelectedEvent(event);
+  const { data: regionList = [] } = useQuery({
+    queryKey: ["metaRegions"],
+    queryFn: () => apiGet<string[]>("/meta/regions"),
+  });
+
+  useEffect(() => {
+    apiGet<any[]>("/meta/themes")
+      .then(setThemeCategories)
+      .catch((e) => console.error("Failed to load themes", e));
+  }, [apiGet]);
+
+  const openEventActionModal = (event: EventData) => {
+    setInteractionEvent(event);
     if (activeView === VIEW_AFISHA) {
       setActiveModal("afisha-event-details");
     } else {
@@ -189,52 +210,50 @@ export const App = () => {
     }
   };
 
-  const handleOpenReportPurchase = (expertId: number) => {
-    setExpertIdForReport(expertId);
+  const requestReportPurchase = (expertId: number) => {
+    setReportTargetId(expertId);
     if (isMobilePlatform) {
       setActiveModal("mobile-payment-stub");
-    } else {
-      if (currentUser && !currentUser.allow_notifications) {
-        bridge
-          .send("VKWebAppAllowMessagesFromGroup", {
-            group_id: GROUP_ID,
-          })
-          .then((data) => {
-            if (data.result) {
-              apiPut("/users/me/settings", { allow_notifications: true }).then(
-                () =>
-                  queryClient.invalidateQueries({ queryKey: ["user", "me"] }),
-              );
-              setActiveModal("report-purchase-modal");
-            } else {
-              setSnackbar(
-                <Snackbar
-                  onClose={() => setSnackbar(null)}
-                  before={<Icon16Cancel />}
-                >
-                  Для получения отчета нужны разрешения на сообщения.
-                </Snackbar>,
-              );
-            }
-          })
-          .catch(() => {
+      return;
+    }
+
+    if (currentUser && !currentUser.allow_notifications) {
+      bridge
+        .send("VKWebAppAllowMessagesFromGroup", { group_id: GROUP_ID })
+        .then((data) => {
+          if (data.result) {
+            apiPut("/users/me/settings", { allow_notifications: true }).then(
+              () => queryClient.invalidateQueries({ queryKey: ["user", "me"] }),
+            );
+            setActiveModal("report-purchase-modal");
+          } else {
             setSnackbar(
               <Snackbar
                 onClose={() => setSnackbar(null)}
                 before={<Icon16Cancel />}
               >
-                Ошибка доступа к сообщениям.
+                Для получения отчета нужны разрешения на сообщения.
               </Snackbar>,
             );
-          });
-      } else {
-        setActiveModal("report-purchase-modal");
-      }
+          }
+        })
+        .catch(() => {
+          setSnackbar(
+            <Snackbar
+              onClose={() => setSnackbar(null)}
+              before={<Icon16Cancel />}
+            >
+              Ошибка доступа к сообщениям.
+            </Snackbar>,
+          );
+        });
+    } else {
+      setActiveModal("report-purchase-modal");
     }
   };
 
-  const handleInitiateReportPayment = async ({ email }: { email: string }) => {
-    if (!expertIdForReport) return;
+  const processReportPayment = async ({ email }: { email: string }) => {
+    if (!reportTargetId) return;
     setActiveModal(null);
     setPopout(<Spinner size="l" />);
     try {
@@ -245,7 +264,7 @@ export const App = () => {
         setCurrentUser(updatedUser);
       }
       const response = await apiPost<{ confirmation_url: string }>(
-        `/payment/reports/${expertIdForReport}/create-payment`,
+        `/payment/reports/${reportTargetId}/create-payment`,
         {},
       );
       if (response.confirmation_url) {
@@ -268,7 +287,7 @@ export const App = () => {
     }
   };
 
-  const handleSaveProfile = async (profileData: any) => {
+  const submitProfileUpdate = async (profileData: any) => {
     try {
       await apiPost("/experts/me/update_profile", profileData);
       setSnackbar(
@@ -285,7 +304,7 @@ export const App = () => {
     }
   };
 
-  const openSelectModal = (
+  const configureSelectModal = (
     title: string,
     options: Option[],
     selected: string | number | null,
@@ -293,7 +312,7 @@ export const App = () => {
     searchable = false,
     fallbackModal: string | null = null,
   ) => {
-    setSelectModalConfig({
+    setSelectModalState({
       title,
       options,
       selected,
@@ -304,20 +323,9 @@ export const App = () => {
     setActiveModal("select-modal");
   };
 
-  const { data: allRegions = [] } = useQuery({
-    queryKey: ["metaRegions"],
-    queryFn: () => apiGet<string[]>("/meta/regions"),
-  });
-
-  useEffect(() => {
-    apiGet<any[]>("/meta/themes")
-      .then(setAllThemes)
-      .catch((e) => console.error("Failed to load themes", e));
-  }, [apiGet]);
-
-  const handleShare = () => {
-    if (!selectedEvent) return;
-    const link = `https://vk.com/app${import.meta.env.VITE_VK_APP_ID}#/vote/${selectedEvent.promo_word}`;
+  const handleShareEvent = () => {
+    if (!interactionEvent) return;
+    const link = `https://vk.com/app${import.meta.env.VITE_VK_APP_ID}#/vote/${interactionEvent.promo_word}`;
 
     bridge.send("VKWebAppShare", { link }).catch((error) => {
       if (error.error_data?.error_code !== 4) {
@@ -332,11 +340,11 @@ export const App = () => {
     setActiveModal(null);
   };
 
-  const performDeleteEvent = async () => {
-    if (!selectedEvent) return;
+  const executeDeleteEvent = async () => {
+    if (!interactionEvent) return;
     setPopout(<Spinner size="xl" />);
     try {
-      await apiDelete(`/events/${selectedEvent.id}`);
+      await apiDelete(`/events/${interactionEvent.id}`);
       await queryClient.invalidateQueries({
         queryKey: ["myEvents", currentUser?.vk_id],
       });
@@ -356,7 +364,7 @@ export const App = () => {
     }
   };
 
-  const handleDeleteEvent = () => {
+  const confirmDeleteEvent = () => {
     setActiveModal(null);
     setPopout(
       <Alert
@@ -365,7 +373,7 @@ export const App = () => {
           {
             title: "Удалить",
             mode: "destructive",
-            action: performDeleteEvent,
+            action: executeDeleteEvent,
           },
         ]}
         onClose={() => setPopout(null)}
@@ -375,11 +383,11 @@ export const App = () => {
     );
   };
 
-  const performStopEvent = async () => {
-    if (!selectedEvent) return;
+  const executeStopEvent = async () => {
+    if (!interactionEvent) return;
     setPopout(<Spinner size="xl" />);
     try {
-      await apiPost(`/events/${selectedEvent.id}/stop`, {});
+      await apiPost(`/events/${interactionEvent.id}/stop`, {});
       await queryClient.invalidateQueries({
         queryKey: ["myEvents", currentUser?.vk_id],
       });
@@ -399,7 +407,7 @@ export const App = () => {
     }
   };
 
-  const handleStopEvent = () => {
+  const confirmStopEvent = () => {
     setActiveModal(null);
     setPopout(
       <Alert
@@ -408,7 +416,7 @@ export const App = () => {
           {
             title: "Остановить",
             mode: "destructive",
-            action: performStopEvent,
+            action: executeStopEvent,
           },
         ]}
         onClose={() => setPopout(null)}
@@ -418,18 +426,18 @@ export const App = () => {
     );
   };
 
-  const handleShowQr = () => setActiveModal("qr-code-modal");
-
-  const handleSettingsChange = async (fieldName: string, value: boolean) => {
+  const updateUserSettings = async (fieldName: string, value: boolean) => {
     if (!currentUser) return;
     setPopout(<Spinner size="xl" />);
     const payload = { [fieldName]: value };
+
     if (fieldName === "allow_notifications" && !value) {
       payload.allow_expert_mailings = false;
     }
+
     try {
       const updatedUser = await apiPut<UserData>("/users/me/settings", payload);
-      setCurrentUser(updatedUser);
+      setCurrentUser({ ...currentUser, ...updatedUser });
     } catch (err) {
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
@@ -442,23 +450,37 @@ export const App = () => {
     }
   };
 
-  const handleNotificationSettingsChange = async (
+  const promoLength = promoInput.trim().length;
+
+  const isPromoLengthError = promoLength > 0 && (promoLength < 4 || promoLength > 20);
+
+  const isPromoErrorState =
+    isPromoLengthError ||
+    promoCheckResult?.status === "not_found" ||
+    promoCheckResult?.status === "error";
+
+  const getPromoBottomText = () => {
+    if (isPromoLengthError) return "Код должен содержать от 4 до 20 символов";
+    return getPromoStatusMessage();
+  };
+
+  const toggleNotificationSettings = async (
     fieldName: "allow_notifications" | "allow_expert_mailings",
     value: boolean,
   ) => {
     if (fieldName === "allow_expert_mailings") {
-      await handleSettingsChange(fieldName, value);
+      await updateUserSettings(fieldName, value);
       return;
     }
 
-    if (value === true) {
+    if (value) {
       if (bridge.isWebView()) {
         try {
           const result = await bridge.send("VKWebAppAllowMessagesFromGroup", {
             group_id: GROUP_ID,
           });
           if (result.result) {
-            await handleSettingsChange(fieldName, true);
+            await updateUserSettings(fieldName, true);
           } else {
             await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
           }
@@ -474,10 +496,10 @@ export const App = () => {
           );
         }
       } else {
-        await handleSettingsChange(fieldName, value);
+        await updateUserSettings(fieldName, value);
       }
     } else {
-      await handleSettingsChange(fieldName, false);
+      await updateUserSettings(fieldName, false);
     }
   };
 
@@ -490,28 +512,28 @@ export const App = () => {
     }
   }, [apiGet, setCurrentUser]);
 
-  const handleTopicChange = (
+  const toggleTopicSelection = (
     e: React.ChangeEvent<HTMLInputElement>,
     themeId: number,
   ) => {
     const { checked } = e.target;
     if (checked) {
-      if (selectedThemeIds.length < 3) {
-        setSelectedThemeIds([...selectedThemeIds, themeId]);
+      if (activeThemeIds.length < 3) {
+        setActiveThemeIds([...activeThemeIds, themeId]);
       }
     } else {
-      setSelectedThemeIds(selectedThemeIds.filter((id) => id !== themeId));
+      setActiveThemeIds(activeThemeIds.filter((id) => id !== themeId));
     }
   };
 
   const isTopicSelectionValid =
-    selectedThemeIds.length >= 1 && selectedThemeIds.length <= 3;
+    tempThemeIds.length >= 1 && tempThemeIds.length <= 3;
 
-  const filteredTopics = useMemo(() => {
-    if (!allThemes) return [];
-    if (!searchQuery) return allThemes;
-    const lowerQuery = searchQuery.toLowerCase();
-    return allThemes
+  const filteredTopicGroups = useMemo(() => {
+    if (!themeCategories) return [];
+    if (!topicSearchQuery) return themeCategories;
+    const lowerQuery = topicSearchQuery.toLowerCase();
+    return themeCategories
       .map((group) => ({
         ...group,
         items: group.items.filter((item: any) =>
@@ -519,25 +541,29 @@ export const App = () => {
         ),
       }))
       .filter((group) => group.items.length > 0);
-  }, [searchQuery, allThemes]);
+  }, [topicSearchQuery, themeCategories]);
 
-  const checkPromo = useCallback(
+  const validatePromoCode = useCallback(
     debounce(async (word: string) => {
       const normalizedWord = word.trim().toUpperCase();
       if (!normalizedWord || !/^[A-Z0-9А-ЯЁ]{4,}$/i.test(normalizedWord)) {
-        setPromoStatus(null);
-        setIsCheckingPromo(false);
+        setPromoCheckResult(null);
+        setIsValidatingPromo(false);
         return;
       }
-      setIsCheckingPromo(true);
+      setIsValidatingPromo(true);
       try {
         const response = await apiGet(`/events/status/${normalizedWord}`);
-        setPromoStatus(response);
-      } catch (error) {
+        setPromoCheckResult(response);
+      } catch (error: any) {
         console.error("Promo check failed:", error);
-        setPromoStatus({ status: "error" });
+        if (error.message?.includes("404") || error.message?.includes("найдено")) {
+          setPromoCheckResult({ status: "not_found" });
+        } else {
+          setPromoCheckResult({ status: "error" });
+        }
       } finally {
-        setIsCheckingPromo(false);
+        setIsValidatingPromo(false);
       }
     }, 500),
     [apiGet],
@@ -545,19 +571,17 @@ export const App = () => {
 
   useEffect(() => {
     if (activeModal === "promo-vote-modal") {
-      checkPromo(promoWord);
+      validatePromoCode(promoInput);
     }
-  }, [promoWord, checkPromo, activeModal]);
+  }, [promoInput, validatePromoCode, activeModal]);
 
-  const handlePromoWordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPromoWord(e.target.value);
-  };
-
-  const getPromoBottomText = () => {
-    if (isCheckingPromo)
+  const getPromoStatusMessage = () => {
+    if (isValidatingPromo) {
       return <Spinner size="s" style={{ alignSelf: "center" }} />;
-    if (!promoStatus) return null;
-    switch (promoStatus.status) {
+    }
+    if (!promoCheckResult) return null;
+
+    switch (promoCheckResult.status) {
       case "active":
         return (
           <span style={{ color: "var(--vkui--color_text_positive)" }}>
@@ -565,7 +589,7 @@ export const App = () => {
           </span>
         );
       case "not_started":
-        const startTime = new Date(promoStatus.start_time).toLocaleString(
+        const startTime = new Date(promoCheckResult.start_time).toLocaleString(
           "ru-RU",
           {
             day: "numeric",
@@ -604,7 +628,7 @@ export const App = () => {
     return () => bridge.unsubscribe(handleAppEvents);
   }, [refetchUser]);
 
-  const handleLegalAccept = async () => {
+  const acceptLegalTerms = async () => {
     try {
       await bridge.send("VKWebAppStorageSet", {
         key: "legalAccepted_v1",
@@ -616,11 +640,10 @@ export const App = () => {
     setShowLegalConsent(false);
   };
 
-  const handleOpenLegalDoc = (
+  const openLegalDocument = (
     docType: "offer" | "user_agreement" | "privacy" | "mailing_consent",
   ) => {
     const url = LEGAL_DOCUMENTS[docType].url;
-
     if (url) {
       window.open(url, "_blank");
     } else {
@@ -646,16 +669,12 @@ export const App = () => {
           "true";
         if (legalAccepted) legalNeeded = false;
       } catch (e) {
-        console.warn(
-          "VK Storage check failed (legal), falling back to localStorage",
-          e,
-        );
         if (localStorage.getItem("legalAccepted_v1")) legalNeeded = false;
       }
 
       if (legalNeeded) {
         setShowLegalConsent(true);
-        setIsLoadingApp(false);
+        setIsAppInitializing(false);
         return;
       }
 
@@ -669,10 +688,6 @@ export const App = () => {
             "true";
           if (onboardingFinished) onboardingNeeded = false;
         } catch (e) {
-          console.warn(
-            "VK Storage check failed (onboarding), falling back to localStorage",
-            e,
-          );
           if (localStorage.getItem("onboardingFinished"))
             onboardingNeeded = false;
         }
@@ -682,7 +697,7 @@ export const App = () => {
 
       if (onboardingNeeded) {
         setShowOnboarding(true);
-        setIsLoadingApp(false);
+        setIsAppInitializing(false);
         return;
       }
 
@@ -710,13 +725,13 @@ export const App = () => {
           error,
         );
       } finally {
-        setIsLoadingApp(false);
+        setIsAppInitializing(false);
       }
     };
     initApp();
   }, [apiGet, apiPost, hasLaunchParams, setCurrentUser, showLegalConsent]);
 
-  const finishOnboarding = async () => {
+  const completeOnboarding = async () => {
     try {
       await bridge.send("VKWebAppStorageSet", {
         key: "onboardingFinished",
@@ -726,11 +741,11 @@ export const App = () => {
       localStorage.setItem("onboardingFinished", "true");
     }
     setShowOnboarding(false);
-    setIsLoadingApp(true);
+    setIsAppInitializing(true);
     window.location.reload();
   };
 
-  const onStoryChange = (e: React.MouseEvent<HTMLElement>) => {
+  const navigateToView = (e: React.MouseEvent<HTMLElement>) => {
     const story = e.currentTarget.dataset.story;
     if (story === VIEW_MAIN) routeNavigator.push("/");
     if (story === VIEW_AFISHA) routeNavigator.push("/afisha");
@@ -738,14 +753,14 @@ export const App = () => {
     if (story === VIEW_PROFILE) routeNavigator.push("/profile");
   };
 
-  const goToVoteByPromo = () => {
-    if (promoStatus?.status === "active") {
+  const navigateToVoteByPromo = () => {
+    if (promoCheckResult?.status === "active") {
       setActiveModal(null);
-      routeNavigator.push(`/vote/${promoWord.trim().toUpperCase()}`);
+      routeNavigator.push(`/vote/${promoInput.trim().toUpperCase()}`);
     }
   };
 
-  const { data: expertForVote } = useQuery({
+  const { data: voteExpertData } = useQuery({
     queryKey: ["expertProfile", targetExpertId],
     queryFn: () => {
       if (!targetExpertId) return null;
@@ -754,33 +769,30 @@ export const App = () => {
     enabled: !!targetExpertId && activeModal === "narod-vote-modal",
   });
 
-  const handleCommunityVoteSubmit = async (voteData: any) => {
-    if (!expertForVote) return;
+  const submitCommunityVote = async (voteData: any) => {
+    if (!voteExpertData) return;
     setPopout(<Spinner size="xl" />);
     try {
-      await apiPost(`/experts/${expertForVote.vk_id}/vote`, {
+      await apiPost(`/experts/${voteExpertData.vk_id}/vote`, {
         voter_vk_id: currentUser?.vk_id,
         ...voteData,
       });
 
-      // Сначала убираем спиннер
       setPopout(null);
-
-      // Потом закрываем модалку
       setActiveModal(null);
-
-      // И только потом показываем снекбар
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
           Ваш голос учтен!
         </Snackbar>,
       );
-
       await queryClient.invalidateQueries({
-        queryKey: ["expertProfile", String(expertForVote.vk_id)],
+        queryKey: ["expertProfile"],
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["userVotes"],
       });
     } catch (err) {
-      setPopout(null); // Убираем спиннер при ошибке
+      setPopout(null);
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
           {(err as Error).message}
@@ -789,22 +801,21 @@ export const App = () => {
     }
   };
 
-  const performCancelCommunityVote = async () => {
-    if (!expertForVote) return;
+  const cancelCommunityVote = async () => {
+    if (!voteExpertData) return;
     setPopout(<Spinner size="xl" />);
     try {
-      await apiDelete(`/experts/${expertForVote.vk_id}/vote`);
+      await apiDelete(`/experts/${voteExpertData.vk_id}/vote`);
 
       setPopout(null);
       setActiveModal(null);
-
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
           Ваш голос отменен.
         </Snackbar>,
       );
       await queryClient.invalidateQueries({
-        queryKey: ["expertProfile", String(expertForVote.vk_id)],
+        queryKey: ["expertProfile", String(voteExpertData.vk_id)],
       });
     } catch (err) {
       setPopout(null);
@@ -819,74 +830,8 @@ export const App = () => {
   const userTariff = currentUser?.tariff_plan || "Начальный";
   const mailingLimit = TARIFF_MAILING_LIMITS[userTariff] || 1;
 
-  const renderTabbar = () => (
-    <Tabbar>
-      <TabbarItem
-        onClick={onStoryChange}
-        selected={activeView === VIEW_MAIN}
-        data-story={VIEW_MAIN}
-        label="Рейтинг"
-      >
-        <Icon28ArticleOutline />
-      </TabbarItem>
-      <TabbarItem
-        onClick={onStoryChange}
-        selected={activeView === VIEW_AFISHA}
-        data-story={VIEW_AFISHA}
-        label="Афиша"
-      >
-        <Icon28CompassOutline />
-      </TabbarItem>
-      <TabbarItem
-        onClick={() => setActiveModal("promo-vote-modal")}
-        style={{
-          background: "var(--vkui--color_background_accent)",
-          borderRadius: "12px",
-          color: "white",
-        }}
-        label={
-          <div
-            style={{ whiteSpace: "normal", lineHeight: 1.2, fontSize: "10px" }}
-          >
-            Голосовать
-          </div>
-        }
-      >
-        <Icon24CheckCircleFilledBlue />
-      </TabbarItem>
-      {!isMobilePlatform && (
-        <TabbarItem
-          onClick={onStoryChange}
-          selected={activeView === VIEW_TARIFFS}
-          data-story={VIEW_TARIFFS}
-          label="Тарифы"
-        >
-          <Icon28MoneyCircleOutline />
-        </TabbarItem>
-      )}
-      <TabbarItem
-        onClick={onStoryChange}
-        selected={activeView === VIEW_PROFILE}
-        data-story={VIEW_PROFILE}
-        label="Аккаунт"
-      >
-        <Icon28UserCircleOutline />
-      </TabbarItem>
-      {currentUser?.is_admin && (
-        <TabbarItem
-          onClick={() => routeNavigator.push("/admin")}
-          selected={activePanel === PANEL_ADMIN}
-          label="Админка"
-        >
-          <Icon28CheckShieldOutline />
-        </TabbarItem>
-      )}
-    </Tabbar>
-  );
+  if (isAppInitializing) return <ScreenSpinner state="loading" />;
 
-  if (isLoadingApp) return <ScreenSpinner state="loading" />;
-
-  // --- LEGAL CONSENT SCREEN ---
   if (showLegalConsent) {
     return (
       <AppRoot>
@@ -895,8 +840,8 @@ export const App = () => {
             <View activePanel="legal_consent_panel">
               <Panel id="legal_consent_panel">
                 <LegalConsent
-                  onAccept={handleLegalAccept}
-                  onOpenDoc={handleOpenLegalDoc}
+                  onAccept={acceptLegalTerms}
+                  onOpenDoc={openLegalDocument}
                 />
               </Panel>
             </View>
@@ -906,36 +851,108 @@ export const App = () => {
     );
   }
 
-  if (showOnboarding) return <Onboarding onFinish={finishOnboarding} />;
+  if (showOnboarding) return <Onboarding onFinish={completeOnboarding} />;
 
   return (
     <AppRoot>
       <SplitLayout>
         <SplitCol>
-          <Epic activeStory={activeView} tabbar={renderTabbar()}>
-            {/* Views content - NO CHANGE */}
+          <Epic
+            activeStory={activeView}
+            tabbar={
+              <Tabbar>
+                <TabbarItem
+                  onClick={navigateToView}
+                  selected={activeView === VIEW_MAIN}
+                  data-story={VIEW_MAIN}
+                  label="Рейтинг"
+                >
+                  <Icon28ArticleOutline />
+                </TabbarItem>
+                <TabbarItem
+                  onClick={navigateToView}
+                  selected={activeView === VIEW_AFISHA}
+                  data-story={VIEW_AFISHA}
+                  label="Афиша"
+                >
+                  <Icon28CompassOutline />
+                </TabbarItem>
+                <TabbarItem
+                  onClick={() => setActiveModal("promo-vote-modal")}
+                  style={{
+                    background: "var(--vkui--color_background_accent)",
+                    borderRadius: "12px",
+                    color: "white",
+                  }}
+                  label={
+                    <div
+                      style={{
+                        whiteSpace: "normal",
+                        lineHeight: 1.2,
+                        fontSize: "10px",
+                      }}
+                    >
+                      Голосовать
+                    </div>
+                  }
+                >
+                  <Icon24CheckCircleFilledBlue />
+                </TabbarItem>
+                {!isMobilePlatform && (
+                  <TabbarItem
+                    onClick={navigateToView}
+                    selected={activeView === VIEW_TARIFFS}
+                    data-story={VIEW_TARIFFS}
+                    label="Тарифы"
+                  >
+                    <Icon28MoneyCircleOutline />
+                  </TabbarItem>
+                )}
+                <TabbarItem
+                  onClick={navigateToView}
+                  selected={activeView === VIEW_PROFILE}
+                  data-story={VIEW_PROFILE}
+                  label="Аккаунт"
+                >
+                  <Icon28UserCircleOutline />
+                </TabbarItem>
+                {currentUser?.is_admin && (
+                  <TabbarItem
+                    onClick={() => routeNavigator.push("/admin")}
+                    selected={activePanel === PANEL_ADMIN}
+                    label="Админка"
+                  >
+                    <Icon28CheckShieldOutline />
+                  </TabbarItem>
+                )}
+              </Tabbar>
+            }
+          >
             <View id={VIEW_MAIN} activePanel={activePanel}>
               <Home id={PANEL_HOME} />
               <Registration
                 id={PANEL_REGISTRATION}
-                selectedThemeIds={selectedThemeIds}
-                onOpenTopicsModal={() => setActiveModal("topics-modal")}
-                allThemes={allThemes}
-                allRegions={allRegions}
-                openSelectModal={openSelectModal}
+                selectedThemeIds={activeThemeIds}
+                onOpenTopicsModal={() => {
+                  setTempThemeIds(activeThemeIds);
+                  setActiveModal("topics-modal");
+                }}
+                allThemes={themeCategories}
+                allRegions={regionList}
+                openSelectModal={configureSelectModal}
               />
               <Voting id={PANEL_VOTING} />
               <ExpertProfile
                 id={PANEL_EXPERT_PROFILE}
-                onReportPurchase={handleOpenReportPurchase}
+                onReportPurchase={requestReportPurchase}
               />
               <Admin id={PANEL_ADMIN} />
             </View>
             <View id={VIEW_AFISHA} activePanel={activePanel}>
               <Afisha
                 id={PANEL_AFISHA}
-                onEventClick={handleOpenEventModal}
-                openSelectModal={openSelectModal}
+                onEventClick={openEventActionModal}
+                openSelectModal={configureSelectModal}
               />
             </View>
             <View id={VIEW_TARIFFS} activePanel={activePanel}>
@@ -947,7 +964,7 @@ export const App = () => {
                 onOpenCreateEventModal={() =>
                   setActiveModal("create-event-modal")
                 }
-                onEventClick={handleOpenEventModal}
+                onEventClick={openEventActionModal}
               />
             </View>
           </Epic>
@@ -963,24 +980,33 @@ export const App = () => {
         >
           <FormItem
             top={<Text>Введите промо-слово или наведите камеру на QR-код</Text>}
-            bottom={getPromoBottomText()}
-            status={
-              promoStatus?.status === "not_found" ||
-              promoStatus?.status === "error"
-                ? "error"
-                : "default"
-            }
+            bottom={getPromoStatusMessage()}
+            status={isPromoErrorState ? "error" : "default"}
           >
-            <FormField>
-              <Input value={promoWord} onChange={handlePromoWordChange} />
+            <FormField
+              status={isPromoErrorState ? "error" : "default"}
+            >
+              <Input
+                value={promoInput}
+                onChange={(e) => setPromoInput(e.target.value)}
+                maxLength={20}
+                style={isMobilePlatform ? { paddingRight: "40px" } : {}}
+              />
             </FormField>
+            {isPromoLengthError && (
+              <Text style={{ fontSize: 12, color: "var(--vkui--color_text_negative)", marginTop: 4 }}>
+                Код должен содержать от 4 до 20 символов
+              </Text>
+            )}
           </FormItem>
           <FormItem>
             <Button
               size="l"
               stretched
-              onClick={goToVoteByPromo}
-              disabled={promoStatus?.status !== "active"}
+              onClick={navigateToVoteByPromo}
+              disabled={
+                promoCheckResult?.status !== "active" || isPromoLengthError
+              }
             >
               Проголосовать
             </Button>
@@ -996,9 +1022,10 @@ export const App = () => {
             >
               <div style={{ padding: "0 8px", width: "100%" }}>
                 <Search
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={topicSearchQuery}
+                  onChange={(e) => setTopicSearchQuery(e.target.value)}
                   placeholder="Поиск по темам"
+                  style={isMobile ? { paddingRight: "82px" } : {}}
                 />
               </div>
             </ModalPageHeader>
@@ -1006,7 +1033,14 @@ export const App = () => {
           footer={
             isTopicSelectionValid && (
               <Div>
-                <Button size="l" stretched onClick={() => setActiveModal(null)}>
+                <Button
+                  size="l"
+                  stretched
+                  onClick={() => {
+                    setActiveThemeIds(tempThemeIds);
+                    setActiveModal(null);
+                  }}
+                >
                   Сохранить
                 </Button>
               </Div>
@@ -1015,17 +1049,26 @@ export const App = () => {
           settlingHeight={100}
         >
           <Group>
-            {filteredTopics.map((group) => (
+            {filteredTopicGroups.map((group) => (
               <div key={group.name}>
                 <Header>{group.name}</Header>
                 {group.items.map((item: any) => (
                   <Checkbox
                     key={item.id}
-                    checked={selectedThemeIds.includes(item.id)}
-                    onChange={(e) => handleTopicChange(e, item.id)}
+                    checked={tempThemeIds.includes(item.id)}
+                    onChange={(e) => {
+                      const { checked } = e.target;
+                      if (checked) {
+                        if (tempThemeIds.length < 3) {
+                          setTempThemeIds([...tempThemeIds, item.id]);
+                        }
+                      } else {
+                        setTempThemeIds(tempThemeIds.filter((id) => id !== item.id));
+                      }
+                    }}
                     disabled={
-                      selectedThemeIds.length >= 3 &&
-                      !selectedThemeIds.includes(item.id)
+                      tempThemeIds.length >= 3 &&
+                      !tempThemeIds.includes(item.id)
                     }
                   >
                     {item.name}
@@ -1033,7 +1076,7 @@ export const App = () => {
                 ))}
               </div>
             ))}
-            {filteredTopics.length === 0 && <Div>Ничего не найдено</Div>}
+            {filteredTopicGroups.length === 0 && <Div>Ничего не найдено</Div>}
           </Group>
         </ModalPage>
 
@@ -1049,16 +1092,16 @@ export const App = () => {
 
         <EventActionModal
           id="event-actions-modal"
-          event={selectedEvent}
+          event={interactionEvent}
           onClose={() => setActiveModal(null)}
-          onShare={handleShare}
-          onDelete={handleDeleteEvent}
-          onStop={handleStopEvent}
-          onShowQr={handleShowQr}
+          onShare={handleShareEvent}
+          onDelete={confirmDeleteEvent}
+          onStop={confirmStopEvent}
+          onShowQr={() => setActiveModal("qr-code-modal")}
         />
         <QrCodeModal
           id="qr-code-modal"
-          event={selectedEvent}
+          event={interactionEvent}
           onClose={() => setActiveModal(null)}
         />
         <CreateMailingModal
@@ -1077,7 +1120,7 @@ export const App = () => {
                   Рассылка отправлена на модерацию!
                 </Snackbar>,
               );
-              setMailingsUsed((prev) => prev + 1);
+              setDailyMailingsSent((prev) => prev + 1);
             } catch (err: any) {
               setSnackbar(
                 <Snackbar
@@ -1091,7 +1134,7 @@ export const App = () => {
               setPopout(null);
             }
           }}
-          mailingLimits={{ used: mailingsUsed, limit: mailingLimit }}
+          mailingLimits={{ used: dailyMailingsSent, limit: mailingLimit }}
         />
 
         <ModalPage
@@ -1120,7 +1163,7 @@ export const App = () => {
                   <Switch
                     checked={currentUser?.show_community_rating ?? true}
                     onChange={(e) =>
-                      handleSettingsChange(
+                      updateUserSettings(
                         "show_community_rating",
                         e.target.checked,
                       )
@@ -1154,7 +1197,7 @@ export const App = () => {
                   name="allow_notifications"
                   checked={currentUser?.allow_notifications ?? false}
                   onChange={(e) =>
-                    handleNotificationSettingsChange(
+                    toggleNotificationSettings(
                       "allow_notifications",
                       e.target.checked,
                     )
@@ -1173,7 +1216,7 @@ export const App = () => {
                     name="allow_expert_mailings"
                     checked={currentUser?.allow_expert_mailings ?? false}
                     onChange={(e) =>
-                      handleNotificationSettingsChange(
+                      toggleNotificationSettings(
                         "allow_expert_mailings",
                         e.target.checked,
                       )
@@ -1187,16 +1230,16 @@ export const App = () => {
             )}
           </Group>
           <Group header={<Header>О приложении</Header>}>
-            <SimpleCell onClick={() => handleOpenLegalDoc("user_agreement")}>
+            <SimpleCell onClick={() => openLegalDocument("user_agreement")}>
               Пользовательское соглашение
             </SimpleCell>
-            <SimpleCell onClick={() => handleOpenLegalDoc("privacy")}>
+            <SimpleCell onClick={() => openLegalDocument("privacy")}>
               Политика конфиденциальности
             </SimpleCell>
-            <SimpleCell onClick={() => handleOpenLegalDoc("offer")}>
+            <SimpleCell onClick={() => openLegalDocument("offer")}>
               Публичная оферта
             </SimpleCell>
-            <SimpleCell onClick={() => handleOpenLegalDoc("mailing_consent")}>
+            <SimpleCell onClick={() => openLegalDocument("mailing_consent")}>
               Согласие на рассылку
             </SimpleCell>
           </Group>
@@ -1206,29 +1249,29 @@ export const App = () => {
           id="home-filters"
           onClose={() => setActiveModal(null)}
           filterType="home"
-          regions={allRegions}
-          categories={allThemes}
-          openSelectModal={openSelectModal}
+          regions={regionList}
+          categories={themeCategories}
+          openSelectModal={configureSelectModal}
         />
         <FiltersModal
           id="afisha-filters"
           onClose={() => setActiveModal(null)}
           filterType="afisha"
-          regions={allRegions}
-          categories={allThemes}
-          openSelectModal={openSelectModal}
+          regions={regionList}
+          categories={themeCategories}
+          openSelectModal={configureSelectModal}
         />
 
         <SelectModal
           id="select-modal"
           onClose={() =>
-            setActiveModal(selectModalConfig?.fallbackModal || null)
+            setActiveModal(selectModalState?.fallbackModal || null)
           }
-          title={selectModalConfig?.title || ""}
-          options={selectModalConfig?.options || []}
-          selected={selectModalConfig?.selected || null}
-          onSelect={selectModalConfig?.onSelect || (() => {})}
-          searchable={selectModalConfig?.searchable || false}
+          title={selectModalState?.title || ""}
+          options={selectModalState?.options || []}
+          selected={selectModalState?.selected || null}
+          onSelect={selectModalState?.onSelect || (() => { })}
+          searchable={selectModalState?.searchable || false}
         />
 
         <ModalCard
@@ -1266,16 +1309,16 @@ export const App = () => {
           settlingHeight={100}
         >
           <VoteCard
-            onSubmit={handleCommunityVoteSubmit}
-            onCancelVote={performCancelCommunityVote}
-            initialVote={currentUser?.current_user_vote_info || null}
+            onSubmit={submitCommunityVote}
+            onCancelVote={cancelCommunityVote}
+            initialVote={voteExpertData?.current_user_vote_info || null}
             setPopout={setPopout}
           />
         </ModalPage>
 
         <AfishaEventModal
           id="afisha-event-details"
-          event={selectedEvent}
+          event={interactionEvent}
           onClose={() => setActiveModal(null)}
         />
         <PurchaseModal
@@ -1284,11 +1327,18 @@ export const App = () => {
           title="Отчет по голосованию"
           description="Вы получите PDF-документ со всеми анонимными отзывами и комментариями по данному эксперту."
           price={500}
-          onInitiatePayment={handleInitiateReportPayment}
+          onInitiatePayment={processReportPayment}
         />
         <MobilePaymentStubModal
           id="mobile-payment-stub"
           onClose={() => setActiveModal(null)}
+        />
+
+        <InteractionHistoryModal
+          id="interaction-history-modal"
+          onClose={() => setActiveModal(null)}
+          expertId={historyTargetId}
+          ratingType={historyRatingType}
         />
 
         <EditProfileModal
@@ -1296,9 +1346,9 @@ export const App = () => {
           onClose={() => setActiveModal(null)}
           onBack={() => setActiveModal("profile-settings-modal")}
           currentUser={currentUser as UserData}
-          onSave={handleSaveProfile}
-          openSelectModal={openSelectModal}
-          allRegions={allRegions}
+          onSave={submitProfileUpdate}
+          openSelectModal={configureSelectModal}
+          allRegions={regionList}
         />
       </ModalRoot>
     </AppRoot>

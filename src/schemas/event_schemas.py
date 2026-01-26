@@ -7,6 +7,7 @@ from pydantic import (
     field_serializer,
     Field,
     field_validator,
+    ConfigDict,
 )
 from typing import Optional, Any, List
 
@@ -36,8 +37,10 @@ class EventCreate(EventBase):
     @field_validator("event_date")
     @classmethod
     def event_date_must_be_in_future(cls, v: datetime) -> datetime:
-        if v.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
-            raise ValueError("Дата мероприятия не может быть в прошлом.")
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        if v <= datetime.now(timezone.utc):
+            raise ValueError("Дата начала не может быть в прошлом")
         return v
 
     duration_minutes: int = Field(
@@ -60,8 +63,7 @@ class EventRead(EventBase):
 
     expert_info: Optional[VotedExpertInfo] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
     @model_validator(mode="before")
     @classmethod
@@ -77,8 +79,7 @@ class EventRead(EventBase):
 
 class VoteBase(BaseModel):
     vote_type: str
-    comment_positive: Optional[str] = None
-    comment_negative: Optional[str] = None
+    comment: str
 
 
 class VoteCreate(VoteBase):
@@ -86,10 +87,19 @@ class VoteCreate(VoteBase):
     voter_vk_id: int
 
 
-class Stats(BaseModel):
-    expert: int = 0
-    narodny: int = 0
-    meropriyatiy: int = 0
+class CurrentVoteStatus(BaseModel):
+    has_voted: bool
+    vote_value: int
+    last_comment: Optional[str] = None
+
+
+class EventStatusResponse(BaseModel):
+    status: str
+    event_name: str
+    start_time: str
+    end_time: str
+    current_vote: Optional[CurrentVoteStatus] = None
+    expert: dict
 
 
 class ExpertEventsResponse(BaseModel):
@@ -102,6 +112,3 @@ class PaginatedEventsResponse(BaseModel):
     total_count: int
     page: int
     size: int
-
-
-EventRead.model_rebuild()

@@ -74,9 +74,10 @@ export const Home = ({ id }: HomeProps) => {
     queryFn: fetchExperts,
     initialPageParam: 1,
     getNextPageParam: (lastPage, allPages) => {
-      const currentPage = allPages.length;
+      if (!lastPage || lastPage.items.length === 0) return undefined;
       const totalCount = lastPage.total_count;
-      return currentPage * PAGE_SIZE < totalCount ? currentPage + 1 : undefined;
+      const loadedCount = allPages.length * PAGE_SIZE;
+      return loadedCount < totalCount ? allPages.length + 1 : undefined;
     },
   });
 
@@ -87,17 +88,7 @@ export const Home = ({ id }: HomeProps) => {
   }, [inView, hasNextPage, fetchNextPage, isFetchingNextPage]);
 
   const allExperts = useMemo(() => {
-    const flatExperts =
-      data?.pages.flatMap((page, pageIndex) =>
-        page.items.map((expert: any, itemIndex: number) => ({
-          ...expert,
-          topPosition: pageIndex * PAGE_SIZE + itemIndex + 1,
-        })),
-      ) || [];
-
-    return Array.from(
-      new Map(flatExperts.map((expert) => [expert.vk_id, expert])).values(),
-    );
+    return data?.pages.flatMap((page) => page.items) || [];
   }, [data]);
 
   const onRefresh = async () => {
@@ -140,7 +131,6 @@ export const Home = ({ id }: HomeProps) => {
                 <ExpertCard
                   key={expert.vk_id}
                   expert={expert}
-                  topPosition={expert.topPosition}
                   onClick={() => routeNavigator.push(`/expert/${expert.vk_id}`)}
                 />
               ))}

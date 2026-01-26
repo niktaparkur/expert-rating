@@ -86,7 +86,11 @@ export const EventActionModal = ({
           overTitle={getStatusText(event.status)}
           disabled
         >
-          <Text weight="1" useAccentWeight>
+          <Text
+            weight="1"
+            useAccentWeight
+            style={{ wordBreak: "break-word", whiteSpace: "normal" }}
+          >
             {event.name}
           </Text>
         </RichCell>
@@ -107,7 +111,9 @@ export const EventActionModal = ({
       {event.description && (
         <Group header={<Header>Описание</Header>}>
           <Div>
-            <Text>{event.description}</Text>
+            <Text style={{ wordBreak: "break-word", whiteSpace: "pre-wrap" }}>
+              {event.description}
+            </Text>
           </Div>
         </Group>
       )}

@@ -31,9 +31,7 @@ export const CreateMailingModal: React.FC<CreateMailingModalProps> = ({
     setIsSending(true);
     try {
       await onSend(message);
-      // Успешное закрытие и показ snackbar'а обрабатываются в родительском компоненте
     } catch (error) {
-      // Ошибки также обрабатываются в родительском компоненте
     } finally {
       setIsSending(false);
     }

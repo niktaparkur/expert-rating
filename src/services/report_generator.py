@@ -12,9 +12,11 @@ from sqlalchemy.orm import selectinload
 from transliterate import translit
 from loguru import logger
 
-from src.models.all_models import ExpertProfile, Vote
+# --- FIX: Импортируем новые модели ---
+from src.models import ExpertProfile, EventFeedback
 
-# --- РЕГИСТРАЦИЯ ЛОКАЛЬНЫХ ШРИФТОВ ---
+# -------------------------------------
+
 try:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     FONT_DIR = os.path.join(BASE_DIR, "..", "assets", "fonts")
@@ -35,7 +37,7 @@ except Exception as e:
 async def generate_expert_report(db: AsyncSession, expert_id: int) -> str | None:
     logger.info(f"Starting PDF report generation for expert_id: {expert_id}")
     try:
-        # 1. Получение данных эксперта
+        # 1. Получаем профиль эксперта
         expert_profile_result = await db.execute(
             select(ExpertProfile)
             .options(selectinload(ExpertProfile.user))
@@ -52,18 +54,18 @@ async def generate_expert_report(db: AsyncSession, expert_id: int) -> str | None
             f"Expert profile for {expert_profile.user.first_name} {expert_profile.user.last_name} found."
         )
 
-        # 2. Получение голосов
+        # 2. Получаем историю отзывов (EventFeedback) вместо Vote
         votes_query = (
-            select(Vote)
-            .where(Vote.expert_vk_id == expert_id)
-            .options(selectinload(Vote.event))
-            .order_by(Vote.created_at.desc())
+            select(EventFeedback)
+            .where(EventFeedback.expert_id == expert_id)
+            .options(selectinload(EventFeedback.event))  # Подгружаем инфо о мероприятии
+            .order_by(EventFeedback.created_at.desc())
         )
         votes_result = await db.execute(votes_query)
-        votes = votes_result.scalars().all()
-        logger.info(f"Found {len(votes)} votes for this expert.")
+        feedbacks = votes_result.scalars().all()
+        logger.info(f"Found {len(feedbacks)} feedbacks for this expert.")
 
-        # 3. Формирование имени файла
+        # 3. Подготовка файла
         user = expert_profile.user
         last_name_translit = translit(user.last_name, "ru", reversed=True).replace(
             "'", ""
@@ -77,10 +79,8 @@ async def generate_expert_report(db: AsyncSession, expert_id: int) -> str | None
         file_path = f"/tmp/{filename}"
         logger.debug(f"Generated report filename: {file_path}")
 
-        # 4. Создание и настройка PDF документа
         doc = SimpleDocTemplate(file_path, pagesize=A4)
 
-        # styles = getSampleStyleSheet()
         StyleNormal = ParagraphStyle(
             name="Normal", fontName="DejaVuSans", fontSize=10, leading=12
         )
@@ -103,7 +103,6 @@ async def generate_expert_report(db: AsyncSession, expert_id: int) -> str | None
         story.append(title)
         story.append(Spacer(1, 12))
 
-        # 5. Наполнение таблицы данными
         table_data = [
             [
                 Paragraph("Дата", StyleBold),
@@ -112,24 +111,29 @@ async def generate_expert_report(db: AsyncSession, expert_id: int) -> str | None
                 Paragraph("Комментарий", StyleBold),
             ]
         ]
-        vote_type_map = {"trust": "Доверие", "distrust": "Недоверие"}
 
-        for vote in votes:
-            date_str_vote = vote.created_at.astimezone(timezone.utc).strftime(
-                "%d.%m.%Y %H:%M"
-            )
-            source = (
-                vote.event.event_name
-                if vote.is_expert_vote and vote.event
-                else "Народный голос"
-            )
-            vote_str = vote_type_map.get(vote.vote_type, "N/A")
-            comment = (
-                vote.comment_positive
-                if vote.vote_type == "trust"
-                else vote.comment_negative
-            )
-            comment = comment or ""
+        # 4. Формирование строк таблицы
+        for fb in feedbacks:
+            # Дата
+            if fb.created_at:
+                date_str_vote = fb.created_at.astimezone(timezone.utc).strftime(
+                    "%d.%m.%Y %H:%M"
+                )
+            else:
+                date_str_vote = "N/A"
+
+            # Источник (Ивент или Народный)
+            source = fb.event.name if fb.event_id and fb.event else "Народный рейтинг"
+
+            # Тип голоса (1 -> Доверие, -1 -> Недоверие, 0 -> Нейтрально)
+            if fb.rating_snapshot == 1:
+                vote_str = "Доверие (+)"
+            elif fb.rating_snapshot == -1:
+                vote_str = "Недоверие (-)"
+            else:
+                vote_str = "Нейтрально"
+
+            comment = fb.comment or ""
 
             table_data.append(
                 [
@@ -140,9 +144,10 @@ async def generate_expert_report(db: AsyncSession, expert_id: int) -> str | None
                 ]
             )
 
-        if not votes:
-            story.append(Paragraph("По данному эксперту еще нет голосов.", StyleNormal))
+        if not feedbacks:
+            story.append(Paragraph("По данному эксперту еще нет отзывов.", StyleNormal))
         else:
+            # Настройка стиля таблицы
             table = Table(table_data, colWidths=[90, 140, 70, 180])
             style = TableStyle(
                 [
@@ -161,7 +166,6 @@ async def generate_expert_report(db: AsyncSession, expert_id: int) -> str | None
             table.setStyle(style)
             story.append(table)
 
-        # 6. Сборка документа
         doc.build(story)
         logger.success(f"PDF report successfully built and saved to {file_path}")
         return file_path

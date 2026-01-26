@@ -12,10 +12,14 @@ from src.core.dependencies import (
     get_db,
     get_notifier,
     get_redis,
+    check_idempotency_key,
+    save_idempotency_result,
 )
 from src.crud import expert_crud
 from src.schemas import expert_schemas
 from src.services.notifier import Notifier
+from sqlalchemy.exc import IntegrityError
+from redis.exceptions import LockError
 
 router = APIRouter(prefix="/experts", tags=["Experts"])
 
@@ -33,6 +37,7 @@ async def register_expert(
         await expert_crud.create_expert_request(db=db, expert_data=expert_data)
         cache_key = f"user_profile:{vk_id_from_token}"
         await cache.delete(cache_key)
+
         user_info_for_notifier = {
             **expert_data.user_data.model_dump(),
             "regalia": expert_data.profile_data.regalia,
@@ -60,21 +65,26 @@ async def get_top_experts(
         region=region,
         category_id=category_id,
     )
+
     response_users = []
-    for user, profile, stats_dict, topics in experts_data:
-        # --- ИСПРАВЛЕНИЕ: UserPublicRead вместо UserAdminRead ---
+    # Распаковываем 5 элементов (User, Profile, Stats, Topics, Rank)
+    for user, profile, stats_dict, topics, rank in experts_data:
         user_data = expert_schemas.UserPublicRead.model_validate(
             user, from_attributes=True
         )
         user_data.status = profile.status
-        # --- ИСПРАВЛЕНИЕ: StatsPublic вместо Stats ---
         user_data.stats = expert_schemas.StatsPublic(**stats_dict)
         user_data.topics = topics
         user_data.show_community_rating = profile.show_community_rating
         user_data.regalia = profile.regalia
         user_data.social_link = str(profile.social_link)
-        user_data.tariff_plan = profile.tariff_plan
+
+        # Тариф теперь вычисляем (заглушка, позже прикрутим Donut)
+        user_data.tariff_plan = "Начальный"
+
+        user_data.rank = rank
         response_users.append(user_data)
+
     return {
         "items": response_users,
         "total_count": total_count,
@@ -92,20 +102,20 @@ async def get_expert_profile(
     result = await expert_crud.get_full_user_profile_with_stats(db=db, vk_id=vk_id)
     if not result:
         raise HTTPException(status_code=404, detail="Expert not found")
+
     user, profile, stats_dict, my_votes_stats_dict = result
 
-    # --- ИСПРАВЛЕНИЕ: UserPublicRead ---
     response_data = expert_schemas.UserPublicRead.model_validate(
         user, from_attributes=True
     )
-    # --- ИСПРАВЛЕНИЕ: StatsPublic ---
     response_data.stats = expert_schemas.StatsPublic(**stats_dict)
+    response_data.tariff_plan = "Начальный"  # Заглушка
 
-    response_data.tariff_plan = profile.tariff_plan if profile else "Начальный"
     vote_info = await expert_crud.get_user_vote_for_expert(
         db=db, expert_vk_id=vk_id, voter_vk_id=current_user["vk_id"]
     )
     response_data.current_user_vote_info = vote_info
+
     if profile:
         response_data.status = profile.status
         response_data.show_community_rating = profile.show_community_rating
@@ -125,44 +135,58 @@ async def create_vote_for_expert(
     cache: redis.Redis = Depends(get_redis),
     notifier: Notifier = Depends(get_notifier),
     voter_id: int = Depends(get_validated_vk_id),
+    idempotency_key: Optional[str] = Depends(check_idempotency_key),
 ):
     if vk_id == voter_id:
         raise HTTPException(status_code=400, detail="Вы не можете голосовать за себя.")
 
-    is_comment_missing = (
-        vote_data.vote_type == "trust" and not vote_data.comment_positive
-    ) or (vote_data.vote_type == "distrust" and not vote_data.comment_negative)
-    if is_comment_missing:
+    if not vote_data.comment or len(vote_data.comment.strip()) < 3:
         raise HTTPException(
             status_code=400,
             detail="Комментарий является обязательным для этого действия.",
         )
 
+    lock_key = f"lock:vote:community:{voter_id}:{vk_id}"
+
     try:
-        await expert_crud.create_community_vote(
-            db=db,
-            expert_vk_id=vk_id,
-            vote_data=vote_data,
-            voter_vk_id=voter_id,
-            notifier=notifier,
-        )
-        await cache.delete(f"user_profile:{vk_id}")
-        await cache.delete(f"user_profile:{voter_id}")
-        return {"status": "ok", "message": "Your vote has been processed."}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        async with cache.lock(lock_key, timeout=5, blocking_timeout=2):
+            try:
+                await expert_crud.create_community_vote(
+                    db=db,
+                    expert_vk_id=vk_id,
+                    vote_data=vote_data,
+                    voter_vk_id=voter_id,
+                    notifier=notifier,
+                )
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            except IntegrityError:
+                await db.rollback()
+                raise HTTPException(status_code=409, detail="Вы уже проголосовали.")
+
+            await cache.delete(f"user_profile:{vk_id}")
+            await cache.delete(f"user_profile:{voter_id}")
+
+            res = {"status": "ok", "message": "Your vote has been processed."}
+            if idempotency_key:
+                await save_idempotency_result(idempotency_key, res, cache)
+            return res
+
+    except LockError:
+        raise HTTPException(status_code=429, detail="Слишком много запросов.")
 
 
 @router.delete("/{vk_id}/vote", status_code=200)
 async def cancel_vote_for_expert(
     vk_id: int,
+    rating_type: str = "community",
     current_user: Dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     cache: redis.Redis = Depends(get_redis),
 ):
     voter_vk_id = current_user["vk_id"]
-    success = await expert_crud.delete_community_vote(
-        db=db, expert_vk_id=vk_id, voter_vk_id=voter_vk_id
+    success = await expert_crud.withdraw_rating_vote(
+        db=db, expert_vk_id=vk_id, voter_vk_id=voter_vk_id, rating_type=rating_type
     )
 
     if not success:
@@ -222,7 +246,6 @@ async def get_pending_experts(db: AsyncSession = Depends(get_db)):
 
 @router.get(
     "/admin/all_users",
-    # --- ИСПРАВЛЕНИЕ: PaginatedAdminUsersResponse для приватных данных ---
     response_model=expert_schemas.PaginatedAdminUsersResponse,
     dependencies=[Depends(get_current_admin_user)],
 )
@@ -244,13 +267,12 @@ async def get_all_users(
     )
     response_users = []
     for user, profile in users_with_profiles:
-        # --- ИСПРАВЛЕНИЕ: UserPrivateRead для админов ---
         user_data = expert_schemas.UserPrivateRead.model_validate(
             user, from_attributes=True
         )
         if profile:
             user_data.status = profile.status
-            user_data.tariff_plan = profile.tariff_plan
+            user_data.tariff_plan = "Начальный"
         response_users.append(user_data)
     return {
         "items": response_users,
@@ -388,7 +410,7 @@ async def get_profile_updates(db: AsyncSession = Depends(get_db)):
 @router.post("/admin/updates/{request_id}/{action}")
 async def moderate_update_request(
     request_id: int,
-    action: str,  # approve / reject
+    action: str,
     db: AsyncSession = Depends(get_db),
     notifier: Notifier = Depends(get_notifier),
     cache: redis.Redis = Depends(get_redis),

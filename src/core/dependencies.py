@@ -14,6 +14,8 @@ from src.crud import expert_crud
 from src.services.notifier import Notifier
 from src.schemas import expert_schemas
 
+from src.crud import event_crud
+
 load_dotenv()
 
 DATABASE_URL = settings.DATABASE_URL_ASYNC
@@ -44,11 +46,6 @@ async def get_validated_vk_id(
     authorization: Optional[str] = Header(None),
     cache: redis.Redis = Depends(get_redis),
 ) -> int:
-    """
-    Извлекает и валидирует VK ID из токена.
-    НЕ проверяет наличие пользователя в БД.
-    Используется для регистрации и критических операций.
-    """
     if authorization is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -60,7 +57,6 @@ async def get_validated_vk_id(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format"
         )
 
-    # Проверка кеша токенов
     token_cache_key = f"token_to_id:{access_token}"
     cached_id = await cache.get(token_cache_key)
 
@@ -69,7 +65,6 @@ async def get_validated_vk_id(
         logger.trace(f"VK User ID {vk_user_id} found in token cache.")
         return vk_user_id
 
-    # Запрос к VK API
     logger.trace("Checking token via VK API...")
     params = {
         "token": access_token,
@@ -99,6 +94,7 @@ async def get_validated_vk_id(
         )
 
     vk_user_id = data["response"]["user_id"]
+
     await cache.set(token_cache_key, vk_user_id, ex=300)
     return vk_user_id
 
@@ -108,18 +104,17 @@ async def get_current_user(
     db: AsyncSession = Depends(get_db),
     cache: redis.Redis = Depends(get_redis),
 ) -> Dict:
-    """
-    Возвращает полный профиль пользователя из БД.
-    Если пользователя нет в БД - 404 (кроме эндпоинтов регистрации).
-    """
     cache_key = f"user_profile:{vk_user_id}"
     cached_user_str = await cache.get(cache_key)
 
     if cached_user_str:
-        logger.trace(f"User {vk_user_id} profile found in cache.")
-        return json.loads(cached_user_str)
-
-    logger.trace(f"User {vk_user_id} fetching from DB.")
+        user_dict = json.loads(cached_user_str)
+        if user_dict.get("is_expert") and "event_usage" not in user_dict:
+            logger.info(
+                f"Cache for user {vk_user_id} is outdated (missing event_usage), refreshing..."
+            )
+        else:
+            return user_dict
 
     result = await expert_crud.get_full_user_profile_with_stats(db, vk_id=vk_user_id)
 
@@ -143,7 +138,6 @@ async def get_current_user(
         response_data.is_expert = profile.status == "approved"
         response_data.status = profile.status
         response_data.show_community_rating = profile.show_community_rating
-        response_data.tariff_plan = profile.tariff_plan
         response_data.regalia = profile.regalia
         response_data.social_link = str(profile.social_link)
         if profile.selected_themes:
@@ -151,6 +145,29 @@ async def get_current_user(
                 f"{theme.category.name} > {theme.name}"
                 for theme in profile.selected_themes
             ]
+
+    if user.subscription and user.subscription.is_active:
+        if user.subscription.amount >= 3999:
+            response_data.tariff_plan = "Профи"
+        elif user.subscription.amount >= 999:
+            response_data.tariff_plan = "Стандарт"
+        else:
+            response_data.tariff_plan = "Начальный"
+
+        if user.subscription.next_payment_date:
+            response_data.next_payment_date = user.subscription.next_payment_date
+    else:
+        response_data.tariff_plan = "Начальный"
+
+    if response_data.is_expert:
+        tariff = response_data.tariff_plan or "Начальный"
+        limit = settings.TARIFF_EVENT_LIMITS.get(tariff, 3)
+        current_count = await event_crud.get_expert_approved_event_count_current_month(
+            db, vk_user_id
+        )
+        response_data.event_usage = expert_schemas.EventUsage(
+            current_count=current_count, limit=limit
+        )
 
     current_user_dict = response_data.model_dump(mode="json")
 
@@ -164,3 +181,26 @@ async def get_current_admin_user(current_user: Dict = Depends(get_current_user))
             status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
         )
     return current_user
+
+
+async def check_idempotency_key(
+    x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
+    cache: redis.Redis = Depends(get_redis),
+) -> Optional[str]:
+    if not x_idempotency_key:
+        return None
+
+    cached_res = await cache.get(f"idempotency:{x_idempotency_key}")
+    if cached_res:
+        from src.core.exceptions import IdempotentException
+
+        raise IdempotentException(content=json.loads(cached_res))
+
+    return x_idempotency_key
+
+
+async def save_idempotency_result(
+    key: str, result: dict, cache: redis.Redis, expire: int = 86400  # 24 hours
+):
+    if key:
+        await cache.set(f"idempotency:{key}", json.dumps(result), ex=expire)

@@ -1,103 +1,72 @@
-from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List, Tuple
 
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.sql import func
 from loguru import logger
 
-from src.models.all_models import PromoCode, PromoCodeActivation
+# --- FIX: Импортируем только PromoCode, так как Activation удалили ---
+from src.models import PromoCode
 from src.schemas import promo_schemas
 
 
 async def validate_and_get_promo_code(
     db: AsyncSession, code: str, user_vk_id: int
-) -> PromoCode | None:
+) -> Optional[PromoCode]:
+    """
+    Проверяет существование и активность промокода.
+    В новой версии (MVP) мы не проверяем лимиты использования на пользователя,
+    так как таблица PromoCodeActivation была удалена для упрощения.
+    """
+    if not code:
+        return None
+
+    # Ищем код (регистронезависимо, если нужно, но пока точное совпадение по upper)
     query = select(PromoCode).where(PromoCode.code == code.upper())
     result = await db.execute(query)
     promo = result.scalars().first()
 
-    logger.debug(f"Attempting to validate promo code '{code}' for user '{user_vk_id}'.")
+    logger.debug(f"Validating promo code '{code}' for user '{user_vk_id}'.")
 
     if not promo:
-        logger.warning(f"Promo code '{code}' not found in DB.")
+        logger.warning(f"Promo code '{code}' not found.")
         return None
 
     if not promo.is_active:
-        logger.warning(f"Promo code '{promo.code}' is not active.")
+        logger.warning(f"Promo code '{promo.code}' is inactive.")
         return None
 
-    if promo.expires_at and promo.expires_at.replace(
-        tzinfo=timezone.utc
-    ) < datetime.now(timezone.utc):
-        logger.warning(f"Promo code '{promo.code}' has expired.")
-        return None
+    # Дополнительные проверки (срок действия, лимиты) можно вернуть сюда,
+    # если добавить соответствующие поля обратно в модель PromoCode в будущем.
 
-    if promo.activations_limit is not None and promo.activations_limit > 0:
-        count_query = select(func.count(PromoCodeActivation.id)).where(
-            PromoCodeActivation.promo_code_id == promo.id
-        )
-        activations_count = (await db.execute(count_query)).scalar_one_or_none() or 0
-        logger.debug(
-            f"Total activations for '{promo.code}': {activations_count}. Limit: {promo.activations_limit}."
-        )
-        if activations_count >= promo.activations_limit:
-            logger.warning(
-                f"Promo code '{promo.code}' has reached its total activation limit."
-            )
-            return None
-
-    user_count_query = select(func.count(PromoCodeActivation.id)).where(
-        PromoCodeActivation.promo_code_id == promo.id,
-        PromoCodeActivation.user_vk_id == user_vk_id,
-    )
-    user_activations_count = (
-        await db.execute(user_count_query)
-    ).scalar_one_or_none() or 0
-    logger.debug(
-        f"User '{user_vk_id}' activations for '{promo.code}': {user_activations_count}. Limit: {promo.user_activations_limit}."
-    )
-
-    # ИСПРАВЛЕНИЕ: Добавляем проверку, что лимит больше нуля
-    if (
-        promo.user_activations_limit > 0
-        and user_activations_count >= promo.user_activations_limit
-    ):
-        logger.warning(
-            f"User '{user_vk_id}' has reached their activation limit for promo code '{promo.code}'."
-        )
-        return None
-
-    logger.success(
-        f"Promo code '{promo.code}' successfully validated for user '{user_vk_id}'."
-    )
+    logger.success(f"Promo code '{promo.code}' is valid.")
     return promo
 
 
 async def log_promo_activation(db: AsyncSession, promo_code_id: int, user_vk_id: int):
-    activation = PromoCodeActivation(promo_code_id=promo_code_id, user_vk_id=user_vk_id)
-    db.add(activation)
-    await db.commit()
+    """
+    Заглушка. В текущей архитектуре мы не храним историю активаций промокодов
+    в отдельной таблице.
+    """
+    pass
 
 
 async def create_promo_code(
     db: AsyncSession, promo_data: promo_schemas.PromoCodeCreate
 ) -> PromoCode:
-    # Проверяем на существование кода без учета статуса и срока действия
     existing_code_res = await db.execute(
         select(PromoCode).where(PromoCode.code == promo_data.code.upper())
     )
     if existing_code_res.scalars().first():
         raise ValueError("A promo code with this code already exists.")
 
+    # Внимание: В текущей модели Finance.py остались только поля code и is_active.
+    # Если вы хотите вернуть discount_percent, нужно добавить его в модель Finance.py и миграцию.
+    # Пока сохраняем то, что есть в модели.
     db_promo_code = PromoCode(
         code=promo_data.code.upper(),
-        discount_percent=promo_data.discount_percent,
-        expires_at=promo_data.expires_at,
         is_active=promo_data.is_active,
-        activations_limit=promo_data.activations_limit,
-        user_activations_limit=promo_data.user_activations_limit,
+        # discount_percent=promo_data.discount_percent # Вернуть, если обновите модель
     )
     db.add(db_promo_code)
     await db.commit()
@@ -105,17 +74,18 @@ async def create_promo_code(
     return db_promo_code
 
 
-async def get_all_promo_codes_paginated(db: AsyncSession, page: int, size: int):
+async def get_all_promo_codes_paginated(
+    db: AsyncSession, page: int, size: int
+) -> Tuple[List[PromoCode], int]:
     base_query = select(PromoCode)
 
     count_query = select(func.count()).select_from(base_query.subquery())
     total_count_res = await db.execute(count_query)
     total_count = total_count_res.scalar_one()
 
+    # Сортировка по ID, т.к. created_at может не быть в упрощенной модели
     paginated_query = (
-        base_query.order_by(desc(PromoCode.created_at))
-        .offset((page - 1) * size)
-        .limit(size)
+        base_query.order_by(desc(PromoCode.id)).offset((page - 1) * size).limit(size)
     )
     results = await db.execute(paginated_query)
 
@@ -130,11 +100,12 @@ async def update_promo_code(
     if not db_promo_code:
         return None
 
-    update_data = promo_data.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        if key == "code":
-            value = value.upper()
-        setattr(db_promo_code, key, value)
+    # Обновляем только те поля, которые есть в модели
+    db_promo_code.code = promo_data.code.upper()
+    db_promo_code.is_active = promo_data.is_active
+
+    # Если вернете поля в модель - раскомментируйте:
+    # db_promo_code.discount_percent = promo_data.discount_percent
 
     await db.commit()
     await db.refresh(db_promo_code)

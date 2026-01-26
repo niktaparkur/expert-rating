@@ -32,7 +32,15 @@ export const QrCodeModal = ({ id, event, onClose }: QrCodeModalProps) => {
     >
       <Group>
         <Div style={{ textAlign: "center" }}>
-          <Header>{event.name}</Header>
+          <Header
+            style={{
+              textAlign: "center",
+              wordBreak: "break-word",
+              whiteSpace: "normal",
+            }}
+          >
+            {event.name}
+          </Header>
           <Text>
             Промо-слово: <strong>{event.promo_word}</strong>
           </Text>

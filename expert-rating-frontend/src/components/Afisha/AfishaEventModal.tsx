@@ -52,7 +52,10 @@ export const AfishaEventModal = ({
 
   const handleExpertClick = () => {
     if (event.expert_info) {
-      routeNavigator.push(`/expert/${event.expert_info.vk_id}`);
+      onClose();
+      setTimeout(() => {
+        routeNavigator.push(`/expert/${event.expert_info!.vk_id}`);
+      }, 200);
     }
   };
 

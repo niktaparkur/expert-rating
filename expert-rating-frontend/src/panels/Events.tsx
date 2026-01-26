@@ -1,5 +1,3 @@
-// src/panels/Events.tsx
-
 import React, { useState, useEffect, ReactNode } from "react";
 import {
   Panel,

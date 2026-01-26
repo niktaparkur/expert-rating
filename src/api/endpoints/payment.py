@@ -16,13 +16,20 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 import redis.asyncio as redis
 from loguru import logger
 
-from src.core.dependencies import get_db, get_redis, get_current_user
+from src.core.dependencies import (
+    get_db,
+    get_redis,
+    get_current_user,
+    get_notifier,
+    check_idempotency_key,
+    save_idempotency_result,
+)
 from src.crud import expert_crud, promo_crud
 from .tariffs import TARIFFS_INFO
 from src.schemas import payment_schemas
 from src.services.notifier import Notifier
 from src.services import report_generator
-from src.core.dependencies import get_notifier
+from types import Optional
 
 from src.core.config import settings
 
@@ -32,7 +39,6 @@ router = APIRouter(prefix="/payment", tags=["Payment"])
 REPORT_PRICE = 500
 engine = create_async_engine(settings.DATABASE_URL_ASYNC)
 
-# --- НОВЫЙ БЛОК: Список доверенных IP-адресов YooKassa ---
 YOOKASSA_TRUSTED_IPS = [
     "185.71.76.0/27",
     "185.71.77.0/27",
@@ -44,7 +50,6 @@ YOOKASSA_TRUSTED_IPS = [
 ]
 
 
-# --- ИЗМЕНЕННАЯ ФУНКЦИЯ ---
 @router.post("/yookassa/webhook", status_code=status.HTTP_200_OK)
 async def yookassa_webhook(
     notification: payment_schemas.YooKassaNotification,
@@ -54,7 +59,6 @@ async def yookassa_webhook(
     cache: redis.Redis = Depends(get_redis),
     notifier: Notifier = Depends(get_notifier),
 ):
-    # --- НОВЫЙ БЛОК: Проверка IP-адреса ---
     client_ip = request.headers.get("x-forwarded-for") or request.client.host
     is_trusted = any(
         ip_address(client_ip) in ip_network
@@ -219,6 +223,7 @@ async def create_yookassa_payment(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     cache: redis.Redis = Depends(get_redis),
+    idempotency_key: Optional[str] = Depends(check_idempotency_key),
 ):
     tariff_id = payment_data.tariff_id
     user_vk_id = current_user["vk_id"]
@@ -236,7 +241,6 @@ async def create_yookassa_payment(
 
     final_price = tariff_info["price"]
 
-    # Применяем промокод, если он есть
     if payment_data.promo_code:
         promo = await promo_crud.validate_and_get_promo_code(
             db, code=payment_data.promo_code, user_vk_id=user_vk_id
@@ -293,7 +297,10 @@ async def create_yookassa_payment(
         logger.success(
             f"Created YooKassa payment {payment.id} for user {user_vk_id}. URL: {confirmation_url}"
         )
-        return {"confirmation_url": confirmation_url}
+        res = {"confirmation_url": confirmation_url}
+        if idempotency_key:
+            await save_idempotency_result(idempotency_key, res, cache)
+        return res
     except Exception as e:
         logger.error(f"YooKassa payment creation failed: {e}")
         raise HTTPException(status_code=500, detail="Ошибка при создании платежа.")

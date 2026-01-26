@@ -54,6 +54,20 @@ export const useApi = (): ApiHook => {
         Authorization: `Bearer ${accessToken}`,
       });
 
+      const criticalEndpoints = [
+        "/events/vote",
+        "/experts/", // For /{vk_id}/vote
+        "/payment/yookassa/create-payment",
+      ];
+
+      const isCritical = criticalEndpoints.some(
+        (ce) => endpoint.startsWith(ce) && (endpoint.endsWith("/vote") || ce === "/payment/yookassa/create-payment")
+      );
+
+      if (method === "POST" && isCritical) {
+        headers.append("X-Idempotency-Key", crypto.randomUUID());
+      }
+
       const config: RequestInit = {
         method,
         headers,

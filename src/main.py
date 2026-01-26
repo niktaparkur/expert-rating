@@ -11,16 +11,25 @@ from loguru import logger
 from src.api.endpoints import (
     experts,
     events,
-    payment,
-    tariffs,
+    # payment,
+    # tariffs,
     users,
     meta,
-    promo,
-    mailings,
+    # promo,
+    # mailings,
+    vk_callback,
 )
 from src.core.config import settings
 from src.crud import event_crud
 from src.services.notifier import Notifier
+from src.core.exceptions import (
+    validation_exception_handler,
+    IdempotentException,
+    idempotent_exception_handler,
+)
+from src.core.middlewares import integrity_error_handler
+from sqlalchemy.exc import IntegrityError
+from fastapi.exceptions import RequestValidationError
 
 logger.remove()
 logger.add(
@@ -61,7 +70,6 @@ notifier_bg = Notifier(token=settings.VK_BOT_TOKEN)
 
 
 async def check_for_reminders():
-    """Задача, которая будет выполняться по расписанию для отправки напоминаний."""
     async with AsyncSessionLocal_bg() as db:
         try:
             events_to_remind = await event_crud.get_events_for_reminding(db)
@@ -101,6 +109,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(IntegrityError, integrity_error_handler)
+app.add_exception_handler(IdempotentException, idempotent_exception_handler)
+
 origin_regex = r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|https?://.*\.potokrechi\.ru|https://vk\.com)$"
 
 app.add_middleware(
@@ -113,12 +125,13 @@ app.add_middleware(
 
 app.include_router(experts.router, prefix="/api/v1")
 app.include_router(events.router, prefix="/api/v1")
-app.include_router(payment.router, prefix="/api/v1")
-app.include_router(tariffs.router, prefix="/api/v1")
+# app.include_router(payment.router, prefix="/api/v1")
+# app.include_router(tariffs.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(meta.router, prefix="/api/v1")
-app.include_router(promo.router, prefix="/api/v1")
-app.include_router(mailings.router, prefix="/api/v1")
+app.include_router(vk_callback.router, prefix="/api/v1")
+# app.include_router(promo.router, prefix="/api/v1")
+# app.include_router(mailings.router, prefix="/api/v1")
 
 
 @app.get("/")

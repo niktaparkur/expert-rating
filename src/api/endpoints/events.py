@@ -3,6 +3,10 @@ from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
+import redis.asyncio as redis
+from sqlalchemy import select, and_
+from sqlalchemy.exc import IntegrityError
+from redis.exceptions import LockError
 
 from src.core.dependencies import (
     get_current_admin_user,
@@ -10,19 +14,17 @@ from src.core.dependencies import (
     get_db,
     get_notifier,
     get_validated_vk_id,
+    get_redis,
+    check_idempotency_key,
+    save_idempotency_result,
 )
 from src.crud import event_crud
 from src.schemas import event_schemas
 from src.services.notifier import Notifier
 from src.schemas.expert_schemas import VotedExpertInfo
-from src.core.dependencies import get_redis
-from src.models.all_models import User, Event
-import redis.asyncio as redis
+from src.models import Event, User, ExpertRating
 
 router = APIRouter(prefix="/events", tags=["Events & Voting"])
-
-TARIFF_DURATION_LIMITS = {"Начальный": 60, "Стандарт": 720, "Профи": 1440}
-TARIFF_VOTES_LIMITS = {"Начальный": 100, "Стандарт": 200, "Профи": 1000}
 
 
 @router.post("/check-availability", response_model=Dict)
@@ -49,31 +51,59 @@ async def create_event(
     db: AsyncSession = Depends(get_db),
     current_user: Dict = Depends(get_current_user),
     notifier: Notifier = Depends(get_notifier),
+    cache: redis.Redis = Depends(get_redis),
 ):
     if not current_user.get("is_expert"):
         raise HTTPException(
             status_code=403,
             detail="Только одобренные эксперты могут создавать мероприятия.",
         )
-    user_tariff = current_user.get("tariff_plan", "Начальный")
-    max_duration = TARIFF_DURATION_LIMITS.get(user_tariff, 60)
-    if not current_user.get("is_admin") and event_data.duration_minutes > max_duration:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Длительность превышает лимит для вашего тарифа '{user_tariff}'. Максимум: {max_duration} минут.",
-        )
+
     expert_id = current_user["vk_id"]
-    try:
-        new_event = await event_crud.create_event(
-            db=db, event_data=event_data, expert_id=expert_id
+
+    # Check event creation limits
+    tariff = current_user.get("tariff_plan", "Начальный")
+    from src.core.config import settings
+
+    limit = settings.TARIFF_EVENT_LIMITS.get(tariff, 3)
+
+    active_count = await event_crud.get_expert_active_event_count_current_month(
+        db, expert_id
+    )
+
+    if active_count >= limit:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Вы достигли лимита создания мероприятий для тарифа '{tariff}' ({limit} в месяц, включая ожидающие модерации). Повысьте тариф для увеличения лимита.",
         )
 
-        await notifier.send_new_event_to_admin(
-            event_name=new_event.event_name, expert_name=current_user.get("first_name")
+    promo_normalized = event_data.promo_word.upper().strip()
+    lock_key = f"lock:event_create:{promo_normalized}"
+
+    try:
+        async with cache.lock(lock_key, timeout=10, blocking_timeout=3):
+            try:
+                new_event = await event_crud.create_event(
+                    db=db, event_data=event_data, expert_id=expert_id
+                )
+
+                await notifier.send_new_event_to_admin(
+                    event_name=new_event.name,
+                    expert_name=current_user.get("first_name"),
+                )
+                return new_event
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            except IntegrityError:
+                await db.rollback()
+                raise HTTPException(
+                    status_code=409, detail="Событие с такими параметрами уже создано."
+                )
+
+    except LockError:
+        raise HTTPException(
+            status_code=429, detail="Обработка запроса. Пожалуйста, подождите."
         )
-        return new_event
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.delete("/{event_id}", status_code=200)
@@ -137,19 +167,13 @@ async def get_my_events(
         )
     expert_id = current_user["vk_id"]
     results = await event_crud.get_my_events(db=db, expert_id=expert_id)
-    user_tariff = current_user.get("tariff_plan", "Начальный")
-    limit = (
-        TARIFF_VOTES_LIMITS.get(user_tariff, 100)
-        if not current_user.get("is_admin")
-        else float("inf")
-    )
+
     response_events = []
     for event, votes, trust, distrust in results:
         event_data = event_schemas.EventRead.model_validate(event, from_attributes=True)
         event_data.votes_count = votes or 0
         event_data.trust_count = trust or 0
         event_data.distrust_count = distrust or 0
-        event_data.has_tariff_warning = (votes or 0) > limit
         response_events.append(event_data)
     return response_events
 
@@ -160,48 +184,72 @@ async def submit_vote(
     db: AsyncSession = Depends(get_db),
     notifier: Notifier = Depends(get_notifier),
     voter_id: int = Depends(get_validated_vk_id),
+    cache: redis.Redis = Depends(get_redis),
+    idempotency_key: Optional[str] = Depends(check_idempotency_key),
 ):
     vote_data.voter_vk_id = voter_id
-    event = await event_crud.get_event_by_promo(db, vote_data.promo_word)
-    if not event:
+
+    if not vote_data.comment or len(vote_data.comment.strip()) < 3:
         raise HTTPException(
-            status_code=404,
-            detail="Активное мероприятие с таким промо-словом не найдено.",
-        )
-    if event.expert_id == vote_data.voter_vk_id:
-        raise HTTPException(
-            status_code=403,
-            detail="Эксперт не может голосовать на собственном мероприятии.",
+            status_code=400,
+            detail="Комментарий обязателен (минимум 3 символа).",
         )
 
-    # Эта проверка уже внутри get_event_by_promo, но дублируем для надежности
-    now = datetime.now(timezone.utc)
-    start_time = event.event_date.replace(tzinfo=timezone.utc)
-    end_time = start_time + timedelta(minutes=event.duration_minutes)
-    if not (start_time <= now <= end_time):
-        raise HTTPException(
-            status_code=403, detail="Голосование на этом мероприятии сейчас неактивно."
-        )
+    lock_key = f"lock:vote:event:{voter_id}:{vote_data.promo_word}"
+
     try:
-        await event_crud.create_vote(db=db, vote_data=vote_data, event=event)
-        await notifier.send_new_vote_notification(
-            expert_id=event.expert_id, vote_data=vote_data
-        )
-        if event.voter_thank_you_message:
-            await notifier.send_vote_action_notification(
-                user_vk_id=vote_data.voter_vk_id,
-                message_override=event.voter_thank_you_message,
-            )
-        return {
-            "status": "ok",
-            "message": "Your vote has been accepted.",
-            "thank_you_message": event.voter_thank_you_message,
-        }
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        async with cache.lock(lock_key, timeout=5, blocking_timeout=2):
+            event = await event_crud.get_event_by_promo(db, vote_data.promo_word)
+            if not event:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Активное мероприятие с таким промо-словом не найдено.",
+                )
+            if event.expert_id == vote_data.voter_vk_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Эксперт не может голосовать на собственном мероприятии.",
+                )
+
+            now = datetime.now(timezone.utc)
+            start_time = event.event_date.replace(tzinfo=timezone.utc)
+            end_time = start_time + timedelta(minutes=event.duration_minutes)
+            if not (start_time <= now <= end_time):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Голосование на этом мероприятии сейчас неактивно.",
+                )
+
+            try:
+                await event_crud.create_vote(db=db, vote_data=vote_data, event=event)
+
+                await notifier.send_new_vote_notification(
+                    expert_id=event.expert_id, vote_data=vote_data
+                )
+                if event.voter_thank_you_message:
+                    await notifier.send_vote_action_notification(
+                        user_vk_id=vote_data.voter_vk_id,
+                        message_override=event.voter_thank_you_message,
+                    )
+                res = {
+                    "status": "ok",
+                    "message": "Your vote has been accepted.",
+                    "thank_you_message": event.voter_thank_you_message,
+                }
+                if idempotency_key:
+                    await save_idempotency_result(idempotency_key, res, cache)
+                return res
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            except IntegrityError:
+                await db.rollback()
+                raise HTTPException(status_code=409, detail="Ошибка сохранения голоса.")
+
+    except LockError:
+        raise HTTPException(status_code=429, detail="Too many requests.")
 
 
-@router.get("/status/{promo_word}", response_model=Dict)
+@router.get("/status/{promo_word}", response_model=event_schemas.EventStatusResponse)
 async def get_event_status_by_promo(
     promo_word: str,
     db: AsyncSession = Depends(get_db),
@@ -209,7 +257,7 @@ async def get_event_status_by_promo(
 ):
     event = await event_crud.get_event_by_promo(db, promo_word)
     if not event:
-        return {"status": "not_found"}
+        raise HTTPException(status_code=404, detail="Мероприятие не найдено")
 
     now = datetime.now(timezone.utc)
     start_time = event.event_date.replace(tzinfo=timezone.utc)
@@ -219,17 +267,38 @@ async def get_event_status_by_promo(
         if start_time <= now <= end_time
         else "not_started" if now < start_time else "finished"
     )
-    has_voted = await event_crud.check_if_user_voted_on_event(
-        db=db, event_id=event.id, voter_vk_id=current_user.get("vk_id")
-    )
+
+    voter_id = current_user.get("vk_id")
+    current_vote_data = None
+
+    if voter_id:
+        rating_query = select(ExpertRating).where(
+            and_(
+                ExpertRating.expert_id == event.expert_id,
+                ExpertRating.voter_id == voter_id,
+            )
+        )
+        rating_res = await db.execute(rating_query)
+        rating = rating_res.scalars().first()
+
+        vote_val = rating.vote_value if rating else 0
+        has_voted_global = rating is not None
+
+        current_vote_data = {
+            "has_voted": has_voted_global,
+            "vote_value": vote_val,
+            "last_comment": "",
+        }
+
     expert_profile = event.expert
     user = expert_profile.user
+
     return {
         "status": status,
-        "event_name": event.event_name,
+        "event_name": event.name,
         "start_time": start_time.isoformat(),
         "end_time": end_time.isoformat(),
-        "current_user_has_voted": has_voted,
+        "current_vote": current_vote_data,
         "expert": {
             "vk_id": user.vk_id,
             "first_name": user.first_name,
@@ -319,7 +388,7 @@ async def approve_event(
 
     await notifier.send_event_status_notification(
         expert_id=event.expert_id,
-        event_name=event.event_name,
+        event_name=event.name,
         approved=True,
         is_private=event.is_private,
     )
@@ -341,7 +410,7 @@ async def reject_event(
         raise HTTPException(status_code=404, detail="Event not found.")
     await notifier.send_event_status_notification(
         expert_id=event.expert_id,
-        event_name=event.event_name,
+        event_name=event.name,
         approved=False,
         is_private=event.is_private,
         reason=reason,

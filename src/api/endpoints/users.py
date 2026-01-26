@@ -11,7 +11,7 @@ from src.core.dependencies import (
     get_redis,
     get_validated_vk_id,
 )
-from src.crud import expert_crud
+from src.crud import expert_crud, event_crud
 from src.schemas.event_schemas import EventRead
 from src.schemas.expert_schemas import (
     UserPrivateRead,
@@ -21,8 +21,13 @@ from src.schemas.expert_schemas import (
     VotedExpertInfo,
     UserRegaliaUpdate,
 )
+from src.schemas import expert_schemas
 from pydantic import EmailStr, TypeAdapter
 from loguru import logger
+
+# --- FIX: Новые импорты ---
+
+# --------------------------
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -34,7 +39,6 @@ async def update_user_email(
     db: AsyncSession = Depends(get_db),
     cache: redis.Redis = Depends(get_redis),
 ):
-    """Обновляет email текущего пользователя."""
     vk_id = current_user["vk_id"]
     email_to_update = email_data.get("email")
 
@@ -42,42 +46,64 @@ async def update_user_email(
         raise HTTPException(status_code=400, detail="Email field is required.")
 
     try:
-        # 1. Валидация формата email с помощью Pydantic
         email_validator = TypeAdapter(EmailStr)
         validated_email = email_validator.validate_python(email_to_update)
 
-        # 2. Обновление email в базе данных
         updated_user = await expert_crud.update_user_email(
             db, vk_id=vk_id, email=validated_email
         )
         if not updated_user:
             raise HTTPException(status_code=404, detail="User not found.")
 
-        # 3. Инвалидация кэша профиля пользователя
+        # Принудительно обновляем профиль, чтобы не потерять данные
+        # (Используем ту же логику, что и в update_user_settings)
         await cache.delete(f"user_profile:{vk_id}")
 
-        # 4. Получение полного, обновленного профиля для возврата на фронтенд
         result = await expert_crud.get_full_user_profile_with_stats(db, vk_id=vk_id)
         if not result:
-            # Эта ситуация маловероятна, но лучше ее обработать
-            raise HTTPException(
-                status_code=404, detail="User disappeared after update."
-            )
+            raise HTTPException(status_code=404, detail="User disappeared.")
 
         user, profile, stats_dict, my_votes_stats_dict = result
 
-        # 5. Сборка объекта ответа (аналогично get_current_user и другим эндпоинтам)
         response_data = UserPrivateRead.model_validate(user, from_attributes=True)
         response_data.stats = stats_dict
         response_data.my_votes_stats = my_votes_stats_dict
         response_data.is_admin = user.is_admin or (user.vk_id == settings.ADMIN_ID)
-        response_data.email = user.email  # Убедимся, что email включен
+        response_data.email = user.email
 
         if profile:
             response_data.is_expert = profile.status == "approved"
             response_data.status = profile.status
             response_data.show_community_rating = profile.show_community_rating
-            response_data.tariff_plan = profile.tariff_plan
+            # Tariff logic based on DonutSubscription
+            if user.subscription and user.subscription.is_active:
+                if user.subscription.amount >= 3999:
+                    response_data.tariff_plan = "Профи"
+                elif user.subscription.amount >= 999:
+                    response_data.tariff_plan = "Стандарт"
+                else:
+                    response_data.tariff_plan = "Начальный"
+
+                if user.subscription.next_payment_date:
+                    response_data.next_payment_date = (
+                        user.subscription.next_payment_date
+                    )
+            else:
+                response_data.tariff_plan = "Начальный"
+
+            # Event usage logic
+            if response_data.is_expert:
+                tariff = response_data.tariff_plan or "Начальный"
+                limit = settings.TARIFF_EVENT_LIMITS.get(tariff, 3)
+                current_count = (
+                    await event_crud.get_expert_active_event_count_current_month(
+                        db, vk_id
+                    )
+                )
+                response_data.event_usage = expert_schemas.EventUsage(
+                    current_count=current_count, limit=limit
+                )
+
             response_data.topics = [
                 f"{theme.category.name} > {theme.name}"
                 for theme in profile.selected_themes
@@ -93,10 +119,8 @@ async def update_user_email(
     except ValueError:
         raise HTTPException(status_code=400, detail="Некорректный формат email.")
     except Exception as e:
-        # Обработка ошибки уникальности (специфично для MySQL)
         if "Duplicate entry" in str(e) and "for key 'email'" in str(e):
             raise HTTPException(status_code=409, detail="Этот email уже используется.")
-        # Логирование для других непредвиденных ошибок
         logger.error(f"Failed to update email for user {vk_id}: {e}")
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
@@ -108,7 +132,6 @@ async def update_user_regalia(
     db: AsyncSession = Depends(get_db),
     cache: redis.Redis = Depends(get_redis),
 ):
-    """Обновляет поле 'О себе' текущего пользователя."""
     vk_id = current_user["vk_id"]
     if not current_user.get("is_expert"):
         raise HTTPException(
@@ -122,10 +145,8 @@ async def update_user_regalia(
         if not success:
             raise HTTPException(status_code=404, detail="User profile not found.")
 
-        # Инвалидация кэша
         await cache.delete(f"user_profile:{vk_id}")
 
-        # Возврат обновленного профиля
         result = await expert_crud.get_full_user_profile_with_stats(db, vk_id=vk_id)
         if not result:
             raise HTTPException(status_code=404, detail="User disappeared.")
@@ -140,7 +161,35 @@ async def update_user_regalia(
             response_data.is_expert = profile.status == "approved"
             response_data.status = profile.status
             response_data.show_community_rating = profile.show_community_rating
-            response_data.tariff_plan = profile.tariff_plan
+            # Tariff logic based on DonutSubscription
+            if user.subscription and user.subscription.is_active:
+                if user.subscription.amount >= 3999:
+                    response_data.tariff_plan = "Профи"
+                elif user.subscription.amount >= 999:
+                    response_data.tariff_plan = "Стандарт"
+                else:
+                    response_data.tariff_plan = "Начальный"
+
+                if user.subscription.next_payment_date:
+                    response_data.next_payment_date = (
+                        user.subscription.next_payment_date
+                    )
+            else:
+                response_data.tariff_plan = "Начальный"
+
+            # Event usage logic
+            if response_data.is_expert:
+                tariff = response_data.tariff_plan or "Начальный"
+                limit = settings.TARIFF_EVENT_LIMITS.get(tariff, 3)
+                current_count = (
+                    await event_crud.get_expert_active_event_count_current_month(
+                        db, vk_id
+                    )
+                )
+                response_data.event_usage = expert_schemas.EventUsage(
+                    current_count=current_count, limit=limit
+                )
+
             response_data.regalia = profile.regalia
             response_data.social_link = str(profile.social_link)
             response_data.topics = [
@@ -166,7 +215,6 @@ async def register_new_user(
     db: AsyncSession = Depends(get_db),
     vk_id_from_token: int = Depends(get_validated_vk_id),
 ):
-    """Регистрирует нового пользователя в системе."""
     try:
         user_data.vk_id = vk_id_from_token
 
@@ -178,41 +226,94 @@ async def register_new_user(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.get("/me/votes/{expert_id}/history", response_model=List[MyVoteRead])
+async def get_my_vote_history(
+    expert_id: int,
+    rating_type: str,  # "expert" or "community"
+    current_user: Dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    vk_id = current_user["vk_id"]
+    feedbacks = await expert_crud.get_interaction_history(
+        db, expert_id=expert_id, voter_id=vk_id, rating_type=rating_type
+    )
+
+    response_list = []
+    for fb in feedbacks:
+        if fb.rating_snapshot == 1:
+            vote_type = "trust"
+        elif fb.rating_snapshot == -1:
+            vote_type = "distrust"
+        else:
+            vote_type = "neutral"
+
+        vote_data_dict = {
+            "id": fb.id,
+            "vote_type": vote_type,
+            "is_expert_vote": fb.event_id is not None,
+            "created_at": fb.created_at,
+            "expert": None,
+            "event": None,
+        }
+
+        if fb.expert and fb.expert.user:
+            vote_data_dict["expert"] = VotedExpertInfo.model_validate(
+                fb.expert.user, from_attributes=True
+            )
+
+        if fb.event and fb.event.expert and fb.event.expert.user:
+            event_expert_info = VotedExpertInfo.model_validate(
+                fb.event.expert.user, from_attributes=True
+            )
+            event_data = EventRead.model_validate(fb.event, from_attributes=True)
+            event_data.expert_info = event_expert_info
+            vote_data_dict["event"] = event_data
+
+        response_list.append(MyVoteRead.model_validate(vote_data_dict))
+
+    return response_list
+
+
 @router.get("/me/votes", response_model=List[MyVoteRead])
 async def get_my_votes(
     current_user: Dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Возвращает список всех голосов, отданных текущим пользователем."""
     vk_id = current_user["vk_id"]
-    votes_from_db = await expert_crud.get_user_votes(db, vk_id=vk_id)
+    # Получаем историю отзывов (EventFeedbacks)
+    # expert_crud.get_user_votes теперь возвращает EventFeedback объекты
+    feedbacks = await expert_crud.get_user_votes(db, vk_id=vk_id)
 
     response_list = []
-    for vote in votes_from_db:
+    for fb in feedbacks:
+        # Определяем тип голоса из снепшота
+        if fb.rating_snapshot == 1:
+            vote_type = "trust"
+        elif fb.rating_snapshot == -1:
+            vote_type = "distrust"
+        else:
+            vote_type = "neutral"
+
         vote_data_dict = {
-            "id": vote.id,
-            "vote_type": vote.vote_type,
-            "is_expert_vote": vote.is_expert_vote,
-            "created_at": vote.created_at,
+            "id": fb.id,
+            "vote_type": vote_type,
+            "is_expert_vote": fb.event_id
+            is not None,  # Если есть event_id - значит экспертный
+            "created_at": fb.created_at,
             "expert": None,
             "event": None,
         }
 
-        if not vote.is_expert_vote and vote.expert and vote.expert.user:
+        if fb.expert and fb.expert.user:
             vote_data_dict["expert"] = VotedExpertInfo.model_validate(
-                vote.expert.user, from_attributes=True
+                fb.expert.user, from_attributes=True
             )
 
-        if (
-            vote.is_expert_vote
-            and vote.event
-            and vote.event.expert
-            and vote.event.expert.user
-        ):
+        if fb.event and fb.event.expert and fb.event.expert.user:
             event_expert_info = VotedExpertInfo.model_validate(
-                vote.event.expert.user, from_attributes=True
+                fb.event.expert.user, from_attributes=True
             )
-            event_data = EventRead.model_validate(vote.event, from_attributes=True)
+            event_data = EventRead.model_validate(fb.event, from_attributes=True)
             event_data.expert_info = event_expert_info
             vote_data_dict["event"] = event_data
 
@@ -228,7 +329,7 @@ async def update_user_settings(
     db: AsyncSession = Depends(get_db),
     cache: redis.Redis = Depends(get_redis),
 ):
-    """Обновляет настройки текущего пользователя."""
+    # Этот код я уже давал выше, он корректный (с полной перегрузкой профиля)
     vk_id = current_user["vk_id"]
     try:
         await expert_crud.update_user_settings(
@@ -237,8 +338,7 @@ async def update_user_settings(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    cache_key = f"user_profile:{vk_id}"
-    await cache.delete(cache_key)
+    await cache.delete(f"user_profile:{vk_id}")
 
     result = await expert_crud.get_full_user_profile_with_stats(db, vk_id=vk_id)
     if not result:
@@ -255,10 +355,35 @@ async def update_user_settings(
         response_data.is_expert = profile.status == "approved"
         response_data.status = profile.status
         response_data.show_community_rating = profile.show_community_rating
-        response_data.tariff_plan = profile.tariff_plan
+        if user.subscription and user.subscription.is_active:
+            if user.subscription.amount >= 3999:
+                response_data.tariff_plan = "Профи"
+            elif user.subscription.amount >= 999:
+                response_data.tariff_plan = "Стандарт"
+            else:
+                response_data.tariff_plan = "Начальный"
+
+            if user.subscription.next_payment_date:
+                response_data.next_payment_date = user.subscription.next_payment_date
+        else:
+            response_data.tariff_plan = "Начальный"
+
+        # Event usage logic
+        if response_data.is_expert:
+            tariff = response_data.tariff_plan or "Начальный"
+            limit = settings.TARIFF_EVENT_LIMITS.get(tariff, 3)
+            current_count = (
+                await event_crud.get_expert_active_event_count_current_month(db, vk_id)
+            )
+            response_data.event_usage = expert_schemas.EventUsage(
+                current_count=current_count, limit=limit
+            )
+
         response_data.topics = [
             f"{theme.category.name} > {theme.name}" for theme in profile.selected_themes
         ]
+        response_data.regalia = profile.regalia
+        response_data.social_link = str(profile.social_link)
 
     response_data.allow_notifications = user.allow_notifications
     response_data.allow_expert_mailings = user.allow_expert_mailings

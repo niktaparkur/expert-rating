@@ -50,7 +50,7 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
   const { setPopout } = useUiStore();
   const { currentUser: user } = useUserStore();
 
-  const [formData, setFormData] = useState<FormData>({
+  const INITIAL_FORM_DATA: FormData = {
     name: "",
     description: "",
     promo_word: "",
@@ -60,7 +60,17 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
     is_private: false,
     send_reminder: false,
     voter_thank_you_message: "",
-  });
+  };
+
+  const resetForm = () => {
+    setFormData(INITIAL_FORM_DATA);
+    setAvailabilityStatus(null);
+    setDurationError(null);
+    setDateError(null);
+    setIsCheckingAvailability(false);
+  };
+
+  const [formData, setFormData] = useState<FormData>(INITIAL_FORM_DATA);
 
   const [availabilityStatus, setAvailabilityStatus] = useState<
     "available" | "taken" | "error" | "invalid" | null
@@ -68,6 +78,7 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [durationError, setDurationError] = useState<string | null>(null);
+  const [dateError, setDateError] = useState<string | null>(null);
 
   const TARIFF_LIMITS: { [key: string]: number } = {
     Начальный: 60,
@@ -85,7 +96,7 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
   const checkAvailability = useCallback(
     debounce(async (word: string, date: Date | null, duration: string) => {
       const normalizedWord = word.trim();
-      if (!date || !/^[A-Z0-9А-ЯЁ]{4,}$/i.test(normalizedWord)) {
+      if (!date || !/^[A-Z0-9А-ЯЁ]{4,20}$/i.test(normalizedWord)) {
         if (normalizedWord.length > 0 && date) {
           setAvailabilityStatus("invalid");
         } else {
@@ -120,16 +131,19 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
   );
 
   useEffect(() => {
-    checkAvailability(
-      formData.promo_word,
-      formData.event_date,
-      formData.duration_minutes,
-    );
+    if (!dateError) {
+      checkAvailability(
+        formData.promo_word,
+        formData.event_date,
+        formData.duration_minutes,
+      );
+    }
   }, [
     formData.promo_word,
     formData.event_date,
     formData.duration_minutes,
     checkAvailability,
+    dateError,
   ]);
 
   const handleChange = (
@@ -156,10 +170,28 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
   };
 
   const handleDateChange = (date: Date | null | undefined) => {
-    if (date && date < new Date()) {
+    if (!date) {
+      setFormData((prev) => ({ ...prev, event_date: null }));
+      setDateError(null);
       return;
     }
-    setFormData((prev) => ({ ...prev, event_date: date || null }));
+
+    const now = new Date();
+    const maxDate = new Date();
+    maxDate.setFullYear(now.getFullYear() + 5);
+
+    if (date < now) {
+      setDateError(
+        "Выбранное время уже прошло. Пожалуйста, выберите будущее время.",
+      );
+      setFormData((prev) => ({ ...prev, event_date: null }));
+    } else if (date > maxDate) {
+      setDateError("Дата мероприятия не может быть более чем через 5 лет.");
+      setFormData((prev) => ({ ...prev, event_date: date }));
+    } else {
+      setDateError(null);
+      setFormData((prev) => ({ ...prev, event_date: date }));
+    }
   };
 
   const setDuration = (minutes: string) => {
@@ -167,12 +199,24 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
     setFormData((prev) => ({ ...prev, duration_minutes: minutes }));
   };
 
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    if (name === "event_link" && value.trim() !== "") {
+      let fixedValue = value.trim();
+      if (!/^https?:\/\//i.test(fixedValue)) {
+        fixedValue = `https://${fixedValue}`;
+      }
+      setFormData((prev) => ({ ...prev, event_link: fixedValue }));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (
       isSubmitting ||
       availabilityStatus !== "available" ||
-      !formData.event_date
+      !formData.event_date ||
+      !!dateError
     )
       return;
 
@@ -193,6 +237,9 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
       await apiPost("/events/create", finalData);
       onSuccess();
       onClose();
+
+      // Reset form state for next usage
+      resetForm();
     } catch (error: any) {
       alert(error.message || "Произошла неизвестная ошибка");
     } finally {
@@ -203,6 +250,7 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
 
   const getAvailabilityBottomText = () => {
     if (!formData.event_date) return "Сначала выберите дату и время начала.";
+    if (dateError) return null;
     if (isCheckingAvailability) return "Проверка...";
     if (availabilityStatus === "invalid")
       return "Минимум 4 символа (кириллица, латиница, цифры).";
@@ -264,6 +312,7 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
                 type="url"
                 value={formData.event_link}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 placeholder="https://vk.com/event123"
               />
             </FormField>
@@ -271,7 +320,8 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
           <FormItem
             top="Дата и время начала"
             required
-            status={isTimeConflict ? "error" : "default"}
+            status={isTimeConflict || dateError ? "error" : "default"}
+            bottom={dateError}
           >
             <DateInput
               value={formData.event_date}
@@ -297,7 +347,8 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
                 name="promo_word"
                 value={formData.promo_word}
                 onChange={handleChange}
-                disabled={!formData.event_date}
+                disabled={!formData.event_date || !!dateError}
+                maxLength={20}
               />
             </FormField>
           </FormItem>
@@ -423,6 +474,7 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
           <SimpleCell
             Component="label"
             before={<Icon28NotificationWaves />}
+            multiline
             after={
               <Switch
                 name="send_reminder"
@@ -442,6 +494,15 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
           </SimpleCell>
         </Group>
         <Div>
+          {user?.event_usage && (
+            <SimpleCell
+              disabled
+              subtitle={`Лимит мероприятий в месяц: ${user.event_usage.current_count} из ${user.event_usage.limit} (одобрено или на модерации).`}
+              indicator={user.event_usage.current_count >= user.event_usage.limit ? "Лимит!" : undefined}
+            >
+              Использование лимита
+            </SimpleCell>
+          )}
           <Button
             size="l"
             stretched
@@ -452,10 +513,14 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
               availabilityStatus !== "available" ||
               !formData.event_date ||
               !!durationError ||
-              parseInt(formData.duration_minutes) < 1
+              !!dateError ||
+              parseInt(formData.duration_minutes) < 1 ||
+              (user?.event_usage && user.event_usage.current_count >= user.event_usage.limit)
             }
           >
-            Отправить на модерацию
+            {user?.event_usage && user.event_usage.current_count >= user.event_usage.limit
+              ? "Лимит исчерпан"
+              : "Отправить на модерацию"}
           </Button>
         </Div>
       </form>

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 import os
 import httpx
@@ -7,7 +7,7 @@ from loguru import logger
 
 from src.core.config import settings
 from src.schemas import event_schemas
-from src.models.all_models import Event
+from src.models import Event
 
 VK_API_VERSION = "5.199"
 VK_API_URL = "https://api.vk.com/method/"
@@ -54,7 +54,6 @@ class Notifier:
         return None
 
     async def is_messages_allowed(self, user_id: int) -> bool:
-        """Проверяет, разрешил ли пользователь отправку сообщений от сообщества."""
         if not self.client or not self.token:
             return False
 
@@ -90,7 +89,6 @@ class Notifier:
         if not self.client:
             return
         try:
-            # 1. Получаем URL для загрузки
             upload_server_info = await self._call_api(
                 "docs.getMessagesUploadServer", {"type": "doc", "peer_id": user_id}
             )
@@ -98,7 +96,6 @@ class Notifier:
                 raise Exception("Failed to get VK upload URL.")
             upload_url = upload_server_info["upload_url"]
 
-            # 2. Загружаем файл на сервер
             with open(file_path, "rb") as f:
                 upload_response = await self.client.post(
                     upload_url,
@@ -111,7 +108,6 @@ class Notifier:
                     f"Failed to upload file to VK server. Response: {upload_result}"
                 )
 
-            # 3. Сохраняем документ
             saved_doc_info = await self._call_api(
                 "docs.save",
                 {"file": upload_result["file"], "title": os.path.basename(file_path)},
@@ -125,7 +121,6 @@ class Notifier:
             doc = saved_doc_info["doc"]
             doc_attachment = f"doc{doc['owner_id']}_{doc['id']}"
 
-            # 4. Отправляем сообщение с вложением
             await self.send_message(user_id, message, attachment=doc_attachment)
             print(f"Successfully sent document to user {user_id}")
 
@@ -138,14 +133,24 @@ class Notifier:
     async def post_announcement_to_wall(
         self, event: Event, expert_name: str
     ) -> int | None:
-        event_date_str = event.event_date.strftime("%d.%m.%Y в %H:%M")
+        if event.event_date.tzinfo is None:
+            event_date_utc = event.event_date.replace(tzinfo=timezone.utc)
+        else:
+            event_date_utc = event.event_date
+
+        msk_tz = timezone(timedelta(hours=3))
+        event_date_msk = event_date_utc.astimezone(msk_tz)
+
+        event_date_str = event_date_msk.strftime("%d.%m.%Y в %H:%M")
+
         app_link = f"https://vk.com/app{settings.VK_APP_ID}"
 
         message = (
             f"📢 Анонс мероприятия!\n\n"
-            f"Эксперт {expert_name} проведет «{event.event_name}».\n"
+            f"Эксперт {expert_name} проведет «{event.name}».\n"
             f"📅 Когда: {event_date_str} (МСК)\n\n"
         )
+
         if event.description:
             message += f"{event.description}\n\n"
 

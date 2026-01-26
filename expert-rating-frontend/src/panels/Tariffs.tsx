@@ -14,23 +14,12 @@ import {
   ViewWidth,
   CardGrid,
   Tooltip,
-  Snackbar,
-  ModalRoot,
-  ModalPage,
-  ModalPageHeader,
-  FormItem,
-  Input,
   Spinner,
-  FormLayoutGroup,
-  PanelHeaderBack,
 } from "@vkontakte/vkui";
 import { Icon16HelpOutline, Icon24CheckCircleOn } from "@vkontakte/icons";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
-import { useApi } from "../hooks/useApi";
 import { useUserStore } from "../store/userStore";
-import { useUiStore } from "../store/uiStore";
 import { UserData } from "../types";
-import { Icon16Cancel } from "@vkontakte/icons";
 
 interface TariffFeature {
   text: string;
@@ -66,11 +55,11 @@ const tariffsData: Tariff[] = [
         tooltip:
           "Сколько времени действует слово для голосования с момента начала мероприятия.",
       },
-      {
-        text: "1 рассылка в месяц",
-        tooltip:
-          "Эксперт может сделать рассылку по своей аудитории, которая голосовала за него 'Доверяю'.",
-      },
+      // {
+      //   text: "1 рассылка в месяц",
+      //   tooltip:
+      //     "Эксперт может сделать рассылку по своей аудитории, которая голосовала за него 'Доверяю'.",
+      // },
       {
         text: "3 мероприятия в месяц",
         tooltip:
@@ -81,16 +70,16 @@ const tariffsData: Tariff[] = [
         tooltip:
           "Сколько новых голосов может получить эксперт на одно мероприятие. Ранее голосовавшие пользователи не учитываются в лимите.",
       },
-      {
-        text: "2 отклика на оплачиваемые мероприятия",
-        tooltip:
-          "Сколько раз эксперт может откликнуться на запросы от организаторов, где указан гонорар.",
-      },
-      {
-        text: "10 откликов на неоплачиваемые мероприятия",
-        tooltip:
-          "Сколько раз эксперт может откликнуться на запросы от организаторов, где участие не оплачивается.",
-      },
+      // {
+      //   text: "2 отклика на оплачиваемые мероприятия",
+      //   tooltip:
+      //     "Сколько раз эксперт может откликнуться на запросы от организаторов, где указан гонорар.",
+      // },
+      // {
+      //   text: "10 откликов на неоплачиваемые мероприятия",
+      //   tooltip:
+      //     "Сколько раз эксперт может откликнуться на запросы от организаторов, где участие не оплачивается.",
+      // },
     ],
     feature_headers: [
       "Срок активности слова",
@@ -112,11 +101,11 @@ const tariffsData: Tariff[] = [
         tooltip:
           "Сколько времени действует слово для голосования с момента начала мероприятия.",
       },
-      {
-        text: "2 рассылки в месяц",
-        tooltip:
-          "Эксперт может сделать рассылку по своей аудитории, которая голосовала за него 'Доверяю'.",
-      },
+      // {
+      //   text: "2 рассылки в месяц",
+      //   tooltip:
+      //     "Эксперт может сделать рассылку по своей аудитории, которая голосовала за него 'Доверяю'.",
+      // },
       {
         text: "10 мероприятий в месяц",
         tooltip:
@@ -127,16 +116,16 @@ const tariffsData: Tariff[] = [
         tooltip:
           "Сколько новых голосов может получить эксперт на одно мероприятие. Ранее голосовавшие пользователи не учитываются в лимите.",
       },
-      {
-        text: "7 откликов на оплачиваемые мероприятия",
-        tooltip:
-          "Сколько раз эксперт может откликнуться на запросы от организаторов, где указан гонорар.",
-      },
-      {
-        text: "20 откликов на неоплачиваемые мероприятия",
-        tooltip:
-          "Сколько раз эксперт может откликнуться на запросы от организаторов, где участие не оплачивается.",
-      },
+      // {
+      //   text: "7 откликов на оплачиваемые мероприятия",
+      //   tooltip:
+      //     "Сколько раз эксперт может откликнуться на запросы от организаторов, где указан гонорар.",
+      // },
+      // {
+      //   text: "20 откликов на неоплачиваемые мероприятия",
+      //   tooltip:
+      //     "Сколько раз эксперт может откликнуться на запросы от организаторов, где участие не оплачивается.",
+      // },
     ],
     feature_headers: [
       "Срок активности слова",
@@ -158,11 +147,11 @@ const tariffsData: Tariff[] = [
         tooltip:
           "Сколько времени действует слово для голосования с момента начала мероприятия.",
       },
-      {
-        text: "4 рассылки в месяц",
-        tooltip:
-          "Эксперт может сделать рассылку по своей аудитории, которая голосовала за него 'Доверяю'.",
-      },
+      // {
+      //   text: "4 рассылки в месяц",
+      //   tooltip:
+      //     "Эксперт может сделать рассылку по своей аудитории, которая голосовала за него 'Доверяю'.",
+      // },
       {
         text: "30 мероприятий в месяц",
         tooltip:
@@ -173,16 +162,16 @@ const tariffsData: Tariff[] = [
         tooltip:
           "Сколько новых голосов может получить эксперт на одно мероприятие. Ранее голосовавшие пользователи не учитываются в лимите.",
       },
-      {
-        text: "15 откликов на оплачиваемые мероприятия",
-        tooltip:
-          "Сколько раз эксперт может откликнуться на запросы от организаторов, где указан гонорар.",
-      },
-      {
-        text: "40 откликов на неоплачиваемые мероприятия",
-        tooltip:
-          "Сколько раз эксперт может откликнуться на запросы от организаторов, где участие не оплачивается.",
-      },
+      // {
+      //   text: "15 откликов на оплачиваемые мероприятия",
+      //   tooltip:
+      //     "Сколько раз эксперт может откликнуться на запросы от организаторов, где указан гонорар.",
+      // },
+      // {
+      //   text: "40 откликов на неоплачиваемые мероприятия",
+      //   tooltip:
+      //     "Сколько раз эксперт может откликнуться на запросы от организаторов, где участие не оплачивается.",
+      // },
     ],
     feature_headers: [
       "Срок активности слова",
@@ -212,6 +201,7 @@ const TariffCardComponent = ({
   onSelect,
   onRegister,
   isSelectable,
+  customButtonText,
 }: any) => (
   <Card
     mode="outline"
@@ -228,11 +218,6 @@ const TariffCardComponent = ({
       <Title level="1" style={{ marginBottom: 4 }}>
         {tariff.price_str}
       </Title>
-      {tariff.price_votes > 0 && (
-        <Text style={{ color: "var(--vkui--color_text_secondary)" }}>
-          / 30 дней (до {getExpiryDate()})
-        </Text>
-      )}
     </Div>
     <Group mode="plain">
       {tariff.features.map((feature: TariffFeature, index: number) => (
@@ -262,17 +247,13 @@ const TariffCardComponent = ({
       ))}
     </Group>
     <Div>
-      {!user?.is_expert && user?.status !== "pending" ? (
+      {!user?.is_expert && user?.status !== "pending" && !isCurrent ? (
         <Button size="l" stretched mode="primary" onClick={onRegister}>
           Стать экспертом
         </Button>
-      ) : user?.status === "pending" ? (
+      ) : user?.status === "pending" && !isCurrent ? (
         <Button size="l" stretched disabled>
           Заявка на рассмотрении
-        </Button>
-      ) : isCurrent ? (
-        <Button size="l" stretched disabled>
-          Ваш тариф
         </Button>
       ) : (
         <Button
@@ -282,7 +263,7 @@ const TariffCardComponent = ({
           onClick={() => onSelect(tariff)}
           disabled={!isSelectable}
         >
-          Выбрать
+          {customButtonText || "Выбрать (VK Donut)"}
         </Button>
       )}
     </Div>
@@ -296,131 +277,16 @@ interface TariffsProps {
 export const Tariffs = ({ id }: TariffsProps) => {
   const routeNavigator = useRouteNavigator();
   const { viewWidth } = useAdaptivity();
-  const { apiPost, apiPut } = useApi();
-  const { currentUser: user, setCurrentUser } = useUserStore();
-  const { setPopout, setSnackbar } = useUiStore();
+  const { currentUser: user } = useUserStore();
 
-  const [email, setEmail] = useState("");
-  const [emailError, setEmailError] = useState<string | null>(null);
-
-  // FIX: Безопасная проверка viewWidth для VKUI v6/v7
   const isDesktop = (viewWidth ?? 0) >= ViewWidth.TABLET;
   const isLoading = !user;
 
-  const [activeModal, setActiveModal] = useState<string | null>(null);
-  const [selectedTariff, setSelectedTariff] = useState<Tariff | null>(null);
-  const [promoCode, setPromoCode] = useState("");
-  const [promoResult, setPromoResult] = useState<any | null>(null);
-  const [isApplyingPromo, setIsApplyingPromo] = useState(false);
+  // TODO: Replace with actual VK Donut link
+  const VK_DONUT_LINK = "https://vk.com/donut/expert_rating";
 
-  const openPromoModal = (tariff: Tariff) => {
-    setSelectedTariff(tariff);
-    setPromoCode("");
-    setPromoResult(null);
-    setEmail(user?.email || "");
-    setEmailError(null);
-    setActiveModal("promo-modal");
-  };
-
-  useEffect(() => {
-    setPromoResult(null);
-  }, [promoCode]);
-
-  const handleApplyPromo = async () => {
-    if (!promoCode || !selectedTariff || !user) return;
-    setIsApplyingPromo(true);
-    try {
-      const result = await apiPost("/promo/apply", {
-        code: promoCode,
-        tariff_id: selectedTariff.id,
-        user_vk_id: user.vk_id,
-      });
-      setPromoResult(result);
-    } catch (error) {
-      setSnackbar(
-        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
-          {(error as Error).message}
-        </Snackbar>,
-      );
-      setPromoResult(null);
-    } finally {
-      setIsApplyingPromo(false);
-    }
-  };
-
-  const handleInitiatePayment = async () => {
-    if (!email || !EMAIL_REGEX.test(email)) {
-      setEmailError("Пожалуйста, введите корректный email.");
-      return;
-    }
-    setEmailError(null);
-
-    if (!selectedTariff || !user) {
-      setSnackbar(
-        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
-          Ошибка: не выбраны тариф или пользователь.
-        </Snackbar>,
-      );
-      return;
-    }
-
-    setPopout(<Spinner size="xl" />);
-
-    try {
-      if (user.email !== email) {
-        const updatedUser = await apiPut<UserData>("/users/me/email", {
-          email,
-        });
-        setCurrentUser(updatedUser);
-      }
-
-      const payload = {
-        tariff_id: selectedTariff.id,
-        promo_code: promoResult ? promoCode : undefined,
-      };
-
-      const response = await apiPost<{ confirmation_url: string }>(
-        "/payment/yookassa/create-payment",
-        payload,
-      );
-
-      if (!response.confirmation_url) {
-        throw new Error("Не удалось получить ссылку на оплату.");
-      }
-
-      window.open(response.confirmation_url, "_blank");
-
-      setPopout(null);
-
-      setSnackbar(
-        <Snackbar
-          onClose={() => setSnackbar(null)}
-          duration={10000}
-          after={
-            <div
-              onClick={() => setSnackbar(null)}
-              style={{
-                color: "var(--vkui--color_text_accent)",
-                cursor: "pointer",
-                padding: "0 10px",
-              }}
-            >
-              Скрыть
-            </div>
-          }
-        >
-          После успешной оплаты тариф будет обновлен. Уведомление придет в
-          личные сообщения ВКонтакте.
-        </Snackbar>,
-      );
-    } catch (error: any) {
-      setPopout(null);
-      setSnackbar(
-        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
-          {error.message || "Ошибка подготовки платежа."}
-        </Snackbar>,
-      );
-    }
+  const handleOpenDonut = () => {
+    window.open(VK_DONUT_LINK, "_blank");
   };
 
   const handleRegister = () => routeNavigator.push("/registration");
@@ -428,22 +294,56 @@ export const Tariffs = ({ id }: TariffsProps) => {
 
   const renderContent = () => {
     if (isLoading) return <Spinner size="xl" />;
+
     const currentTariffName = getCurrentTariffName();
     const currentUserLevel = TARIFF_LEVELS[currentTariffName] ?? 0;
+
     const tariffCards = tariffsData.map((tariff) => {
+      // Skip "Начальный" if we only want to show upgrades
+      // But let's show all for now, just changing the action.
+
       const tariffLevel = TARIFF_LEVELS[tariff.name];
+      if (tariffLevel === 0) return null;
+
+      // If this is the current paid tariff (matched by name)
+      // Note: non-experts will have "Начальный" as currentTariffName usually, 
+      // unless backend mapping is fixed. 
+      // If user has subscription, we want to highlight that specific level.
+      // But we don't have subscription info directly here except via user object props?
+      // Wait, 'user' object has 'tariff_plan' which comes from backend.
+      // If backend says "Standard" (even if not expert), then currentTariffName is "Standard".
+
+      const isCurrentPaid = tariff.name === currentTariffName;
+
+      let buttonText = "Выбрать (VK Donut)";
+      let isDisabled = false;
+      let onSelectAction = handleOpenDonut;
+      let mode = "primary";
+
+      if (isCurrentPaid) {
+        isDisabled = true;
+        mode = "secondary"; // or outline? user said "not clickable"
+        if (user?.is_expert) {
+          buttonText = "Ваш тариф";
+        } else {
+          buttonText = "Будет доступен после регистрации";
+        }
+      }
+
       return (
         <TariffCardComponent
           key={tariff.id}
           tariff={tariff}
-          isCurrent={tariff.name === currentTariffName}
+          isCurrent={isCurrentPaid}
           user={user}
-          onSelect={openPromoModal}
+          onSelect={onSelectAction}
           onRegister={handleRegister}
-          isSelectable={tariffLevel > currentUserLevel}
+          isSelectable={!isDisabled}
+          customButtonText={buttonText}
         />
       );
     });
+
     if (isDesktop)
       return (
         <CardScroll size="s" padding>
@@ -457,81 +357,17 @@ export const Tariffs = ({ id }: TariffsProps) => {
     );
   };
 
-  const modal = (
-    <ModalRoot activeModal={activeModal} onClose={() => setActiveModal(null)}>
-      <ModalPage
-        id="promo-modal"
-        onClose={() => setActiveModal(null)}
-        header={
-          <ModalPageHeader
-            before={<PanelHeaderBack onClick={() => setActiveModal(null)} />}
-          >
-            Тариф "{selectedTariff?.name}"
-          </ModalPageHeader>
-        }
-        settlingHeight={100}
-      >
-        <Group>
-          <Group>
-            <FormLayoutGroup
-              mode="horizontal"
-              style={{ alignItems: "flex-end", padding: "0 16px" }}
-            >
-              <FormItem top="Промокод (если есть)" style={{ flexGrow: 1 }}>
-                <Input
-                  value={promoCode}
-                  onChange={(e) => setPromoCode(e.target.value)}
-                  disabled={!!promoResult}
-                />
-              </FormItem>
-              <FormItem>
-                <Button
-                  onClick={handleApplyPromo}
-                  disabled={isApplyingPromo || !!promoResult}
-                >
-                  {isApplyingPromo ? <Spinner size="s" /> : "Применить"}
-                </Button>
-              </FormItem>
-            </FormLayoutGroup>
-            {promoResult && (
-              <SimpleCell disabled>
-                Скидка {promoResult.discount_percent}% применена!
-              </SimpleCell>
-            )}
-          </Group>
-        </Group>
-        <Group>
-          <FormItem
-            top="Email для чека"
-            required
-            status={emailError ? "error" : "default"}
-            bottom={emailError}
-          >
-            <Input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="example@mail.com"
-            />
-          </FormItem>
-        </Group>
-
-        <Div>
-          <Button
-            size="l"
-            stretched
-            onClick={handleInitiatePayment}
-          >{`Оплатить ${promoResult ? promoResult.final_price : selectedTariff?.price_votes} ₽`}</Button>
-        </Div>
-      </ModalPage>
-    </ModalRoot>
-  );
-
   return (
     <Panel id={id}>
-      {modal}
       <PanelHeader>Тарифы</PanelHeader>
-      <Group>{renderContent()}</Group>
+      <Group>
+        <Div>
+          <Text style={{ marginBottom: 20, textAlign: 'center' }}>
+            Оформите подписку VK Donut, чтобы получить доступ к расширенным возможностям.
+          </Text>
+        </Div>
+        {renderContent()}
+      </Group>
     </Panel>
   );
 };

@@ -47,7 +47,7 @@ interface ExpertProfileCardProps {
   expert?: ExpertProfileData | null;
   onVoteClick: () => void;
   onFutureFeatureClick: () => void;
-  onReportClick: (event: React.MouseEvent<HTMLElement>) => void;
+  onReportClick?: (event: React.MouseEvent<HTMLElement>) => void;
 }
 
 export const ExpertProfileCard = ({
@@ -85,19 +85,18 @@ export const ExpertProfileCard = ({
     show_community_rating,
   } = expert;
 
-  // ИЗМЕНЕНИЕ: Упрощенные тексты для тултипов (без цифр)
   const communityTooltipText = "Народный рейтинг";
   const expertTooltipText = "Экспертный рейтинг";
 
   return (
     <Card mode="shadow" style={{ position: "relative" }}>
-      <IconButton
+      {/* <IconButton
         onClick={onReportClick}
         aria-label="Скачать отчет"
         style={{ position: "absolute", top: 4, right: 4, zIndex: 2 }}
       >
         <Icon28DocumentTextOutline />
-      </IconButton>
+      </IconButton> */}
 
       <Div className="expert-profile-header">
         <Avatar size={96} src={photo_url} />
@@ -120,7 +119,6 @@ export const ExpertProfileCard = ({
       </Div>
 
       <div className="expert-profile-stats">
-        {/* Экспертный рейтинг */}
         <Tooltip
           description={expertTooltipText}
           shown={isDesktop ? undefined : expertTooltipShown}
@@ -136,7 +134,6 @@ export const ExpertProfileCard = ({
           </div>
         </Tooltip>
 
-        {/* Народный рейтинг */}
         {show_community_rating && (
           <Tooltip
             shown={isDesktop ? undefined : ratingTooltipShown}
