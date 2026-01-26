@@ -15,7 +15,7 @@ echo ">>> Creating .env file from GitHub Secrets..."
 echo "$ENV_PROD_VARS" > .env
 
 echo ">>> Stopping and removing old containers and orphans..."
-docker-compose   down --remove-orphans
+docker-compose -f docker-compose.prod.yml down --remove-orphans
 
 echo ">>> Applying database migrations..."
 docker-compose -f docker-compose.prod.yml run --rm backend /usr/local/bin/docker-entrypoint-backend.sh
