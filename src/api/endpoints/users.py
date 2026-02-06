@@ -205,7 +205,18 @@ async def update_user_regalia(
 
 
 @router.get("/me", response_model=UserPrivateRead)
-async def read_users_me(current_user: Dict = Depends(get_current_user)):
+async def read_users_me(
+    refresh: bool = False,
+    current_user: Dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    cache: redis.Redis = Depends(get_redis),
+):
+    if refresh:
+        from src.core.dependencies import fetch_and_cache_user_profile
+        
+        return await fetch_and_cache_user_profile(
+            vk_user_id=current_user["vk_id"], db=db, cache=cache
+        )
     return current_user
 
 
@@ -252,6 +263,8 @@ async def get_my_vote_history(
             "vote_type": vote_type,
             "is_expert_vote": fb.event_id is not None,
             "created_at": fb.created_at,
+            "rating_snapshot": fb.rating_snapshot,
+            "comment": fb.comment,
             "expert": None,
             "event": None,
         }
@@ -297,9 +310,10 @@ async def get_my_votes(
         vote_data_dict = {
             "id": fb.id,
             "vote_type": vote_type,
-            "is_expert_vote": fb.event_id
-            is not None,  # Если есть event_id - значит экспертный
+            "is_expert_vote": fb.event_id is not None,
             "created_at": fb.created_at,
+            "rating_snapshot": fb.rating_snapshot,
+            "comment": fb.comment,
             "expert": None,
             "event": None,
         }
@@ -316,8 +330,12 @@ async def get_my_votes(
             event_data = EventRead.model_validate(fb.event, from_attributes=True)
             event_data.expert_info = event_expert_info
             vote_data_dict["event"] = event_data
-
         response_list.append(MyVoteRead.model_validate(vote_data_dict))
+
+    logger.info(f"[DEBUG_API] get_my_votes response items count: {len(response_list)}")
+    logger.info(f"[DEBUG_API] get_my_votes response items: {response_list}")
+    for item in response_list:
+        logger.debug(f"[DEBUG_API_ITEM] Expert_id: {item.expert.vk_id if item.expert else 'N/A'}, Vote_type: {item.vote_type}")
 
     return response_list
 

@@ -7,6 +7,7 @@ from sqlalchemy import (
     func,
     ForeignKey,
     String,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from .base import Base
@@ -37,6 +38,12 @@ class ExpertRating(Base):
 
     updated_at = Column(
         TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "expert_id", "voter_id", "rating_type", name="uq_expert_voter_rating_type"
+        ),
     )
 
 

@@ -80,11 +80,11 @@ class UserPrivateRead(UserPublicRead):
 
 class MyVoteRead(BaseModel):
     id: int
-    # В новой БД у нас числа, но фронт ждет строки. Конвертацию сделаем в эндпоинте.
     vote_type: str
-    # is_expert_vote больше нет в модели Feedback явно, но мы можем его вычислять (есть event_id или нет)
     is_expert_vote: bool
     created_at: datetime
+    rating_snapshot: int
+    comment: Optional[str] = None
     expert: Optional[VotedExpertInfo] = None
     event: Optional["EventRead"] = None
 
@@ -128,6 +128,10 @@ class ExpertRequestRead(BaseModel):
 
 class CommunityVoteCreate(BaseModel):
     vote_type: str  # "trust" / "distrust" / "remove"
+    comment: str
+
+
+class VoteRevoke(BaseModel):
     comment: str
 
 

@@ -53,10 +53,14 @@ import {
   Icon16Cancel,
   Icon56CheckCircleOutline,
   Icon28EditOutline,
+  Icon24Qr,
+  Icon24QuestionOutline,
+  Icon24InfoCircleOutline,
 } from "@vkontakte/icons";
 import bridge from "@vkontakte/vk-bridge";
 import debounce from "lodash.debounce";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { Tooltip } from "@vkontakte/vkui";
 
 import { Onboarding } from "./components/Shared/Onboarding";
 import { LegalConsent } from "./components/Shared/LegalConsent";
@@ -69,6 +73,7 @@ import { FiltersModal } from "./components/Shared/FiltersModal";
 import { PurchaseModal } from "./components/Shared/PurchaseModal";
 import { MobilePaymentStubModal } from "./components/Shared/MobilePaymentStubModal";
 import { InteractionHistoryModal } from "./components/Profile/InteractionHistoryModal";
+import { RevokeVoteModal } from "./components/Modals/RevokeVoteModal";
 import { EditProfileModal } from "./components/Profile/EditProfileModal";
 import { SelectModal, Option } from "./components/Shared/SelectModal";
 import { useApi } from "./hooks/useApi";
@@ -189,6 +194,8 @@ export const App = () => {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showLegalConsent, setShowLegalConsent] = useState(false);
   const [isAppInitializing, setIsAppInitializing] = useState(true);
+  const [qrTooltipShown, setQrTooltipShown] = useState(false);
+  const qrIconRef = React.useRef<HTMLDivElement>(null);
 
   const { data: regionList = [] } = useQuery({
     queryKey: ["metaRegions"],
@@ -301,6 +308,39 @@ export const App = () => {
           {error.message || "Ошибка обновления"}
         </Snackbar>,
       );
+    }
+  };
+
+  const handleRevokeVote = async (comment: string) => {
+    if (!historyTargetId) return;
+    setPopout(<Spinner size="xl" />);
+    try {
+      const ratingType = historyRatingType || "community";
+      await apiDelete(`/experts/${historyTargetId}/vote?rating_type=${ratingType}`, {
+        comment,
+      });
+
+      await queryClient.invalidateQueries({
+        queryKey: ["userVotes"],
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["expertProfile"],
+      });
+
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Done />}>
+          Голос успешно отозван.
+        </Snackbar>,
+      );
+      setActiveModal(null);
+    } catch (err) {
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+          {(err as Error).message}
+        </Snackbar>,
+      );
+    } finally {
+      setPopout(null);
     }
   };
 
@@ -464,44 +504,63 @@ export const App = () => {
     return getPromoStatusMessage();
   };
 
-  const toggleNotificationSettings = async (
-    fieldName: "allow_notifications" | "allow_expert_mailings",
-    value: boolean,
-  ) => {
-    if (fieldName === "allow_expert_mailings") {
-      await updateUserSettings(fieldName, value);
-      return;
-    }
+const toggleNotificationSettings = async (
+  fieldName: "allow_notifications" | "allow_expert_mailings",
+  value: boolean,
+) => {
+  if (fieldName === "allow_expert_mailings") {
+    await updateUserSettings(fieldName, value);
+    return;
+  }
 
-    if (value) {
-      if (bridge.isWebView()) {
-        try {
-          const result = await bridge.send("VKWebAppAllowMessagesFromGroup", {
-            group_id: GROUP_ID,
-          });
-          if (result.result) {
-            await updateUserSettings(fieldName, true);
-          } else {
-            await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
-          }
-        } catch (error) {
+  if (value) {
+    if (bridge.isWebView()) {
+      try {
+        const result = await bridge.send("VKWebAppAllowMessagesFromGroup", {
+          group_id: Math.abs(GROUP_ID),
+        });
+        
+        if (result.result) {
+          await updateUserSettings(fieldName, true);
+        } else {
           await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
+        }
+      } catch (error: any) {
+        // Извлекаем код ошибки из Bridge
+        const errorCode = error?.error_data?.error_code;
+        
+        if (errorCode === 11) {
+          // Ошибка доступа из-за модерации
           setSnackbar(
             <Snackbar
               onClose={() => setSnackbar(null)}
-              before={<Icon16Cancel />}
+              before={<Icon24InfoCircleOutline fill="var(--vkui--color_icon_accent)" />}
             >
-              Не удалось запросить разрешение на уведомления.
-            </Snackbar>,
+              Уведомления станут доступны после прохождения модерации приложения.
+            </Snackbar>
+          );
+        } else if (errorCode === 4) {
+          // Пользователь просто нажал "Отмена" — не показываем ошибку
+          console.log("User cancelled notifications request");
+        } else {
+          // Любая другая техническая ошибка
+          setSnackbar(
+            <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+              Не удалось включить уведомления. Попробуйте позже.
+            </Snackbar>
           );
         }
-      } else {
-        await updateUserSettings(fieldName, value);
+        
+        // Сбрасываем тумблер в UI в исходное состояние (false)
+        await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
       }
     } else {
-      await updateUserSettings(fieldName, false);
+      await updateUserSettings(fieldName, value);
     }
-  };
+  } else {
+    await updateUserSettings(fieldName, false);
+  }
+};
 
   const refetchUser = useCallback(async () => {
     try {
@@ -978,11 +1037,28 @@ export const App = () => {
           onClose={() => setActiveModal(null)}
           title="Голосование"
         >
-          <FormItem
-            top={<Text>Введите промо-слово или наведите камеру на QR-код</Text>}
-            bottom={getPromoStatusMessage()}
-            status={isPromoErrorState ? "error" : "default"}
-          >
+        <FormItem
+          top={
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Text>Введите промо-слово или наведите на QR-код</Text>
+              <Tooltip
+
+                description={
+                  <div style={{ padding: "8px" }}>
+                    Для сканирования используйте штатную камеру телефона или сканер VK (вне этого окна).
+                  </div>
+                }
+              >
+                <Icon24QuestionOutline
+                  style={{ color: "var(--vkui--color_icon_secondary)", cursor: "pointer" }}
+                  onClick={() => setQrTooltipShown(!qrTooltipShown)}
+                />
+              </Tooltip>
+            </div>
+          }
+          bottom={getPromoStatusMessage()}
+          status={isPromoErrorState ? "error" : "default"}
+        >
             <FormField
               status={isPromoErrorState ? "error" : "default"}
             >
@@ -1339,6 +1415,11 @@ export const App = () => {
           onClose={() => setActiveModal(null)}
           expertId={historyTargetId}
           ratingType={historyRatingType}
+        />
+        <RevokeVoteModal
+          id="revoke-vote-modal"
+          onClose={() => setActiveModal(null)}
+          onRevoke={handleRevokeVote}
         />
 
         <EditProfileModal

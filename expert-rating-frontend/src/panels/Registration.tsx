@@ -362,7 +362,7 @@ export const Registration = ({
               />
             </FormField>
           </FormItem>
-          <FormItem top="Кто вас пригласил? (необязательно)">
+          {/* <FormItem top="Кто вас пригласил? (необязательно)">
             <FormField>
               <Input
                 type="text"
@@ -372,7 +372,7 @@ export const Registration = ({
                 placeholder="Промокод или ID пригласившего"
               />
             </FormField>
-          </FormItem>
+          </FormItem> */}
           <Div>
             <Button
               size="l"

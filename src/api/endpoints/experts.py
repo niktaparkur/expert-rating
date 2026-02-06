@@ -163,7 +163,10 @@ async def create_vote_for_expert(
             except IntegrityError:
                 await db.rollback()
                 raise HTTPException(status_code=409, detail="Вы уже проголосовали.")
-
+            except Exception:
+                # Catch-all for other DB/code errors to avoid hanging locks if not auto-released (though aioredlock handles it)
+                raise
+            
             await cache.delete(f"user_profile:{vk_id}")
             await cache.delete(f"user_profile:{voter_id}")
 
@@ -179,12 +182,18 @@ async def create_vote_for_expert(
 @router.delete("/{vk_id}/vote", status_code=200)
 async def cancel_vote_for_expert(
     vk_id: int,
+    revoke_data: expert_schemas.VoteRevoke,
     rating_type: str = "community",
     current_user: Dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     cache: redis.Redis = Depends(get_redis),
 ):
     voter_vk_id = current_user["vk_id"]
+    
+    # Можно использовать revoke_data.comment для логирования или сохранения причины, 
+    # если логика withdraw_rating_vote это поддерживает. 
+    # Пока просто передаем его, если потребуется расширение.
+    
     success = await expert_crud.withdraw_rating_vote(
         db=db, expert_vk_id=vk_id, voter_vk_id=voter_vk_id, rating_type=rating_type
     )

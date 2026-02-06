@@ -634,50 +634,52 @@ async def withdraw_expert_request(db: AsyncSession, vk_id: int) -> bool:
 
 
 async def get_user_votes(db: AsyncSession, vk_id: int) -> list[EventFeedback]:
-    # Реестр: Находим последние записи для каждого эксперта по каждому типу (expert/community)
-    # Нам нужны именно те ExpertRating, которые есть сейчас
-    # И к ним прицепить последний коммент из EventFeedback
+    # 1. Находим все уникальные пары (эксперт, тип_рейтинга) из истории отзывов
+    # Это позволит увидеть экспертов, даже если активный голос удален
+    subq = (
+        select(
+            EventFeedback.expert_id,
+            case((EventFeedback.event_id.is_not(None), "expert"), else_="community").label("rating_type")
+        )
+        .where(EventFeedback.voter_id == vk_id)
+        .distinct()
+        .subquery()
+    )
 
-    # 1. Получаем все текущие состояния рейтингов пользователя
-    ratings_query = select(ExpertRating).where(ExpertRating.voter_id == vk_id)
-    ratings_res = await db.execute(ratings_query)
-    current_ratings = ratings_res.scalars().all()
+    # 2. Получаем текущие активные рейтинги для сравнения
+    ratings_res = await db.execute(select(ExpertRating).where(ExpertRating.voter_id == vk_id))
+    active_ratings = {(r.expert_id, r.rating_type): r.vote_value for r in ratings_res.scalars().all()}
+
+    # 3. Собираем последние фидбеки для каждой пары
+    pairs_res = await db.execute(select(subq))
+    pairs = pairs_res.all()
 
     results = []
-    for r in current_ratings:
-        # Для каждого рейтинга ищем последний коммент
-        # Если это expert рейтинг - ищем по expert_id и voter_id где event_id НЕ NULL
-        # Если это community рейтинг - ищем по expert_id и voter_id где event_id IS NULL
-
+    for p in pairs:
         fb_query = select(EventFeedback).where(
-            EventFeedback.expert_id == r.expert_id,
-            EventFeedback.voter_id == r.voter_id,
+            EventFeedback.expert_id == p.expert_id,
+            EventFeedback.voter_id == vk_id,
         )
-        if r.rating_type == "expert":
+        if p.rating_type == "expert":
             fb_query = fb_query.where(EventFeedback.event_id.is_not(None))
         else:
             fb_query = fb_query.where(EventFeedback.event_id.is_(None))
 
-        fb_query = (
-            fb_query.options(
-                selectinload(EventFeedback.expert).selectinload(ExpertProfile.user),
-                selectinload(EventFeedback.event)
-                .selectinload(Event.expert)
-                .selectinload(ExpertProfile.user),
-            )
-            .order_by(EventFeedback.created_at.desc())
-            .limit(1)
-        )
+        fb_query = fb_query.options(
+            selectinload(EventFeedback.expert).selectinload(ExpertProfile.user),
+            selectinload(EventFeedback.event).selectinload(Event.expert).selectinload(ExpertProfile.user)
+        ).order_by(EventFeedback.created_at.desc()).limit(1)
 
         fb_res = await db.execute(fb_query)
         fb = fb_res.scalars().first()
 
         if fb:
-            # Важно: прокидываем актуальный vote_value из ExpertRating в snapshot для отображения ТЕКУЩЕГО статуса в карточке
-            # (Хотя в идиале надо расширить схему)
-            fb.rating_snapshot = r.vote_value
+            # Если в ExpertRating записи нет, значит голос отозван -> ставим 0 (Нейтрально)
+            fb.rating_snapshot = active_ratings.get((p.expert_id, p.rating_type), 0)
             results.append(fb)
 
+    # Сортируем по дате последнего взаимодействия
+    results.sort(key=lambda x: x.created_at, reverse=True)
     return results
 
 
