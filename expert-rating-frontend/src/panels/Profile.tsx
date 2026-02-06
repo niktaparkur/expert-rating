@@ -67,16 +67,22 @@ export const Profile = ({
 
   const onRefresh = useCallback(async () => {
     setFetching(true);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["user", "me"] }),
-      queryClient.refetchQueries({ queryKey: ["users/me"] }),
-      queryClient.invalidateQueries({ queryKey: ["userVotes", user?.vk_id] }),
-      user?.is_expert
-        ? queryClient.invalidateQueries({ queryKey: ["myEvents", user?.vk_id] })
-        : Promise.resolve(),
-    ]);
-    setFetching(false);
-  }, [queryClient, user?.vk_id, user?.is_expert]);
+    try {
+      const refreshedUser = await apiGet<any>("/users/me?refresh=true");
+      setCurrentUser(refreshedUser);
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["userVotes", user?.vk_id] }),
+        user?.is_expert
+          ? queryClient.invalidateQueries({ queryKey: ["myEvents", user?.vk_id] })
+          : Promise.resolve(),
+      ]);
+    } catch (e) {
+      console.error("Refresh failed", e);
+    } finally {
+      setFetching(false);
+    }
+  }, [apiGet, setCurrentUser, queryClient, user?.vk_id, user?.is_expert]);
 
   const handleOpenHistory = (expertId: number, ratingType: "expert" | "community") => {
     setHistoryTargetId(expertId);
@@ -131,21 +137,9 @@ export const Profile = ({
   };
 
   const handleRemoveVote = (expertId: number, ratingType: "expert" | "community") => {
-    setPopout(
-      <Alert
-        actions={[
-          { title: "Отмена", mode: "cancel" },
-          {
-            title: "Удалить голос",
-            mode: "destructive",
-            action: () => performRemoveVote(expertId, ratingType),
-          },
-        ]}
-        onClose={() => setPopout(null)}
-        title="Подтверждение"
-        description="Вы уверены, что хотите убрать этот голос и перевести его в нейтральный статус?"
-      />,
-    );
+    setHistoryTargetId(expertId);
+    setHistoryRatingType(ratingType);
+    setActiveModal("revoke-vote-modal");
   };
 
   const filteredVotes = useMemo(() => {
@@ -290,7 +284,7 @@ export const Profile = ({
               key={`${vote.expert_id}_${vote.is_expert_vote}`}
               vote={vote}
               onOpenHistory={handleOpenHistory}
-              onRemoveVote={handleRemoveVote}
+              // onRemoveVote={handleRemoveVote}
             />
           ))}
         </div>

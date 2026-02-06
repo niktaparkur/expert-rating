@@ -1000,7 +1000,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
 
                 {req.new_data.performance_link &&
                   req.new_data.performance_link !==
-                    req.expert_info?.performance_link && (
+                  req.expert_info?.performance_link && (
                     <SimpleCell multiline disabled>
                       <InfoRow header="Пример выступления (Было)">
                         <Text

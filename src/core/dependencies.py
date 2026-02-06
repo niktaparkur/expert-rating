@@ -99,6 +99,15 @@ async def get_validated_vk_id(
     return vk_user_id
 
 
+async def get_optional_validated_vk_id(
+    authorization: Optional[str] = Header(None),
+    cache: redis.Redis = Depends(get_redis),
+) -> Optional[int]:
+    if authorization is None:
+        return None
+    return await get_validated_vk_id(authorization, cache)
+
+
 async def get_current_user(
     vk_user_id: int = Depends(get_validated_vk_id),
     db: AsyncSession = Depends(get_db),
@@ -116,6 +125,12 @@ async def get_current_user(
         else:
             return user_dict
 
+    return await fetch_and_cache_user_profile(vk_user_id, db, cache)
+
+
+async def fetch_and_cache_user_profile(
+    vk_user_id: int, db: AsyncSession, cache: redis.Redis
+) -> Dict:
     result = await expert_crud.get_full_user_profile_with_stats(db, vk_id=vk_user_id)
 
     if not result:
@@ -171,7 +186,7 @@ async def get_current_user(
         )
 
     current_user_dict = response_data.model_dump(mode="json")
-
+    cache_key = f"user_profile:{vk_user_id}"
     await cache.set(cache_key, json.dumps(current_user_dict), ex=3600)
     return current_user_dict
 

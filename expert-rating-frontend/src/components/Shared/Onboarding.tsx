@@ -44,16 +44,7 @@ export const Onboarding = ({ onFinish }: OnboardingProps) => {
   const groupId = Number(import.meta.env.VITE_VK_GROUP_ID);
 
   const handleAllowNotifications = async () => {
-    console.log(
-      `[Onboarding] Пытаемся запросить разрешение для группы с ID: ${groupId}`,
-    );
-
-    if (!groupId) {
-      console.error(
-        "[Onboarding] ОШИБКА: VITE_VK_GROUP_ID не определен в .env файле!",
-      );
-      return;
-    }
+    if (!groupId) return;
 
     try {
       const result = await bridge.send("VKWebAppAllowMessagesFromGroup", {
@@ -62,17 +53,17 @@ export const Onboarding = ({ onFinish }: OnboardingProps) => {
 
       if (result.result) {
         setIsPermissionGranted(true);
-      } else {
-        console.warn(
-          "[Onboarding] VK Bridge вернул отрицательный результат (возможно, пользователь отказался):",
-          result,
-        );
       }
-    } catch (error) {
-      console.error(
-        "[Onboarding] ОШИБКА при вызове VKWebAppAllowMessagesFromGroup:",
-        error,
-      );
+    } catch (error: any) {
+      const errorCode = error?.error_data?.error_code;
+
+      if (errorCode === 11) {
+        console.warn("[Onboarding] App is not moderated yet, code 11");
+        alert("Функция уведомлений будет активирована сразу после выхода приложения из режима разработки.");
+        setIsPermissionGranted(true);
+      } else {
+        console.error("[Onboarding] Notification error:", error);
+      }
     }
   };
 
