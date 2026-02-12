@@ -40,7 +40,7 @@ export const Voting = ({ id }: VotingProps) => {
   const promo = params?.promo;
   const { apiGet, apiPost } = useApi();
   const { currentUser: user } = useUserStore();
-  const { setPopout, setSnackbar, activeModal, setActiveModal } = useUiStore();
+  const { setPopout, setSnackbar, activeModal, setActiveModal, setVoteSuccessMessage } = useUiStore();
   const queryClient = useQueryClient();
 
   const [thankYouMessage, setThankYouMessage] = useState<string | null>(null);
@@ -81,7 +81,10 @@ export const Voting = ({ id }: VotingProps) => {
 
     try {
       const response = await apiPost<any>("/events/vote", finalData);
-      setThankYouMessage(response.thank_you_message);
+      // setThankYouMessage(response.thank_you_message); // Removed local state
+      setVoteSuccessMessage(response.thank_you_message);
+      // Actually we have useUiStore mapped to props/vars above, let's use destructuring
+
       await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
       await queryClient.invalidateQueries({ queryKey: ["eventStatus", promo] });
       setActiveModal("vote-success-modal");
@@ -165,46 +168,10 @@ export const Voting = ({ id }: VotingProps) => {
     }
   };
 
-  const modal = (
-    <ModalRoot activeModal={activeModal} onClose={() => setActiveModal(null)}>
-      <ModalPage
-        id="vote-success-modal"
-        onClose={() => setActiveModal(null)}
-        header={<ModalPageHeader>Голос принят!</ModalPageHeader>}
-        settlingHeight={100}
-      >
-        <Placeholder
-          icon={
-            <Icon56CheckCircleOutline
-              style={{ color: "var(--vkui--color_icon_positive)" }}
-            />
-          }
-          title="Спасибо, ваш голос учтен!"
-          action={
-            <Button
-              size="l"
-              mode="primary"
-              onClick={() =>
-                routeNavigator.push(`/expert/${eventData?.expert?.vk_id}`)
-              }
-            >
-              Перейти к профилю эксперта
-            </Button>
-          }
-        >
-          {thankYouMessage ? (
-            <Text>{thankYouMessage}</Text>
-          ) : (
-            "Он будет засчитан в экспертный рейтинг."
-          )}
-        </Placeholder>
-      </ModalPage>
-    </ModalRoot>
-  );
+  // Removed local modal definition
 
   return (
     <Panel id={id}>
-      {modal}
       <PanelHeader
         before={<PanelHeaderBack onClick={() => routeNavigator.back()} />}
       >

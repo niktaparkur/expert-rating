@@ -75,26 +75,41 @@ async def update_user_email(
             response_data.is_expert = profile.status == "approved"
             response_data.status = profile.status
             response_data.show_community_rating = profile.show_community_rating
+            
             # Tariff logic based on DonutSubscription
-            if user.subscription and user.subscription.is_active:
-                if user.subscription.amount >= 3999:
-                    response_data.tariff_plan = "Профи"
-                elif user.subscription.amount >= 999:
-                    response_data.tariff_plan = "Стандарт"
-                else:
-                    response_data.tariff_plan = "Начальный"
+            current_tariff_name = "Начальный"
+            current_tariff_limit = 3 # Default fallback
 
+            # Fetch relevant tariffs
+            from src.models.tariff import Tariff
+            from sqlalchemy import select
+            
+            # Optimization: could cache this
+            tariffs_result = await db.execute(select(Tariff).where(Tariff.is_active == True).order_by(Tariff.price.desc()))
+            all_tariffs = tariffs_result.scalars().all()
+            
+            # Default to "Start" if found
+            start_tariff = next((t for t in all_tariffs if t.price == 0), None)
+            if start_tariff:
+                current_tariff_limit = start_tariff.event_limit
+
+            if user.subscription and user.subscription.is_active:
+                for tariff in all_tariffs:
+                    if user.subscription.amount >= tariff.price:
+                        current_tariff_name = tariff.name
+                        current_tariff_limit = tariff.event_limit
+                        break
+                
                 if user.subscription.next_payment_date:
                     response_data.next_payment_date = (
                         user.subscription.next_payment_date
                     )
-            else:
-                response_data.tariff_plan = "Начальный"
+            
+            response_data.tariff_plan = current_tariff_name
 
             # Event usage logic
             if response_data.is_expert:
-                tariff = response_data.tariff_plan or "Начальный"
-                limit = settings.TARIFF_EVENT_LIMITS.get(tariff, 3)
+                limit = current_tariff_limit
                 current_count = (
                     await event_crud.get_expert_active_event_count_current_month(
                         db, vk_id
@@ -333,9 +348,6 @@ async def get_my_votes(
         response_list.append(MyVoteRead.model_validate(vote_data_dict))
 
     logger.info(f"[DEBUG_API] get_my_votes response items count: {len(response_list)}")
-    logger.info(f"[DEBUG_API] get_my_votes response items: {response_list}")
-    for item in response_list:
-        logger.debug(f"[DEBUG_API_ITEM] Expert_id: {item.expert.vk_id if item.expert else 'N/A'}, Vote_type: {item.vote_type}")
 
     return response_list
 
@@ -373,23 +385,39 @@ async def update_user_settings(
         response_data.is_expert = profile.status == "approved"
         response_data.status = profile.status
         response_data.show_community_rating = profile.show_community_rating
-        if user.subscription and user.subscription.is_active:
-            if user.subscription.amount >= 3999:
-                response_data.tariff_plan = "Профи"
-            elif user.subscription.amount >= 999:
-                response_data.tariff_plan = "Стандарт"
-            else:
-                response_data.tariff_plan = "Начальный"
+        
+        # Tariff logic based on DonutSubscription
+        current_tariff_name = "Начальный"
+        current_tariff_limit = 3 # Default fallback
 
+        # Fetch relevant tariffs
+        from src.models.tariff import Tariff
+        from sqlalchemy import select
+        
+        tariffs_result = await db.execute(select(Tariff).where(Tariff.is_active == True).order_by(Tariff.price.desc()))
+        all_tariffs = tariffs_result.scalars().all()
+        
+        start_tariff = next((t for t in all_tariffs if t.price == 0), None)
+        if start_tariff:
+            current_tariff_limit = start_tariff.event_limit
+
+        if user.subscription and user.subscription.is_active:
+            for tariff in all_tariffs:
+                if user.subscription.amount >= tariff.price:
+                    current_tariff_name = tariff.name
+                    current_tariff_limit = tariff.event_limit
+                    break
+            
             if user.subscription.next_payment_date:
-                response_data.next_payment_date = user.subscription.next_payment_date
-        else:
-            response_data.tariff_plan = "Начальный"
+                response_data.next_payment_date = (
+                    user.subscription.next_payment_date
+                )
+        
+        response_data.tariff_plan = current_tariff_name
 
         # Event usage logic
         if response_data.is_expert:
-            tariff = response_data.tariff_plan or "Начальный"
-            limit = settings.TARIFF_EVENT_LIMITS.get(tariff, 3)
+            limit = current_tariff_limit
             current_count = (
                 await event_crud.get_expert_active_event_count_current_month(db, vk_id)
             )

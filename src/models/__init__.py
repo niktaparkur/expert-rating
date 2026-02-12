@@ -10,6 +10,7 @@ from .expert import (
 from .social import ExpertRating, EventFeedback
 from .event import Event
 from .finance import DonutSubscription, PromoCode
+from .tariff import Tariff
 
 __all__ = [
     "Base",

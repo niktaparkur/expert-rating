@@ -21,7 +21,7 @@ const APP_URL = `https://vk.com/app${import.meta.env.VITE_VK_APP_ID}`;
 export const QrCodeModal = ({ id, event, onClose }: QrCodeModalProps) => {
   if (!event) return null;
 
-  const qrLink = `${APP_URL}#/vote/${event.promo_word}`;
+  const qrLink = `${APP_URL}#/vote/${encodeURIComponent(event.promo_word)}`;
 
   return (
     <ModalPage
