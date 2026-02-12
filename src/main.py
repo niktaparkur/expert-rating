@@ -146,8 +146,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=origin_regex,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["*", "Authorization", "X-Idempotency-Key", "Content-Type", "Set-Cookie"],
 )
 
 app.include_router(experts.router, prefix="/api/v1")
