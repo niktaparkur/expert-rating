@@ -160,30 +160,47 @@ async def fetch_and_cache_user_profile(
                 f"{theme.category.name} > {theme.name}"
                 for theme in profile.selected_themes
             ]
+        # Tariff logic based on DonutSubscription
+        current_tariff_name = "Начальный"
+        current_tariff_limit = 3 # Default fallback
 
-    if user.subscription and user.subscription.is_active:
-        if user.subscription.amount >= 3999:
-            response_data.tariff_plan = "Профи"
-        elif user.subscription.amount >= 999:
-            response_data.tariff_plan = "Стандарт"
-        else:
-            response_data.tariff_plan = "Начальный"
-
-        if user.subscription.next_payment_date:
-            response_data.next_payment_date = user.subscription.next_payment_date
-    else:
-        response_data.tariff_plan = "Начальный"
-
-    if response_data.is_expert:
-        tariff = response_data.tariff_plan or "Начальный"
-        limit = settings.TARIFF_EVENT_LIMITS.get(tariff, 3)
-        current_count = await event_crud.get_expert_active_event_count_current_month(
-            db, vk_user_id
-        )
+        # Fetch relevant tariffs
+        from src.models.tariff import Tariff
+        from sqlalchemy import select
         
-        response_data.event_usage = expert_schemas.EventUsage(
-            current_count=current_count, limit=limit
-        )
+        # Optimization: could cache this
+        tariffs_result = await db.execute(select(Tariff).where(Tariff.is_active == True).order_by(Tariff.price.desc()))
+        all_tariffs = tariffs_result.scalars().all()
+        
+        start_tariff = next((t for t in all_tariffs if t.price == 0), None)
+        if start_tariff:
+            current_tariff_limit = start_tariff.event_limit
+
+        if user.subscription and user.subscription.is_active:
+            for tariff in all_tariffs:
+                if user.subscription.amount >= tariff.price:
+                    current_tariff_name = tariff.name
+                    current_tariff_limit = tariff.event_limit
+                    break
+            
+            if user.subscription.next_payment_date:
+                response_data.next_payment_date = (
+                    user.subscription.next_payment_date
+                )
+        
+        response_data.tariff_plan = current_tariff_name
+
+        # Event usage logic
+        if response_data.is_expert:
+            limit = current_tariff_limit
+            current_count = (
+                await event_crud.get_expert_active_event_count_current_month(
+                    db, vk_user_id
+                )
+            )
+            response_data.event_usage = expert_schemas.EventUsage(
+                current_count=current_count, limit=limit
+            )
 
     current_user_dict = response_data.model_dump(mode="json")
     cache_key = f"user_profile:{vk_user_id}"

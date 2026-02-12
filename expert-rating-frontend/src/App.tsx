@@ -36,6 +36,7 @@ import {
   usePlatform,
   Checkbox,
   Panel,
+  Placeholder,
 } from "@vkontakte/vkui";
 import {
   useActiveVkuiLocation,
@@ -165,6 +166,7 @@ export const App = () => {
     targetExpertId,
     historyTargetId,
     historyRatingType,
+    voteSuccessMessage,
   } = useUiStore();
 
   const [promoInput, setPromoInput] = useState("");
@@ -504,63 +506,63 @@ export const App = () => {
     return getPromoStatusMessage();
   };
 
-const toggleNotificationSettings = async (
-  fieldName: "allow_notifications" | "allow_expert_mailings",
-  value: boolean,
-) => {
-  if (fieldName === "allow_expert_mailings") {
-    await updateUserSettings(fieldName, value);
-    return;
-  }
+  const toggleNotificationSettings = async (
+    fieldName: "allow_notifications" | "allow_expert_mailings",
+    value: boolean,
+  ) => {
+    if (fieldName === "allow_expert_mailings") {
+      await updateUserSettings(fieldName, value);
+      return;
+    }
 
-  if (value) {
-    if (bridge.isWebView()) {
-      try {
-        const result = await bridge.send("VKWebAppAllowMessagesFromGroup", {
-          group_id: Math.abs(GROUP_ID),
-        });
-        
-        if (result.result) {
-          await updateUserSettings(fieldName, true);
-        } else {
+    if (value) {
+      if (bridge.isWebView()) {
+        try {
+          const result = await bridge.send("VKWebAppAllowMessagesFromGroup", {
+            group_id: Math.abs(GROUP_ID),
+          });
+
+          if (result.result) {
+            await updateUserSettings(fieldName, true);
+          } else {
+            await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
+          }
+        } catch (error: any) {
+          // Извлекаем код ошибки из Bridge
+          const errorCode = error?.error_data?.error_code;
+
+          if (errorCode === 11) {
+            // Ошибка доступа из-за модерации
+            setSnackbar(
+              <Snackbar
+                onClose={() => setSnackbar(null)}
+                before={<Icon24InfoCircleOutline fill="var(--vkui--color_icon_accent)" />}
+              >
+                Уведомления станут доступны после прохождения модерации приложения.
+              </Snackbar>
+            );
+          } else if (errorCode === 4) {
+            // Пользователь просто нажал "Отмена" — не показываем ошибку
+            console.log("User cancelled notifications request");
+          } else {
+            // Любая другая техническая ошибка
+            setSnackbar(
+              <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+                Не удалось включить уведомления. Попробуйте позже.
+              </Snackbar>
+            );
+          }
+
+          // Сбрасываем тумблер в UI в исходное состояние (false)
           await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
         }
-      } catch (error: any) {
-        // Извлекаем код ошибки из Bridge
-        const errorCode = error?.error_data?.error_code;
-        
-        if (errorCode === 11) {
-          // Ошибка доступа из-за модерации
-          setSnackbar(
-            <Snackbar
-              onClose={() => setSnackbar(null)}
-              before={<Icon24InfoCircleOutline fill="var(--vkui--color_icon_accent)" />}
-            >
-              Уведомления станут доступны после прохождения модерации приложения.
-            </Snackbar>
-          );
-        } else if (errorCode === 4) {
-          // Пользователь просто нажал "Отмена" — не показываем ошибку
-          console.log("User cancelled notifications request");
-        } else {
-          // Любая другая техническая ошибка
-          setSnackbar(
-            <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
-              Не удалось включить уведомления. Попробуйте позже.
-            </Snackbar>
-          );
-        }
-        
-        // Сбрасываем тумблер в UI в исходное состояние (false)
-        await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
+      } else {
+        await updateUserSettings(fieldName, value);
       }
     } else {
-      await updateUserSettings(fieldName, value);
+      await updateUserSettings(fieldName, false);
     }
-  } else {
-    await updateUserSettings(fieldName, false);
-  }
-};
+  };
 
   const refetchUser = useCallback(async () => {
     try {
@@ -602,37 +604,7 @@ const toggleNotificationSettings = async (
       .filter((group) => group.items.length > 0);
   }, [topicSearchQuery, themeCategories]);
 
-  const validatePromoCode = useCallback(
-    debounce(async (word: string) => {
-      const normalizedWord = word.trim().toUpperCase();
-      if (!normalizedWord || !/^[A-Z0-9А-ЯЁ]{4,}$/i.test(normalizedWord)) {
-        setPromoCheckResult(null);
-        setIsValidatingPromo(false);
-        return;
-      }
-      setIsValidatingPromo(true);
-      try {
-        const response = await apiGet(`/events/status/${normalizedWord}`);
-        setPromoCheckResult(response);
-      } catch (error: any) {
-        console.error("Promo check failed:", error);
-        if (error.message?.includes("404") || error.message?.includes("найдено")) {
-          setPromoCheckResult({ status: "not_found" });
-        } else {
-          setPromoCheckResult({ status: "error" });
-        }
-      } finally {
-        setIsValidatingPromo(false);
-      }
-    }, 500),
-    [apiGet],
-  );
 
-  useEffect(() => {
-    if (activeModal === "promo-vote-modal") {
-      validatePromoCode(promoInput);
-    }
-  }, [promoInput, validatePromoCode, activeModal]);
 
   const getPromoStatusMessage = () => {
     if (isValidatingPromo) {
@@ -812,10 +784,30 @@ const toggleNotificationSettings = async (
     if (story === VIEW_PROFILE) routeNavigator.push("/profile");
   };
 
-  const navigateToVoteByPromo = () => {
-    if (promoCheckResult?.status === "active") {
-      setActiveModal(null);
-      routeNavigator.push(`/vote/${promoInput.trim().toUpperCase()}`);
+  const navigateToVoteByPromo = async () => {
+    const normalizedWord = promoInput.trim().toUpperCase();
+    if (!normalizedWord) return;
+
+    setIsValidatingPromo(true);
+    setPromoCheckResult(null);
+
+    try {
+      const response = await apiGet<any>(`/events/status/${normalizedWord}`);
+      setPromoCheckResult(response);
+
+      if (response && response.status === "active") {
+        setActiveModal(null);
+        routeNavigator.push(`/vote/${normalizedWord}`);
+      }
+    } catch (error: any) {
+      console.error("Promo check failed:", error);
+      if (error.message?.includes("404") || error.message?.includes("найдено")) {
+        setPromoCheckResult({ status: "not_found" });
+      } else {
+        setPromoCheckResult({ status: "error" });
+      }
+    } finally {
+      setIsValidatingPromo(false);
     }
   };
 
@@ -1037,28 +1029,28 @@ const toggleNotificationSettings = async (
           onClose={() => setActiveModal(null)}
           title="Голосование"
         >
-        <FormItem
-          top={
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Text>Введите промо-слово или наведите на QR-код</Text>
-              <Tooltip
+          <FormItem
+            top={
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Text>Введите промо-слово или наведите на QR-код</Text>
+                <Tooltip
 
-                description={
-                  <div style={{ padding: "8px" }}>
-                    Для сканирования используйте штатную камеру телефона или сканер VK (вне этого окна).
-                  </div>
-                }
-              >
-                <Icon24QuestionOutline
-                  style={{ color: "var(--vkui--color_icon_secondary)", cursor: "pointer" }}
-                  onClick={() => setQrTooltipShown(!qrTooltipShown)}
-                />
-              </Tooltip>
-            </div>
-          }
-          bottom={getPromoStatusMessage()}
-          status={isPromoErrorState ? "error" : "default"}
-        >
+                  description={
+                    <div style={{ padding: "8px" }}>
+                      Для сканирования используйте штатную камеру телефона или сканер VK (вне этого окна).
+                    </div>
+                  }
+                >
+                  <Icon24QuestionOutline
+                    style={{ color: "var(--vkui--color_icon_secondary)", cursor: "pointer" }}
+                    onClick={() => setQrTooltipShown(!qrTooltipShown)}
+                  />
+                </Tooltip>
+              </div>
+            }
+            bottom={getPromoStatusMessage()}
+            status={isPromoErrorState ? "error" : "default"}
+          >
             <FormField
               status={isPromoErrorState ? "error" : "default"}
             >
@@ -1081,7 +1073,7 @@ const toggleNotificationSettings = async (
               stretched
               onClick={navigateToVoteByPromo}
               disabled={
-                promoCheckResult?.status !== "active" || isPromoLengthError
+                isPromoLengthError || promoInput.trim().length === 0 || isValidatingPromo
               }
             >
               Проголосовать
@@ -1431,6 +1423,45 @@ const toggleNotificationSettings = async (
           openSelectModal={configureSelectModal}
           allRegions={regionList}
         />
+        <ModalPage
+          id="vote-success-modal"
+          onClose={() => setActiveModal(null)}
+          header={<ModalPageHeader>Голос принят!</ModalPageHeader>}
+          settlingHeight={100}
+        >
+          <Placeholder
+            icon={
+              <Icon56CheckCircleOutline
+                style={{ color: "var(--vkui--color_icon_positive)" }}
+              />
+            }
+            title="Спасибо, ваш голос учтен!"
+            action={
+              <Button
+                size="l"
+                mode="primary"
+                onClick={() => {
+                  setActiveModal(null);
+                  routeNavigator.push("/profile"); // Or back to wherever? Previous logic went to expert profile but we don't have expert ID here easily without store
+                  // Actually, user might want to stay or go back. The previous logic was `routeNavigator.push(\`/expert/${eventData?.expert?.vk_id}\`)`
+                  // We don't have eventData here. 
+                  // Let's just close modal for now or redirect to home/profile. 
+                  // If we need to redirect to expert, we should store targetExpertId in store.
+                  // Voting.tsx sets targetExpertId? No.
+                  // Let's just close it.
+                }}
+              >
+                Закрыть
+              </Button>
+            }
+          >
+            {voteSuccessMessage ? (
+              <Text>{voteSuccessMessage}</Text>
+            ) : (
+              "Он будет засчитан в экспертный рейтинг."
+            )}
+          </Placeholder>
+        </ModalPage>
       </ModalRoot>
     </AppRoot>
   );

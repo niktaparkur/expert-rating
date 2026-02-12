@@ -12,7 +12,7 @@ from src.api.endpoints import (
     experts,
     events,
     # payment,
-    # tariffs,
+    tariffs,
     users,
     meta,
     # promo,
@@ -81,7 +81,7 @@ async def check_for_reminders():
                 try:
                     await notifier_bg.send_event_reminder(
                         expert_id=event.expert_id,
-                        event_name=event.event_name,
+                        event_name=event.name,
                         event_date=event.event_date,
                     )
                     await event_crud.mark_reminder_as_sent(db, event.id)
@@ -93,6 +93,33 @@ async def check_for_reminders():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Seeding Tariffs
+    async with AsyncSessionLocal_bg() as db:
+        try:
+            from src.models.tariff import Tariff
+            from sqlalchemy import select
+            
+            # Create tables if not exist (quick fix for dev env)
+            # await engine_bg.begin() as conn:
+            #     await conn.run_sync(Base.metadata.create_all)
+            # Actually, let's just check if they exist and seed
+            
+            result = await db.execute(select(Tariff))
+            existing = result.scalars().first()
+            if not existing:
+                print("Seeding default tariffs...")
+                tariffs_to_create = [
+                    Tariff(code="tariff_start", name="Начальный", price=0, event_limit=3, event_duration_hours=1, max_votes_per_event=100, vk_donut_link=None),
+                    Tariff(code="tariff_standard", name="Стандарт", price=999, event_limit=10, event_duration_hours=12, max_votes_per_event=200, vk_donut_link="https://vk.com/exprating?w=donut_payment-216452802&levelId=2484"),
+                    Tariff(code="tariff_pro", name="Профи", price=3999, event_limit=30, event_duration_hours=24, max_votes_per_event=1000, vk_donut_link="https://vk.com/exprating?w=donut_payment-216452802&levelId=2485"),
+                    Tariff(code="tariff_unlimited", name="Безлимит", price=9999, event_limit=999999, event_duration_hours=72, max_votes_per_event=999999, vk_donut_link="https://vk.com/exprating?w=donut_payment-216452802&levelId=2486")
+                ]
+                db.add_all(tariffs_to_create)
+                await db.commit()
+                print("Tariffs seeded.")
+        except Exception as e:
+            print(f"Error seeding tariffs: {e}")
+
     scheduler.add_job(check_for_reminders, "interval", minutes=1)
     scheduler.start()
     print("Scheduler for event reminders has been started.")
@@ -126,7 +153,7 @@ app.add_middleware(
 app.include_router(experts.router, prefix="/api/v1")
 app.include_router(events.router, prefix="/api/v1")
 # app.include_router(payment.router, prefix="/api/v1")
-# app.include_router(tariffs.router, prefix="/api/v1")
+app.include_router(tariffs.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(meta.router, prefix="/api/v1")
 app.include_router(vk_callback.router, prefix="/api/v1")

@@ -69,11 +69,11 @@ export const VoteCard: React.FC<VoteCardProps> = ({
     if (selection === val && initialVoteValue === val) {
       // If clicking the already selected initial vote, switch to remove mode
       setIsRemoveMode(!isRemoveMode);
-      setComment(""); // Clear comment on toggle
+      // setComment(""); // Comment preserved
     } else {
       setSelection(val);
       setIsRemoveMode(false);
-      setComment(""); // Clear comment on change
+      // setComment(""); // Comment preserved
     }
   };
 

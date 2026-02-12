@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
   Panel,
   PanelHeader,
   Group,
-  CardScroll,
   Div,
   Text,
   Button,
@@ -15,11 +14,14 @@ import {
   CardGrid,
   Tooltip,
   Spinner,
+  Placeholder,
+  HorizontalScroll,
 } from "@vkontakte/vkui";
-import { Icon16HelpOutline, Icon24CheckCircleOn } from "@vkontakte/icons";
+import { Icon16HelpOutline, Icon24CheckCircleOn, Icon56ErrorTriangleOutline } from "@vkontakte/icons";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
 import { useUserStore } from "../store/userStore";
-import { UserData } from "../types";
+import { useQuery } from "@tanstack/react-query";
+import { useApi } from "../hooks/useApi";
 
 interface TariffFeature {
   text: string;
@@ -33,166 +35,8 @@ interface Tariff {
   price_votes: number;
   features: TariffFeature[];
   feature_headers: string[];
+  vk_donut_link: string | null;
 }
-
-const TARIFF_LEVELS: { [key: string]: number } = {
-  Начальный: 0,
-  Стандарт: 1,
-  Профи: 2,
-};
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const tariffsData: Tariff[] = [
-  {
-    id: "tariff_start",
-    name: "Начальный",
-    price_str: "Бесплатно",
-    price_votes: 0,
-    features: [
-      {
-        text: "до 1 часа",
-        tooltip:
-          "Сколько времени действует слово для голосования с момента начала мероприятия.",
-      },
-      // {
-      //   text: "1 рассылка в месяц",
-      //   tooltip:
-      //     "Эксперт может сделать рассылку по своей аудитории, которая голосовала за него 'Доверяю'.",
-      // },
-      {
-        text: "3 мероприятия в месяц",
-        tooltip:
-          "Количество слов для голосования, которые может создать эксперт. Слово считается использованным после одобрения модератором.",
-      },
-      {
-        text: "100 голосов на мероприятии",
-        tooltip:
-          "Сколько новых голосов может получить эксперт на одно мероприятие. Ранее голосовавшие пользователи не учитываются в лимите.",
-      },
-      // {
-      //   text: "2 отклика на оплачиваемые мероприятия",
-      //   tooltip:
-      //     "Сколько раз эксперт может откликнуться на запросы от организаторов, где указан гонорар.",
-      // },
-      // {
-      //   text: "10 откликов на неоплачиваемые мероприятия",
-      //   tooltip:
-      //     "Сколько раз эксперт может откликнуться на запросы от организаторов, где участие не оплачивается.",
-      // },
-    ],
-    feature_headers: [
-      "Срок активности слова",
-      "Рассылки в месяц",
-      "Мероприятия в месяц",
-      "Голосов на мероприятии",
-      "Платные отклики",
-      "Бесплатные отклики",
-    ],
-  },
-  {
-    id: "tariff_standard",
-    name: "Стандарт",
-    price_str: "999 ₽",
-    price_votes: 999,
-    features: [
-      {
-        text: "до 12 часов",
-        tooltip:
-          "Сколько времени действует слово для голосования с момента начала мероприятия.",
-      },
-      // {
-      //   text: "2 рассылки в месяц",
-      //   tooltip:
-      //     "Эксперт может сделать рассылку по своей аудитории, которая голосовала за него 'Доверяю'.",
-      // },
-      {
-        text: "10 мероприятий в месяц",
-        tooltip:
-          "Количество слов для голосования, которые может создать эксперт. Слово считается использованным после одобрения модератором.",
-      },
-      {
-        text: "200 голосов на мероприятии",
-        tooltip:
-          "Сколько новых голосов может получить эксперт на одно мероприятие. Ранее голосовавшие пользователи не учитываются в лимите.",
-      },
-      // {
-      //   text: "7 откликов на оплачиваемые мероприятия",
-      //   tooltip:
-      //     "Сколько раз эксперт может откликнуться на запросы от организаторов, где указан гонорар.",
-      // },
-      // {
-      //   text: "20 откликов на неоплачиваемые мероприятия",
-      //   tooltip:
-      //     "Сколько раз эксперт может откликнуться на запросы от организаторов, где участие не оплачивается.",
-      // },
-    ],
-    feature_headers: [
-      "Срок активности слова",
-      "Рассылки в месяц",
-      "Мероприятия в месяц",
-      "Голосов на мероприятии",
-      "Платные отклики",
-      "Бесплатные отклики",
-    ],
-  },
-  {
-    id: "tariff_pro",
-    name: "Профи",
-    price_str: "3999 ₽",
-    price_votes: 3999,
-    features: [
-      {
-        text: "до 24 часов",
-        tooltip:
-          "Сколько времени действует слово для голосования с момента начала мероприятия.",
-      },
-      // {
-      //   text: "4 рассылки в месяц",
-      //   tooltip:
-      //     "Эксперт может сделать рассылку по своей аудитории, которая голосовала за него 'Доверяю'.",
-      // },
-      {
-        text: "30 мероприятий в месяц",
-        tooltip:
-          "Количество слов для голосования, которые может создать эксперт. Слово считается использованным после одобрения модератором.",
-      },
-      {
-        text: "1000 голосов на мероприятии",
-        tooltip:
-          "Сколько новых голосов может получить эксперт на одно мероприятие. Ранее голосовавшие пользователи не учитываются в лимите.",
-      },
-      // {
-      //   text: "15 откликов на оплачиваемые мероприятия",
-      //   tooltip:
-      //     "Сколько раз эксперт может откликнуться на запросы от организаторов, где указан гонорар.",
-      // },
-      // {
-      //   text: "40 откликов на неоплачиваемые мероприятия",
-      //   tooltip:
-      //     "Сколько раз эксперт может откликнуться на запросы от организаторов, где участие не оплачивается.",
-      // },
-    ],
-    feature_headers: [
-      "Срок активности слова",
-      "Рассылки в месяц",
-      "Мероприятия в месяц",
-      "Голосов на мероприятии",
-      "Платные отклики",
-      "Бесплатные отклики",
-    ],
-  },
-];
-
-const getExpiryDate = () => {
-  const date = new Date();
-  date.setDate(date.getDate() + 30);
-  return date.toLocaleDateString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-};
 
 const TariffCardComponent = ({
   tariff,
@@ -209,13 +53,16 @@ const TariffCardComponent = ({
       borderColor: isCurrent
         ? "var(--vkui--color_background_accent)"
         : undefined,
+      minWidth: 280,
+      maxWidth: 320,
+      margin: "0 auto",
     }}
   >
     <Div>
-      <Title level="2">{tariff.name}</Title>
+      <Title level="2" style={{ textAlign: "center" }}>{tariff.name}</Title>
     </Div>
     <Div>
-      <Title level="1" style={{ marginBottom: 4 }}>
+      <Title level="1" style={{ marginBottom: 4, textAlign: "center" }}>
         {tariff.price_str}
       </Title>
     </Div>
@@ -259,9 +106,11 @@ const TariffCardComponent = ({
         <Button
           size="l"
           stretched
-          mode="primary"
+          mode={isCurrent ? "secondary" : "primary"}
           onClick={() => onSelect(tariff)}
-          disabled={!isSelectable}
+          disabled={!isSelectable && !tariff.vk_donut_link}
+          href={isSelectable && tariff.vk_donut_link ? tariff.vk_donut_link : undefined}
+          target="_blank"
         >
           {customButtonText || "Выбрать (VK Donut)"}
         </Button>
@@ -278,82 +127,93 @@ export const Tariffs = ({ id }: TariffsProps) => {
   const routeNavigator = useRouteNavigator();
   const { viewWidth } = useAdaptivity();
   const { currentUser: user } = useUserStore();
+  const { apiGet } = useApi();
 
   const isDesktop = (viewWidth ?? 0) >= ViewWidth.TABLET;
-  const isLoading = !user;
 
-  // TODO: Replace with actual VK Donut link
-  const VK_DONUT_LINK = "https://vk.com/donut/expert_rating";
-
-  const handleOpenDonut = () => {
-    window.open(VK_DONUT_LINK, "_blank");
-  };
+  const { data: tariffs, isLoading, isError } = useQuery<Tariff[]>({
+    queryKey: ["tariffs"],
+    queryFn: () => apiGet("/tariffs"),
+    staleTime: 1000 * 60 * 60, // 1 hour
+  });
 
   const handleRegister = () => routeNavigator.push("/registration");
   const getCurrentTariffName = () => user?.tariff_plan || "Начальный";
 
   const renderContent = () => {
-    if (isLoading) return <Spinner size="xl" />;
+    if (isLoading) return <Spinner size="xl" style={{ marginTop: 20 }} />;
+    if (isError) return <Placeholder icon={<Icon56ErrorTriangleOutline />} title="Ошибка загрузки тарифов" />;
 
     const currentTariffName = getCurrentTariffName();
-    const currentUserLevel = TARIFF_LEVELS[currentTariffName] ?? 0;
 
-    const tariffCards = tariffsData.map((tariff) => {
-      // Skip "Начальный" if we only want to show upgrades
-      // But let's show all for now, just changing the action.
+    // Sort logic handled by backend usually, but ensuring order by price here
+    const sortedTariffs = tariffs?.sort((a, b) => a.price_votes - b.price_votes) || [];
 
-      const tariffLevel = TARIFF_LEVELS[tariff.name];
-      if (tariffLevel === 0) return null;
+    const tariffCards = sortedTariffs.map((tariff) => {
+      // Logic: Show all tariffs.
+      // If tariff is "Начальный" (price 0) and user is on it, show "Ваш тариф".
+      // If tariff is paid, logic applies.
 
-      // If this is the current paid tariff (matched by name)
-      // Note: non-experts will have "Начальный" as currentTariffName usually, 
-      // unless backend mapping is fixed. 
-      // If user has subscription, we want to highlight that specific level.
-      // But we don't have subscription info directly here except via user object props?
-      // Wait, 'user' object has 'tariff_plan' which comes from backend.
-      // If backend says "Standard" (even if not expert), then currentTariffName is "Standard".
-
-      const isCurrentPaid = tariff.name === currentTariffName;
-
+      const isCurrent = tariff.name === currentTariffName;
       let buttonText = "Выбрать (VK Donut)";
-      let isDisabled = false;
-      let onSelectAction = handleOpenDonut;
-      let mode = "primary";
+      let isSelectable = true;
 
-      if (isCurrentPaid) {
-        isDisabled = true;
-        mode = "secondary"; // or outline? user said "not clickable"
+      if (isCurrent) {
+        buttonText = "Ваш текущий тариф";
+        isSelectable = false;
+      } else if (tariff.price_votes === 0) {
+        // Free tariff, but not current? Means user is on paid.
+        buttonText = "Бесплатный тариф";
+        isSelectable = false; // Can't "switch" to free via button usually, cancel subscription instead
+      } else {
         if (user?.is_expert) {
-          buttonText = "Ваш тариф";
+          // Upgrade/Downgrade logic handled by VK Donut link usually
+          buttonText = "Перейти";
         } else {
-          buttonText = "Будет доступен после регистрации";
+          // Not expert yet
+          if (tariff.price_votes > 0) {
+            buttonText = "Будет доступен после регистрации";
+            isSelectable = false;
+            // Wait, can they buy before reg? Usually no.
+          }
         }
+      }
+
+      // Override for non-experts for paid tariffs -> Disable
+      if (!user?.is_expert && tariff.price_votes > 0) {
+        isSelectable = false;
+        buttonText = "Сначала станьте экспертом";
       }
 
       return (
         <TariffCardComponent
           key={tariff.id}
           tariff={tariff}
-          isCurrent={isCurrentPaid}
+          isCurrent={isCurrent}
           user={user}
-          onSelect={onSelectAction}
+          onSelect={() => { }} // Handled by href in button
           onRegister={handleRegister}
-          isSelectable={!isDisabled}
+          isSelectable={isSelectable}
           customButtonText={buttonText}
         />
       );
     });
 
-    if (isDesktop)
+    if (isDesktop) {
       return (
-        <CardScroll size="s" padding>
-          {tariffCards}
-        </CardScroll>
+        <HorizontalScroll showArrows getScrollToLeft={(i: number) => i - 120} getScrollToRight={(i: number) => i + 120}>
+          <div style={{ display: "flex", gap: 16, padding: "0 4px" }}>
+            {tariffCards}
+          </div>
+        </HorizontalScroll>
       );
+    }
+
+    // Mobile view: Vertical list with gaps
     return (
-      <CardGrid size="l" style={{ padding: 0 }}>
+      <Div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {tariffCards}
-      </CardGrid>
+      </Div>
     );
   };
 
@@ -362,8 +222,8 @@ export const Tariffs = ({ id }: TariffsProps) => {
       <PanelHeader>Тарифы</PanelHeader>
       <Group>
         <Div>
-          <Text style={{ marginBottom: 20, textAlign: 'center' }}>
-            Оформите подписку VK Donut, чтобы получить доступ к расширенным возможностям.
+          <Text style={{ marginBottom: 20, textAlign: 'center', color: 'var(--vkui--color_text_secondary)' }}>
+            Оформите подписку VK Donut, чтобы получить доступ к расширенным возможностям и увеличить лимиты.
           </Text>
         </Div>
         {renderContent()}

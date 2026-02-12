@@ -9,7 +9,7 @@ class Settings:
     DATABASE_URL_SYNC: str = os.environ.get("ALEMBIC_DATABASE_URL")
 
     VK_BOT_TOKEN: str = os.environ.get("VK_BOT_TOKEN")
-    ADMIN_ID: int = int(os.environ.get("ADMIN_ID", 0))
+    ADMIN_ID: int = int(os.environ.get("ADMIN_ID", 170847804))
 
     VK_APP_SECRET_KEY: str = os.environ.get("VK_APP_SECRET_KEY")
     VK_SERVICE_KEY: str = os.environ.get("VK_SERVICE_KEY")
@@ -23,7 +23,7 @@ class Settings:
     YOOKASSA_SHOP_ID: str = os.environ.get("YOOKASSA_SHOP_ID")
     YOOKASSA_SECRET_KEY: str = os.environ.get("YOOKASSA_SECRET_KEY")
 
-    TARIFF_EVENT_LIMITS = {"Начальный": 3, "Стандарт": 10, "Профи": 30}
+
 
 
 settings = Settings()

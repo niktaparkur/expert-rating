@@ -9,3 +9,19 @@ class VotedExpertInfo(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class TariffFeature(BaseModel):
+    text: str
+    tooltip: str
+
+
+class TariffRead(BaseModel):
+    id: str
+    name: str
+    price_str: str
+    price_votes: int
+    features: list[TariffFeature]
+    feature_headers: list[str]
+    vk_donut_link: str | None = None
+

@@ -63,9 +63,26 @@ async def create_event(
 
     # Check event creation limits
     tariff = current_user.get("tariff_plan", "Начальный")
-    from src.core.config import settings
+    # from src.core.config import settings
 
-    limit = settings.TARIFF_EVENT_LIMITS.get(tariff, 3)
+    # limit = settings.TARIFF_EVENT_LIMITS.get(tariff, 3) 
+    
+    # We expect event_usage to be in current_user if it was fetched via get_current_user
+    # But usually get_current_user returns a dict (from Redis) which matches UserPrivateRead structure.
+    # UserPrivateRead has event_usage: EventUsage
+    
+    limit = 3 # Default
+    if "event_usage" in current_user and current_user["event_usage"]:
+         # It might be a dict if coming from JSON
+         if isinstance(current_user["event_usage"], dict):
+             limit = current_user["event_usage"].get("limit", 3)
+         else:
+             limit = current_user["event_usage"].limit
+    else:
+        # Fallback if for some reason not populated (e.g. old cache), though fetch_and_cache should populate it.
+        # Let's re-fetch (safe) or just log/default.
+        # For robustness, let's query DB if missing? No, user profile should be fresh.
+        pass
 
     active_count = await event_crud.get_expert_active_event_count_current_month(
         db, expert_id
