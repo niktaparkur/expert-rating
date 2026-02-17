@@ -176,7 +176,12 @@ async def fetch_and_cache_user_profile(
         if start_tariff:
             current_tariff_limit = start_tariff.event_limit
 
-        if user.subscription and user.subscription.is_active:
+        if user.forced_tariff_id:
+             forced_tariff = next((t for t in all_tariffs if t.id == user.forced_tariff_id), None)
+             if forced_tariff:
+                 current_tariff_name = forced_tariff.name
+                 current_tariff_limit = forced_tariff.event_limit
+        elif user.subscription and user.subscription.is_active:
             for tariff in all_tariffs:
                 if user.subscription.amount >= tariff.price:
                     current_tariff_name = tariff.name

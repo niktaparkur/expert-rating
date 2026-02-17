@@ -494,7 +494,7 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
           </SimpleCell>
         </Group>
         <Div>
-          {user?.event_usage && (
+          {user?.event_usage && user.event_usage.limit <= 1000 && (
             <SimpleCell
               disabled
               subtitle={`Лимит мероприятий в месяц: ${user.event_usage.current_count} из ${user.event_usage.limit} (одобрено или на модерации).`}

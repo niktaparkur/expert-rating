@@ -281,10 +281,35 @@ async def get_all_users(
         )
         if profile:
             user_data.status = profile.status
-            user_data.tariff_plan = "Начальный"
         response_users.append(user_data)
+
+    # Fetch all tariffs once for efficiency
+    from src.models.tariff import Tariff
+    from sqlalchemy import select
+    tariffs_result = await db.execute(select(Tariff).where(Tariff.is_active == True).order_by(Tariff.price.desc()))
+    all_tariffs = tariffs_result.scalars().all()
+
+    # Re-iterate to populate tariff info efficiently
+    final_response_users = []
+    for user_data, (user, profile) in zip(response_users, users_with_profiles):
+        if profile:
+             current_tariff_name = "Начальный"
+             
+             if user.forced_tariff_id:
+                 forced_tariff = next((t for t in all_tariffs if t.id == user.forced_tariff_id), None)
+                 if forced_tariff:
+                     current_tariff_name = forced_tariff.name
+             elif user.subscription and user.subscription.is_active:
+                for tariff in all_tariffs:
+                    if user.subscription.amount >= tariff.price:
+                        current_tariff_name = tariff.name
+                        break
+             
+             user_data.tariff_plan = current_tariff_name
+        final_response_users.append(user_data)
+        
     return {
-        "items": response_users,
+        "items": final_response_users,
         "total_count": total_count,
         "page": page,
         "size": size,
@@ -441,3 +466,34 @@ async def moderate_update_request(
     await notifier.send_message(result.expert_vk_id, msg)
 
     return {"status": "ok"}
+
+
+@router.put(
+    "/admin/{user_vk_id}/tariff",
+    status_code=200,
+    dependencies=[Depends(get_current_admin_user)],
+)
+async def update_user_tariff(
+    user_vk_id: int,
+    tariff_code: str = Query(..., description="Code of the tariff or 'reset'"),
+    db: AsyncSession = Depends(get_db),
+    cache: redis.Redis = Depends(get_redis),
+):
+    from src.models.tariff import Tariff
+    from sqlalchemy import select
+
+    if tariff_code == "reset":
+        tariff_id = None
+    else:
+        res = await db.execute(select(Tariff).where(Tariff.code == tariff_code))
+        tariff = res.scalars().first()
+        if not tariff:
+             raise HTTPException(status_code=404, detail="Tariff not found")
+        tariff_id = tariff.id
+
+    updated_user = await expert_crud.update_user_tariff(db, vk_id=user_vk_id, tariff_id=tariff_id)
+    if not updated_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    await cache.delete(f"user_profile:{user_vk_id}")
+    return {"status": "ok", "message": f"Tariff updated to {tariff_code}"}

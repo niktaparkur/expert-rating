@@ -306,8 +306,16 @@ class Notifier:
     async def send_event_reminder(
         self, expert_id: int, event_name: str, event_date: datetime
     ):
-        time_str = event_date.strftime("%H:%M")
-        message = f"⏰ Напоминание!\n\nВаше мероприятие «{event_name}» начнется сегодня в {time_str}."
+        if event_date.tzinfo is None:
+            event_date_utc = event_date.replace(tzinfo=timezone.utc)
+        else:
+            event_date_utc = event_date
+
+        msk_tz = timezone(timedelta(hours=3))
+        event_date_msk = event_date_utc.astimezone(msk_tz)
+        time_str = event_date_msk.strftime("%H:%M")
+
+        message = f"⏰ Напоминание!\n\nВаше мероприятие «{event_name}» начнется сегодня в {time_str} (МСК)."
         await self.send_message(expert_id, message)
 
     async def close(self):

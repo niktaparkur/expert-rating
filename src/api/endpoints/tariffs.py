@@ -51,7 +51,7 @@ async def get_all_tariffs(db: AsyncSession = Depends(get_db)):
              features.append({"text": f"{t.max_votes_per_event} голосов на мероприятии", "tooltip": "Голосов на мероприятие"})
              feature_headers.append("Голосов на мероприятии")
 
-        price_str = "Бесплатно" if t.price == 0 else f"{int(t.price)} ₽"
+        price_str = "0 ₽" if t.price == 0 else f"{int(t.price)} ₽"
 
         response.append({
             "id": t.code,

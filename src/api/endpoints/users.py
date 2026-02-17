@@ -93,7 +93,12 @@ async def update_user_email(
             if start_tariff:
                 current_tariff_limit = start_tariff.event_limit
 
-            if user.subscription and user.subscription.is_active:
+            if user.forced_tariff_id:
+                 forced_tariff = next((t for t in all_tariffs if t.id == user.forced_tariff_id), None)
+                 if forced_tariff:
+                     current_tariff_name = forced_tariff.name
+                     current_tariff_limit = forced_tariff.event_limit
+            elif user.subscription and user.subscription.is_active:
                 for tariff in all_tariffs:
                     if user.subscription.amount >= tariff.price:
                         current_tariff_name = tariff.name
@@ -347,7 +352,7 @@ async def get_my_votes(
             vote_data_dict["event"] = event_data
         response_list.append(MyVoteRead.model_validate(vote_data_dict))
 
-    logger.info(f"[DEBUG_API] get_my_votes response items count: {len(response_list)}")
+    # logger.info(f"[DEBUG_API] get_my_votes response items count: {len(response_list)}")
 
     return response_list
 
@@ -401,7 +406,12 @@ async def update_user_settings(
         if start_tariff:
             current_tariff_limit = start_tariff.event_limit
 
-        if user.subscription and user.subscription.is_active:
+        if user.forced_tariff_id:
+             forced_tariff = next((t for t in all_tariffs if t.id == user.forced_tariff_id), None)
+             if forced_tariff:
+                 current_tariff_name = forced_tariff.name
+                 current_tariff_limit = forced_tariff.event_limit
+        elif user.subscription and user.subscription.is_active:
             for tariff in all_tariffs:
                 if user.subscription.amount >= tariff.price:
                     current_tariff_name = tariff.name
