@@ -203,8 +203,10 @@ async def get_all_users_paginated(
     user_type_filter: Optional[str] = None,
     date_sort_order: Optional[str] = None,
 ):
-    query = select(User, ExpertProfile).outerjoin(
-        ExpertProfile, User.vk_id == ExpertProfile.user_vk_id
+    query = (
+        select(User, ExpertProfile)
+        .outerjoin(ExpertProfile, User.vk_id == ExpertProfile.user_vk_id)
+        .options(selectinload(User.subscription))
     )
     if user_type_filter == "expert":
         query = query.where(User.is_expert.is_(True))
