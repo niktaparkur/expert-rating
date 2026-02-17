@@ -784,3 +784,17 @@ async def get_interaction_history(
 
     result = await db.execute(query)
     return result.scalars().all()
+
+
+async def update_user_tariff(
+    db: AsyncSession, vk_id: int, tariff_id: Optional[int]
+) -> Optional[User]:
+    result = await db.execute(select(User).filter(User.vk_id == vk_id))
+    db_user = result.scalars().first()
+    if not db_user:
+        return None
+    db_user.forced_tariff_id = tariff_id
+    await db.commit()
+    await db.refresh(db_user)
+    return db_user
+

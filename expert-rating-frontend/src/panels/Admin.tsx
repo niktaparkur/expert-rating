@@ -46,6 +46,8 @@ import {
   Icon24Cancel,
   Icon28MoreVertical,
   Icon56UsersOutline,
+  Icon24CheckCircleOn,
+  Icon28CoinsOutline,
 } from "@vkontakte/icons";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
 import { useApi } from "../hooks/useApi";
@@ -159,6 +161,11 @@ export const Admin = ({ id }: AdminPanelProps) => {
   const [updateRequests, setUpdateRequests] = useState<UpdateRequest[]>([]);
   const [loadingUpdates, setLoadingUpdates] = useState(false);
 
+  // Tariff Change State
+  const [tariffs, setTariffs] = useState<any[]>([]);
+  const [selectedUserForTariff, setSelectedUserForTariff] = useState<UserData | null>(null);
+  const [tariffCode, setTariffCode] = useState<string>("");
+
   const showErrorSnackbar = (message: string) =>
     setSnackbar(
       <Snackbar
@@ -211,6 +218,43 @@ export const Admin = ({ id }: AdminPanelProps) => {
       setLoadingUpdates(false);
     }
   }, [apiGet, setSnackbar]);
+
+  useEffect(() => {
+    if (activeModal === "tariff-change-modal" && tariffs.length === 0) {
+      apiGet<any[]>("/tariffs").then((data) => {
+        setTariffs(data || []);
+      }).catch(() => { });
+    }
+  }, [activeModal, apiGet, tariffs.length]);
+
+  const handleTariffChange = async () => {
+    if (!selectedUserForTariff) return;
+    setPopout(<ScreenSpinner state="loading" />);
+    try {
+      await apiPut(`/experts/admin/${selectedUserForTariff.vk_id}/tariff?tariff_code=${tariffCode}`, {});
+      setUsers((prev) => prev.map(u => {
+        if (u.vk_id === selectedUserForTariff.vk_id) {
+          const tName = tariffs.find(t => t.id === tariffCode)?.name || "Unknown";
+          return { ...u, tariff_plan: tName };
+        }
+        return u;
+      }));
+      setActiveModal(null);
+      setSnackbar(
+        <Snackbar
+          duration={3000}
+          onClose={() => setSnackbar(null)}
+          before={<Icon24CheckCircleOn fill="var(--vkui--color_icon_positive)" />}
+        >
+          Тариф успешно изменен
+        </Snackbar>
+      );
+    } catch (e) {
+      showErrorSnackbar((e as Error).message);
+    } finally {
+      setPopout(null);
+    }
+  };
 
   const fetchUsersData = useCallback(
     async (isNewSearch = false) => {
@@ -480,6 +524,19 @@ export const Admin = ({ id }: AdminPanelProps) => {
             }}
           >
             Посмотреть профиль
+          </ActionSheetItem>
+        )}
+        {user.is_expert && (
+          <ActionSheetItem
+            before={<Icon28CoinsOutline />}
+            onClick={() => {
+              handleCloseSheet();
+              setSelectedUserForTariff(user);
+              setTariffCode(""); // Reset selection
+              setActiveModal("tariff-change-modal");
+            }}
+          >
+            Сменить тариф
           </ActionSheetItem>
         )}
         <ActionSheetItem
@@ -801,6 +858,46 @@ export const Admin = ({ id }: AdminPanelProps) => {
         promoCode={selectedPromoCode}
         onClose={() => setActiveModal(null)}
       />
+      <ModalPage
+        id="tariff-change-modal"
+        onClose={() => setActiveModal(null)}
+        header={
+          <ModalPageHeader
+            before={<PanelHeaderBack onClick={() => setActiveModal(null)} />}
+          >
+            Смена тарифа
+          </ModalPageHeader>
+        }
+        settlingHeight={100}
+      >
+        <Group>
+          {selectedUserForTariff && (
+            <Div>
+              <InfoRow header="Пользователь">
+                {selectedUserForTariff.first_name} {selectedUserForTariff.last_name}
+              </InfoRow>
+              <InfoRow header="Текущий тариф" style={{ marginTop: 10 }}>
+                {selectedUserForTariff.tariff_plan || "Начальный"}
+              </InfoRow>
+            </Div>
+          )}
+          <FormItem top="Выберите новый тариф">
+            <Select
+              value={tariffCode}
+              onChange={(e) => setTariffCode(e.target.value)}
+              options={[
+                { label: "Сбросить (авто)", value: "reset" },
+                ...tariffs.map(t => ({ label: `${t.name} (${t.price_str})`, value: t.id }))
+              ]}
+            />
+          </FormItem>
+          <Div>
+            <Button size="l" stretched mode="primary" onClick={handleTariffChange} disabled={!tariffCode}>
+              Сохранить
+            </Button>
+          </Div>
+        </Group>
+      </ModalPage>
     </ModalRoot>
   );
 
@@ -1135,7 +1232,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
               }
               subtitle={
                 user.is_expert
-                  ? `Эксперт (статус: ${user.status || "approved"})`
+                  ? `Эксперт (Тариф: ${user.tariff_plan || "Начальный"})`
                   : "Пользователь"
               }
             >

@@ -7,6 +7,7 @@ from sqlalchemy import (
     Boolean,
     func,
     Integer,
+    ForeignKey,
 )
 from sqlalchemy.orm import relationship
 from .base import Base
@@ -44,6 +45,9 @@ class User(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+
+    forced_tariff_id = Column(Integer, ForeignKey("tariffs.id"), nullable=True)
+    forced_tariff = relationship("Tariff", foreign_keys=[forced_tariff_id])
 
 
 class Region(Base):

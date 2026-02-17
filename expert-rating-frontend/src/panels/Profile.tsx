@@ -202,7 +202,9 @@ export const Profile = ({
           <Header
             indicator={
               user?.event_usage
-                ? `${user.event_usage.current_count} / ${user.event_usage.limit}`
+                ? user.event_usage.limit > 1000
+                  ? `${user.event_usage.current_count}`
+                  : `${user.event_usage.current_count} / ${user.event_usage.limit}`
                 : `${planned.length}`
             }
             after={
@@ -284,7 +286,7 @@ export const Profile = ({
               key={`${vote.expert_id}_${vote.is_expert_vote}`}
               vote={vote}
               onOpenHistory={handleOpenHistory}
-              // onRemoveVote={handleRemoveVote}
+            // onRemoveVote={handleRemoveVote}
             />
           ))}
         </div>
