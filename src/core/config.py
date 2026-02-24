@@ -24,6 +24,4 @@ class Settings:
     YOOKASSA_SECRET_KEY: str = os.environ.get("YOOKASSA_SECRET_KEY")
 
 
-
-
 settings = Settings()

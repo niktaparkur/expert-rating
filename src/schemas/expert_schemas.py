@@ -40,7 +40,7 @@ class MyVotesStats(BaseModel):
 
 
 class UserVoteInfo(BaseModel):
-    vote_type: str  # "trust" / "distrust"
+    vote_type: str
     comment: Optional[str] = None
 
 
@@ -102,8 +102,6 @@ class ExpertProfileBase(BaseModel):
     @field_validator("social_link", "performance_link")
     @classmethod
     def validate_urls(cls, v: HttpUrl, info) -> HttpUrl:
-        # Pydantic v2 validator signature might differ, assuming standard here
-        # Simplified validation for MVP
         return v
 
 
@@ -127,7 +125,7 @@ class ExpertRequestRead(BaseModel):
 
 
 class CommunityVoteCreate(BaseModel):
-    vote_type: str  # "trust" / "distrust" / "remove"
+    vote_type: str
     comment: str
 
 

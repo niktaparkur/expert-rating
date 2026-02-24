@@ -79,11 +79,6 @@ async def get_full_user_profile_with_stats(db: AsyncSession, vk_id: int):
     if not user_profile_tuple:
         return None
 
-    # НОВАЯ ЛОГИКА ПОДСЧЕТА (ExpertRating)
-    # Считаем сумму vote_value (1, 0, -1)
-
-    # 1. Рейтинг (как его оценили другие)
-    # Используем рейтинг по типам (expert vs community)
     rating_query = (
         select(
             ExpertRating.rating_type,
@@ -134,7 +129,6 @@ async def get_full_user_profile_with_stats(db: AsyncSession, vk_id: int):
         "events_count": events_count,
     }
 
-    # 2. Как голосовал САМ пользователь (My Votes)
     my_votes_query = select(
         func.sum(case((ExpertRating.vote_value == 1, 1), else_=0)).label("trust"),
         func.sum(case((ExpertRating.vote_value == -1, 1), else_=0)).label("distrust"),
@@ -259,8 +253,6 @@ async def get_top_experts_paginated(
     region: Optional[str] = None,
     category_id: Optional[int] = None,
 ):
-    # НОВАЯ ЛОГИКА ТОПА: Expert -> Community -> Alphabetical
-    # 1. Расчет раздельных баллов (Expert vs Community)
     scores_subquery = (
         select(
             ExpertRating.expert_id,
@@ -290,7 +282,6 @@ async def get_top_experts_paginated(
         .subquery()
     )
 
-    # 1. Сначала рассчитываем ГЛОБАЛЬНЫЙ РАНГ для всех одобренных экспертов
     global_ranking_base = (
         select(
             ExpertProfile.user_vk_id,
@@ -316,7 +307,7 @@ async def get_top_experts_paginated(
                 desc(global_ranking_base.c.community_score),
                 global_ranking_base.c.first_name.asc(),
                 global_ranking_base.c.last_name.asc(),
-                global_ranking_base.c.user_vk_id.asc(),  # Последнее для абсолютной стабильности (устраняет дубли при пагинации)
+                global_ranking_base.c.user_vk_id.asc(),
             ]
         )
         .label("rank")
@@ -326,7 +317,6 @@ async def get_top_experts_paginated(
         "ranked_experts"
     )
 
-    # 2. Теперь строим основной запрос с фильтрами, используя готовые ранги
     final_query = (
         select(ranked_cte.c.user_vk_id, ranked_cte.c.rank)
         .join(User, User.vk_id == ranked_cte.c.user_vk_id)
@@ -383,12 +373,6 @@ async def get_top_experts_paginated(
     return profiles_data, total_count
 
 
-async def update_expert_tariff(db: AsyncSession, vk_id: int, tariff_name: str) -> bool:
-    # ТЕПЕРЬ ТАРИФ ОПРЕДЕЛЯЕТСЯ АВТОМАТИЧЕСКИ ПО ПОДПИСКЕ
-    # Эта функция больше не нужна в старом виде, но оставим заглушку
-    return True
-
-
 async def create_user(db: AsyncSession, user_data: UserCreate) -> User:
     result = await db.execute(select(User).filter(User.vk_id == user_data.vk_id))
     if result.scalars().first():
@@ -407,9 +391,6 @@ async def create_community_vote(
     voter_vk_id: int,
     notifier: Notifier,
 ):
-    # НОВАЯ ЛОГИКА: Upsert в ExpertRating + запись в EventFeedback (без ивента)
-
-    # 1. Проверяем эксперта
     expert_profile_res = await db.execute(
         select(ExpertProfile)
         .options(selectinload(ExpertProfile.user))
@@ -421,13 +402,11 @@ async def create_community_vote(
     if not expert_profile:
         raise ValueError("Эксперт не найден или не одобрен.")
 
-    # 2. Определяем значение голоса
     if vote_data.vote_type == "remove":
         vote_val = 0
     else:
         vote_val = 1 if vote_data.vote_type == "trust" else -1
 
-    # 3. Обновляем или создаем рейтинг (ExpertRating)
     rating_query = select(ExpertRating).filter(
         ExpertRating.expert_id == expert_vk_id,
         ExpertRating.voter_id == voter_vk_id,
@@ -440,14 +419,9 @@ async def create_community_vote(
         if existing_rating:
             await db.delete(existing_rating)
         else:
-            # Если голоса и так нет, ничего не делаем или кидаем ошибку
             pass
     else:
         if existing_rating:
-            if existing_rating.vote_value == vote_val:
-                # Если значение то же самое, мы все равно позволяем обновить коммент
-                # (хотя в эндпоинте может быть проверка)
-                pass
             existing_rating.vote_value = vote_val
         else:
             new_rating = ExpertRating(
@@ -458,11 +432,9 @@ async def create_community_vote(
             )
             db.add(new_rating)
 
-    # 4. Пишем в историю (EventFeedback) - это "Народный" (event_id=None)
-    # В EventFeedbacks мы храним комменты
     comment = vote_data.comment
 
-    feedback = EventFeedback(  # Импортировать модель!
+    feedback = EventFeedback(
         expert_id=expert_vk_id,
         voter_id=voter_vk_id,
         event_id=None,
@@ -491,7 +463,6 @@ async def withdraw_rating_vote(
     rating_type: str,
     comment: str = "Голос отозван пользователем",
 ) -> bool:
-    # 1. Удаляем из текущих состояний (ExpertRating)
     query = select(ExpertRating).where(
         ExpertRating.voter_id == voter_vk_id,
         ExpertRating.expert_id == expert_vk_id,
@@ -503,25 +474,15 @@ async def withdraw_rating_vote(
     if rating:
         await db.delete(rating)
 
-        # 2. Добавляем запись в историю о нейтралитете
         feedback = EventFeedback(
             expert_id=expert_vk_id,
             voter_id=voter_vk_id,
-            event_id=(
-                None if rating_type == "community" else -1
-            ),  # Костыль для разделения типов в истории, если нет ивента
+            event_id=(None if rating_type == "community" else -1),
             comment=comment,
             rating_snapshot=0,
         )
-        # На самом деле лучше оставить event_id=None и добавить поле rating_type в EventFeedback,
-        # но пока будем ориентироваться на то, как мы ищем историю.
-        # В get_interaction_history мы проверяем event_id.is_not(None) для экспертных.
-        # Чтобы отзыв экспертного рейтинга попал в Историю экспертных, ему нужен какой-то event_id.
-        # Но у нас его нет при отзыве из профиля.
-        # Давайте просто использовать event_id последнего отзыва этого типа?
 
         if rating_type == "expert":
-            # Ищем любое прошлое событие этого эксперта для этого юзера
             last_ev_query = (
                 select(EventFeedback.event_id)
                 .where(
@@ -547,7 +508,6 @@ async def get_user_vote_for_expert(
 ) -> Optional[UserVoteInfo]:
     if not voter_vk_id:
         return None
-    # Ищем в ExpertRating
     query = select(ExpertRating).where(
         and_(
             ExpertRating.expert_id == expert_vk_id, ExpertRating.voter_id == voter_vk_id
@@ -561,7 +521,6 @@ async def get_user_vote_for_expert(
 
     vote_type = "trust" if rating.vote_value == 1 else "distrust"
 
-    # Комментарий берем из ПОСЛЕДНЕГО отзыва
     feedback_query = (
         select(EventFeedback)
         .where(
@@ -636,23 +595,25 @@ async def withdraw_expert_request(db: AsyncSession, vk_id: int) -> bool:
 
 
 async def get_user_votes(db: AsyncSession, vk_id: int) -> list[EventFeedback]:
-    # 1. Находим все уникальные пары (эксперт, тип_рейтинга) из истории отзывов
-    # Это позволит увидеть экспертов, даже если активный голос удален
     subq = (
         select(
             EventFeedback.expert_id,
-            case((EventFeedback.event_id.is_not(None), "expert"), else_="community").label("rating_type")
+            case(
+                (EventFeedback.event_id.is_not(None), "expert"), else_="community"
+            ).label("rating_type"),
         )
         .where(EventFeedback.voter_id == vk_id)
         .distinct()
         .subquery()
     )
 
-    # 2. Получаем текущие активные рейтинги для сравнения
-    ratings_res = await db.execute(select(ExpertRating).where(ExpertRating.voter_id == vk_id))
-    active_ratings = {(r.expert_id, r.rating_type): r.vote_value for r in ratings_res.scalars().all()}
+    ratings_res = await db.execute(
+        select(ExpertRating).where(ExpertRating.voter_id == vk_id)
+    )
+    active_ratings = {
+        (r.expert_id, r.rating_type): r.vote_value for r in ratings_res.scalars().all()
+    }
 
-    # 3. Собираем последние фидбеки для каждой пары
     pairs_res = await db.execute(select(subq))
     pairs = pairs_res.all()
 
@@ -667,20 +628,24 @@ async def get_user_votes(db: AsyncSession, vk_id: int) -> list[EventFeedback]:
         else:
             fb_query = fb_query.where(EventFeedback.event_id.is_(None))
 
-        fb_query = fb_query.options(
-            selectinload(EventFeedback.expert).selectinload(ExpertProfile.user),
-            selectinload(EventFeedback.event).selectinload(Event.expert).selectinload(ExpertProfile.user)
-        ).order_by(EventFeedback.created_at.desc()).limit(1)
+        fb_query = (
+            fb_query.options(
+                selectinload(EventFeedback.expert).selectinload(ExpertProfile.user),
+                selectinload(EventFeedback.event)
+                .selectinload(Event.expert)
+                .selectinload(ExpertProfile.user),
+            )
+            .order_by(EventFeedback.created_at.desc())
+            .limit(1)
+        )
 
         fb_res = await db.execute(fb_query)
         fb = fb_res.scalars().first()
 
         if fb:
-            # Если в ExpertRating записи нет, значит голос отозван -> ставим 0 (Нейтрально)
             fb.rating_snapshot = active_ratings.get((p.expert_id, p.rating_type), 0)
             results.append(fb)
 
-    # Сортируем по дате последнего взаимодействия
     results.sort(key=lambda x: x.created_at, reverse=True)
     return results
 
@@ -799,4 +764,3 @@ async def update_user_tariff(
     await db.commit()
     await db.refresh(db_user)
     return db_user
-

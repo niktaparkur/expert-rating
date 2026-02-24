@@ -59,12 +59,6 @@ async def handle_donut_active(
     user_vk_id = int(data.get("user_id"))
     amount = data.get("amount")
 
-    # next_payment_date comes as different fields or not at all sometimes depending on event?
-    # Actually checking docs:
-    # donut_subscription_create: user_id, amount, price, ...
-    # donut_subscription_prolonged: user_id, amount, ... next_payment_date (unix)
-
-    # Let's try to parse next_payment_date. Usually field is 'next_payment_date' (unix timestamp)
     next_payment_ts = data.get("next_payment_date")
     next_payment_dt = None
     if next_payment_ts:
@@ -72,38 +66,21 @@ async def handle_donut_active(
 
     logger.info(f"Donut event {event_type} for user {user_vk_id}. Amount: {amount}")
 
-    # Check if user exists. If not, log and maybe skip or create stub?
-    # Requirement: "If not expert ... just record"
-    # We need a user record to link subscription?
-    # Our DonutSubscription model has ForeignKey("users.vk_id")
-    # So we MUST have a user in 'users' table.
-
-    # Update or Create Subscription
-    # Use UPSERT logic.
-
-    # First ensure User exists?
-    # If user doesn't exist, we can't insert into donut_subscriptions because of FK.
-    # We should try to find user.
     user_res = await db.execute(select(User).filter(User.vk_id == user_vk_id))
     user = user_res.scalars().first()
 
     if not user:
-        # Create minimal user stub
-        # We don't have name/photo from this event usually.
-        # Maybe fetch from VK? For now, create with empty name or "Donut User"
         logger.info(f"User {user_vk_id} not found. Creating stub for Donut.")
         user = User(
             vk_id=user_vk_id,
             first_name="Donut",
             last_name="User",
-            photo_url="",  # Mandatory?
+            photo_url="",
             is_expert=False,
         )
         db.add(user)
-        # Flush to get it ready for FK
         await db.flush()
 
-    # Now handle subscription
     sub_res = await db.execute(
         select(DonutSubscription).filter(DonutSubscription.user_id == user_vk_id)
     )
@@ -128,10 +105,7 @@ async def handle_donut_active(
     await db.commit()
     await cache.delete(f"user_profile:{user_vk_id}")
 
-    # Notification logic
-    # "If he is expert and subscribes -> notify him"
     if user.is_expert and user.allow_notifications:
-        # Check event type to give proper message
         if event_type == "donut_subscription_create":
             msg = "Спасибо за поддержку! Подписка VK Donut оформлена. Ваш уровень обновлен."
             await notifier.send_message(user_vk_id, msg)
@@ -163,7 +137,6 @@ async def handle_donut_inactive(
         await db.commit()
         await cache.delete(f"user_profile:{user_vk_id}")
 
-        # Notify
         user_res = await db.execute(select(User).filter(User.vk_id == user_vk_id))
         user = user_res.scalars().first()
         if user and user.allow_notifications:

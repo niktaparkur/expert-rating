@@ -166,7 +166,7 @@ async def create_vote_for_expert(
             except Exception:
                 # Catch-all for other DB/code errors to avoid hanging locks if not auto-released (though aioredlock handles it)
                 raise
-            
+
             await cache.delete(f"user_profile:{vk_id}")
             await cache.delete(f"user_profile:{voter_id}")
 
@@ -189,11 +189,11 @@ async def cancel_vote_for_expert(
     cache: redis.Redis = Depends(get_redis),
 ):
     voter_vk_id = current_user["vk_id"]
-    
-    # Можно использовать revoke_data.comment для логирования или сохранения причины, 
-    # если логика withdraw_rating_vote это поддерживает. 
+
+    # Можно использовать revoke_data.comment для логирования или сохранения причины,
+    # если логика withdraw_rating_vote это поддерживает.
     # Пока просто передаем его, если потребуется расширение.
-    
+
     success = await expert_crud.withdraw_rating_vote(
         db=db, expert_vk_id=vk_id, voter_vk_id=voter_vk_id, rating_type=rating_type
     )
@@ -286,28 +286,33 @@ async def get_all_users(
     # Fetch all tariffs once for efficiency
     from src.models.tariff import Tariff
     from sqlalchemy import select
-    tariffs_result = await db.execute(select(Tariff).where(Tariff.is_active == True).order_by(Tariff.price.desc()))
+
+    tariffs_result = await db.execute(
+        select(Tariff).where(Tariff.is_active).order_by(Tariff.price.desc())
+    )
     all_tariffs = tariffs_result.scalars().all()
 
     # Re-iterate to populate tariff info efficiently
     final_response_users = []
     for user_data, (user, profile) in zip(response_users, users_with_profiles):
         if profile:
-             current_tariff_name = "Начальный"
-             
-             if user.forced_tariff_id:
-                 forced_tariff = next((t for t in all_tariffs if t.id == user.forced_tariff_id), None)
-                 if forced_tariff:
-                     current_tariff_name = forced_tariff.name
-             elif user.subscription and user.subscription.is_active:
+            current_tariff_name = "Начальный"
+
+            if user.forced_tariff_id:
+                forced_tariff = next(
+                    (t for t in all_tariffs if t.id == user.forced_tariff_id), None
+                )
+                if forced_tariff:
+                    current_tariff_name = forced_tariff.name
+            elif user.subscription and user.subscription.is_active:
                 for tariff in all_tariffs:
                     if user.subscription.amount >= tariff.price:
                         current_tariff_name = tariff.name
                         break
-             
-             user_data.tariff_plan = current_tariff_name
+
+            user_data.tariff_plan = current_tariff_name
         final_response_users.append(user_data)
-        
+
     return {
         "items": final_response_users,
         "total_count": total_count,
@@ -488,12 +493,14 @@ async def update_user_tariff(
         res = await db.execute(select(Tariff).where(Tariff.code == tariff_code))
         tariff = res.scalars().first()
         if not tariff:
-             raise HTTPException(status_code=404, detail="Tariff not found")
+            raise HTTPException(status_code=404, detail="Tariff not found")
         tariff_id = tariff.id
 
-    updated_user = await expert_crud.update_user_tariff(db, vk_id=user_vk_id, tariff_id=tariff_id)
+    updated_user = await expert_crud.update_user_tariff(
+        db, vk_id=user_vk_id, tariff_id=tariff_id
+    )
     if not updated_user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     await cache.delete(f"user_profile:{user_vk_id}")
     return {"status": "ok", "message": f"Tariff updated to {tariff_code}"}

@@ -31,11 +31,9 @@ class ExpertProfile(Base):
     performance_link = Column(Text)
     referrer_info = Column(Text)
 
-    # Показывать ли народный рейтинг в профиле
     show_community_rating = Column(Boolean, default=True, server_default="1")
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
-    # Связи
     user = relationship("User", back_populates="expert_profile")
     events = relationship(
         "Event", back_populates="expert", cascade="all, delete-orphan"

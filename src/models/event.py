@@ -24,9 +24,7 @@ class Event(Base):
 
     name = Column(String(128))
     description = Column(Text, nullable=True)
-    promo_word = Column(
-        String(100)
-    )  # Индекс и уникальность контролируем логикой и Redis
+    promo_word = Column(String(100))
 
     event_date = Column(TIMESTAMP(timezone=True), nullable=False)
     duration_minutes = Column(Integer)
@@ -37,7 +35,6 @@ class Event(Base):
     is_private = Column(Boolean, default=False)
     event_link = Column(Text, nullable=True)
 
-    # Поля для рассылок и уведомлений
     voter_thank_you_message = Column(Text, nullable=True)
     send_reminder = Column(Boolean, default=False, server_default="0")
     reminder_sent = Column(Boolean, default=False, server_default="0")

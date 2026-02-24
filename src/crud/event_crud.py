@@ -16,7 +16,6 @@ async def get_expert_active_event_count_current_month(
     db: AsyncSession, expert_id: int
 ) -> int:
     now = datetime.now(timezone.utc)
-    # Текущий календарный месяц (с начала 1-го числа)
     start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     query = select(func.count(Event.id)).where(

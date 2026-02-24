@@ -16,7 +16,6 @@ from .base import Base
 class User(Base):
     __tablename__ = "users"
 
-    # VK ID не автоинкремент, мы получаем его от VK
     vk_id = Column(BigInteger, primary_key=True, autoincrement=False)
 
     first_name = Column(String(255))
@@ -28,11 +27,9 @@ class User(Base):
     is_expert = Column(Boolean, default=False)
     is_admin = Column(Boolean, default=False)
 
-    # Настройки уведомлений
     allow_notifications = Column(Boolean, default=False, server_default="0")
     allow_expert_mailings = Column(Boolean, default=True, server_default="1")
 
-    # Связи (используем строки для Lazy Loading и избежания циклических импортов)
     expert_profile = relationship(
         "ExpertProfile",
         back_populates="user",

@@ -160,42 +160,40 @@ async def fetch_and_cache_user_profile(
                 f"{theme.category.name} > {theme.name}"
                 for theme in profile.selected_themes
             ]
-        # Tariff logic based on DonutSubscription
         current_tariff_name = "Начальный"
-        current_tariff_limit = 3 # Default fallback
+        current_tariff_limit = 3
 
-        # Fetch relevant tariffs
         from src.models.tariff import Tariff
         from sqlalchemy import select
-        
-        # Optimization: could cache this
-        tariffs_result = await db.execute(select(Tariff).where(Tariff.is_active == True).order_by(Tariff.price.desc()))
+
+        tariffs_result = await db.execute(
+            select(Tariff).where(Tariff.is_active).order_by(Tariff.price.desc())
+        )
         all_tariffs = tariffs_result.scalars().all()
-        
+
         start_tariff = next((t for t in all_tariffs if t.price == 0), None)
         if start_tariff:
             current_tariff_limit = start_tariff.event_limit
 
         if user.forced_tariff_id:
-             forced_tariff = next((t for t in all_tariffs if t.id == user.forced_tariff_id), None)
-             if forced_tariff:
-                 current_tariff_name = forced_tariff.name
-                 current_tariff_limit = forced_tariff.event_limit
+            forced_tariff = next(
+                (t for t in all_tariffs if t.id == user.forced_tariff_id), None
+            )
+            if forced_tariff:
+                current_tariff_name = forced_tariff.name
+                current_tariff_limit = forced_tariff.event_limit
         elif user.subscription and user.subscription.is_active:
             for tariff in all_tariffs:
                 if user.subscription.amount >= tariff.price:
                     current_tariff_name = tariff.name
                     current_tariff_limit = tariff.event_limit
                     break
-            
+
             if user.subscription.next_payment_date:
-                response_data.next_payment_date = (
-                    user.subscription.next_payment_date
-                )
-        
+                response_data.next_payment_date = user.subscription.next_payment_date
+
         response_data.tariff_plan = current_tariff_name
 
-        # Event usage logic
         if response_data.is_expert:
             limit = current_tariff_limit
             current_count = (

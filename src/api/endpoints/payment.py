@@ -123,12 +123,6 @@ async def yookassa_webhook(
                 if not tariff_name:
                     raise ValueError(f"Unknown tariff_id in metadata: {tariff_id}")
 
-                success = await expert_crud.update_expert_tariff(
-                    db=db, vk_id=user_vk_id, tariff_name=tariff_name
-                )
-                if not success:
-                    raise ValueError("Failed to update expert tariff in DB.")
-
                 await cache.delete(f"user_profile:{user_vk_id}")
                 await notifier.send_message(
                     peer_id=user_vk_id,

@@ -14,12 +14,6 @@ from .base import Base
 
 
 class ExpertRating(Base):
-    """
-    Текущее состояние рейтинга (Стейт).
-    Здесь хранится только ПОСЛЕДНЕЕ актуальное решение для каждого типа.
-    Один пользователь может иметь один "expert" и один "community" голос за одного эксперта.
-    """
-
     __tablename__ = "expert_ratings"
 
     expert_id = Column(
@@ -30,10 +24,8 @@ class ExpertRating(Base):
     voter_id = Column(
         BigInteger, ForeignKey("users.vk_id", ondelete="CASCADE"), primary_key=True
     )
-    # "expert" или "community"
     rating_type = Column(String(20), primary_key=True, default="community")
 
-    # 1 = Trust, -1 = Distrust, 0 = Neutral (снял голос / воздержался)
     vote_value = Column(Integer, nullable=False, default=0)
 
     updated_at = Column(
@@ -68,8 +60,6 @@ class EventFeedback(Base):
 
     comment = Column(Text, nullable=True)
 
-    # Какой был голос в момент написания этого отзыва/фидбека.
-    # 1 = Trust, -1 = Distrust, 0 = Neutral
     rating_snapshot = Column(Integer, nullable=False, default=0)
 
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())

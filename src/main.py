@@ -98,21 +98,53 @@ async def lifespan(app: FastAPI):
         try:
             from src.models.tariff import Tariff
             from sqlalchemy import select
-            
+
             # Create tables if not exist (quick fix for dev env)
             # await engine_bg.begin() as conn:
             #     await conn.run_sync(Base.metadata.create_all)
             # Actually, let's just check if they exist and seed
-            
+
             result = await db.execute(select(Tariff))
             existing = result.scalars().first()
             if not existing:
                 print("Seeding default tariffs...")
                 tariffs_to_create = [
-                    Tariff(code="tariff_start", name="Начальный", price=0, event_limit=3, event_duration_hours=1, max_votes_per_event=100, vk_donut_link=None),
-                    Tariff(code="tariff_standard", name="Стандарт", price=999, event_limit=10, event_duration_hours=12, max_votes_per_event=200, vk_donut_link="https://vk.com/exprating?w=donut_payment-216452802&levelId=2484"),
-                    Tariff(code="tariff_pro", name="Профи", price=3999, event_limit=30, event_duration_hours=24, max_votes_per_event=1000, vk_donut_link="https://vk.com/exprating?w=donut_payment-216452802&levelId=2485"),
-                    Tariff(code="tariff_unlimited", name="Безлимит", price=9999, event_limit=999999, event_duration_hours=72, max_votes_per_event=999999, vk_donut_link="https://vk.com/exprating?w=donut_payment-216452802&levelId=2486")
+                    Tariff(
+                        code="tariff_start",
+                        name="Начальный",
+                        price=0,
+                        event_limit=3,
+                        event_duration_hours=1,
+                        max_votes_per_event=100,
+                        vk_donut_link=None,
+                    ),
+                    Tariff(
+                        code="tariff_standard",
+                        name="Стандарт",
+                        price=999,
+                        event_limit=10,
+                        event_duration_hours=12,
+                        max_votes_per_event=200,
+                        vk_donut_link="https://vk.com/exprating?w=donut_payment-216452802&levelId=2484",
+                    ),
+                    Tariff(
+                        code="tariff_pro",
+                        name="Профи",
+                        price=3999,
+                        event_limit=30,
+                        event_duration_hours=24,
+                        max_votes_per_event=1000,
+                        vk_donut_link="https://vk.com/exprating?w=donut_payment-216452802&levelId=2485",
+                    ),
+                    Tariff(
+                        code="tariff_unlimited",
+                        name="Безлимит",
+                        price=9999,
+                        event_limit=999999,
+                        event_duration_hours=72,
+                        max_votes_per_event=999999,
+                        vk_donut_link="https://vk.com/exprating?w=donut_payment-216452802&levelId=2486",
+                    ),
                 ]
                 db.add_all(tariffs_to_create)
                 await db.commit()
@@ -147,7 +179,13 @@ app.add_middleware(
     allow_origin_regex=origin_regex,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["*", "Authorization", "X-Idempotency-Key", "Content-Type", "Set-Cookie"],
+    allow_headers=[
+        "*",
+        "Authorization",
+        "X-Idempotency-Key",
+        "Content-Type",
+        "Set-Cookie",
+    ],
 )
 
 app.include_router(experts.router, prefix="/api/v1")

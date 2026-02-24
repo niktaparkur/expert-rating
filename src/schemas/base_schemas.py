@@ -24,4 +24,3 @@ class TariffRead(BaseModel):
     features: list[TariffFeature]
     feature_headers: list[str]
     vk_donut_link: str | None = None
-

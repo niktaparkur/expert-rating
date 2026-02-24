@@ -55,7 +55,7 @@ async def apply_promo_code(
     await cache.set(
         cache_key,
         f'{{"final_price": {final_price}, "user_id": {apply_data.user_vk_id}}}',
-        ex=600,  # 10 минут
+        ex=600,
     )
 
     return {

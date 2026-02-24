@@ -22,7 +22,3 @@ async def get_all_regions(
     vk_id: int | None = Depends(get_optional_validated_vk_id),
 ):
     return await meta_crud.get_all_regions(db)
-
-
-
-

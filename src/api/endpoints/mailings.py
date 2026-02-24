@@ -34,7 +34,6 @@ async def create_mailing(
         new_mailing = await mailing_crud.create_mailing_request(
             db, expert_id, mailing_data, user_tariff
         )
-        # TODO: Уведомить администратора о новой рассылке на модерацию
         return new_mailing
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -59,9 +58,6 @@ async def approve_mailing(
     if not mailing:
         raise HTTPException(status_code=404, detail="Рассылка не найдена.")
 
-    # ВАЖНО: Сама отправка должна происходить в фоновом воркере,
-    # чтобы не блокировать API. Эндпоинт только меняет статус.
-
     return {"status": "ok", "message": "Mailing approved and scheduled for sending."}
 
 
@@ -78,7 +74,5 @@ async def reject_mailing(
     )
     if not mailing:
         raise HTTPException(status_code=404, detail="Рассылка не найдена.")
-
-    # TODO: Уведомить эксперта об отклонении
 
     return {"status": "ok", "message": "Mailing rejected."}

@@ -11,7 +11,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     custom_errors = []
 
     for error in errors:
-        # Проверяем ошибки URL
         if error["type"] == "url_scheme":
             custom_errors.append(
                 {
