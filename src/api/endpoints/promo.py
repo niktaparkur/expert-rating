@@ -1,70 +1,47 @@
-import uuid
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 import redis.asyncio as redis
-from src.core.dependencies import get_db, get_current_admin_user, get_redis
+
+from src.core.dependencies import (
+    get_db,
+    get_current_admin_user,
+    get_current_user,
+    get_redis,
+)
 from src.crud import promo_crud
 from src.schemas import promo_schemas
-from .tariffs import TARIFFS_DATA_LIST
-from sqlalchemy import select
-
-from ...models import PromoCode
+from src.models import Tariff
 
 router = APIRouter(prefix="/promo", tags=["Promo Codes"])
 
 
-@router.post("/apply", response_model=promo_schemas.PromoCodeApplyResponse)
-async def apply_promo_code(
-    apply_data: promo_schemas.PromoCodeApply,
+@router.post("/activate", status_code=200)
+async def activate_promo(
+    req: promo_schemas.PromoCodeActivateRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
     cache: redis.Redis = Depends(get_redis),
 ):
-    promo_code = await promo_crud.validate_and_get_promo_code(
-        db, code=apply_data.code, user_vk_id=apply_data.user_vk_id
-    )
-
-    if not promo_code:
-        basic_promo = await db.execute(
-            select(PromoCode).where(PromoCode.code == apply_data.code.upper())
-        )
-        if basic_promo.scalars().first():
-            raise HTTPException(
-                status_code=403, detail="Лимит активаций для этого промокода исчерпан."
-            )
-        else:
-            raise HTTPException(
-                status_code=404, detail="Промокод не найден, истек или неактивен."
-            )
-
-    target_tariff = next(
-        (t for t in TARIFFS_DATA_LIST if t["id"] == apply_data.tariff_id), None
-    )
-    if not target_tariff or target_tariff["price_votes"] == 0:
-        raise HTTPException(
-            status_code=400, detail="Промокод не применим к этому тарифу."
+    """
+    Активация промокода пользователем.
+    Привязывает forced_tariff_id к пользователю.
+    """
+    try:
+        promo = await promo_crud.activate_promo_code_for_user(
+            db, code=req.code, user_vk_id=current_user["vk_id"]
         )
 
-    original_price = target_tariff["price_votes"]
-    discount = promo_code.discount_percent
-    final_price = round(original_price * (100 - discount) / 100)
+        await cache.delete(f"user_profile:{current_user['vk_id']}")
 
-    order_context_id = str(uuid.uuid4())
+        tariff = await db.get(Tariff, promo.tariff_id)
+        tariff_name = tariff.name if tariff else "Специальный"
 
-    cache_key = f"order_context:{order_context_id}"
-    await cache.set(
-        cache_key,
-        f'{{"final_price": {final_price}, "user_id": {apply_data.user_vk_id}}}',
-        ex=600,
-    )
-
-    return {
-        "original_price": original_price,
-        "discount_percent": discount,
-        "final_price": final_price,
-        "code": promo_code.code,
-        "order_context_id": order_context_id,
-    }
+        return {
+            "status": "ok",
+            "message": f"Промокод успешно активирован! Вам начислен тариф «{tariff_name}»",
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post(

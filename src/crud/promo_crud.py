@@ -1,65 +1,35 @@
-from typing import Optional, List, Tuple
-
+from typing import Optional
 from sqlalchemy import desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from loguru import logger
+from sqlalchemy.orm import selectinload
 
-from src.models import PromoCode
-from src.schemas import promo_schemas
-
-
-async def validate_and_get_promo_code(
-    db: AsyncSession, code: str, user_vk_id: int
-) -> Optional[PromoCode]:
-    if not code:
-        return None
-
-    query = select(PromoCode).where(PromoCode.code == code.upper())
-    result = await db.execute(query)
-    promo = result.scalars().first()
-
-    logger.debug(f"Validating promo code '{code}' for user '{user_vk_id}'.")
-
-    if not promo:
-        logger.warning(f"Promo code '{code}' not found.")
-        return None
-
-    if not promo.is_active:
-        logger.warning(f"Promo code '{promo.code}' is inactive.")
-        return None
-
-    logger.success(f"Promo code '{promo.code}' is valid.")
-    return promo
+from src.models import PromoCode, PromoActivation, User
 
 
-async def create_promo_code(
-    db: AsyncSession, promo_data: promo_schemas.PromoCodeCreate
-) -> PromoCode:
-    existing_code_res = await db.execute(
+async def create_promo_code(db: AsyncSession, promo_data) -> PromoCode:
+    existing = await db.execute(
         select(PromoCode).where(PromoCode.code == promo_data.code.upper())
     )
-    if existing_code_res.scalars().first():
-        raise ValueError("A promo code with this code already exists.")
+    if existing.scalars().first():
+        raise ValueError("Промокод с таким текстом уже существует.")
 
-    db_promo_code = PromoCode(
+    db_promo = PromoCode(
         code=promo_data.code.upper(),
+        tariff_id=promo_data.tariff_id,
+        activations_limit=promo_data.activations_limit,
         is_active=promo_data.is_active,
     )
-    db.add(db_promo_code)
+    db.add(db_promo)
     await db.commit()
-    await db.refresh(db_promo_code)
-    return db_promo_code
+    await db.refresh(db_promo)
+    return db_promo
 
 
-async def get_all_promo_codes_paginated(
-    db: AsyncSession, page: int, size: int
-) -> Tuple[List[PromoCode], int]:
-    base_query = select(PromoCode)
-
+async def get_all_promo_codes_paginated(db: AsyncSession, page: int, size: int):
+    base_query = select(PromoCode).options(selectinload(PromoCode.tariff))
     count_query = select(func.count()).select_from(base_query.subquery())
-    total_count_res = await db.execute(count_query)
-    total_count = total_count_res.scalar_one()
+    total_count = (await db.execute(count_query)).scalar_one()
 
     paginated_query = (
         base_query.order_by(desc(PromoCode.id)).offset((page - 1) * size).limit(size)
@@ -70,26 +40,64 @@ async def get_all_promo_codes_paginated(
 
 
 async def update_promo_code(
-    db: AsyncSession, promo_id: int, promo_data: promo_schemas.PromoCodeCreate
+    db: AsyncSession, promo_id: int, promo_data
 ) -> Optional[PromoCode]:
-    result = await db.execute(select(PromoCode).where(PromoCode.id == promo_id))
-    db_promo_code = result.scalars().first()
-    if not db_promo_code:
+    db_promo = await db.get(PromoCode, promo_id)
+    if not db_promo:
         return None
-
-    db_promo_code.code = promo_data.code.upper()
-    db_promo_code.is_active = promo_data.is_active
-
+    db_promo.code = promo_data.code.upper()
+    db_promo.tariff_id = promo_data.tariff_id
+    db_promo.activations_limit = promo_data.activations_limit
+    db_promo.is_active = promo_data.is_active
     await db.commit()
-    await db.refresh(db_promo_code)
-    return db_promo_code
+    await db.refresh(db_promo)
+    return db_promo
 
 
 async def delete_promo_code(db: AsyncSession, promo_id: int) -> bool:
-    result = await db.execute(select(PromoCode).where(PromoCode.id == promo_id))
-    db_promo_code = result.scalars().first()
-    if db_promo_code:
-        await db.delete(db_promo_code)
+    db_promo = await db.get(PromoCode, promo_id)
+    if db_promo:
+        await db.delete(db_promo)
         await db.commit()
         return True
     return False
+
+
+async def activate_promo_code_for_user(db: AsyncSession, code: str, user_vk_id: int):
+    result = await db.execute(select(PromoCode).where(PromoCode.code == code.upper()))
+    promo = result.scalars().first()
+
+    if not promo:
+        raise ValueError("Промокод не найден.")
+    if not promo.is_active:
+        raise ValueError("Промокод неактивен.")
+
+    activation_check = await db.execute(
+        select(PromoActivation).where(
+            PromoActivation.promo_id == promo.id, PromoActivation.user_id == user_vk_id
+        )
+    )
+    if activation_check.scalars().first():
+        raise ValueError("Вы уже активировали этот промокод.")
+
+    if promo.activations_limit is not None:
+        count_res = await db.execute(
+            select(func.count(PromoActivation.id)).where(
+                PromoActivation.promo_id == promo.id
+            )
+        )
+        used_count = count_res.scalar_one()
+        if used_count >= promo.activations_limit:
+            raise ValueError("Лимит активаций этого промокода исчерпан.")
+
+    user = await db.get(User, user_vk_id)
+    if not user:
+        raise ValueError("Пользователь не найден.")
+
+    user.forced_tariff_id = promo.tariff_id
+
+    activation = PromoActivation(promo_id=promo.id, user_id=user_vk_id)
+    db.add(activation)
+
+    await db.commit()
+    return promo

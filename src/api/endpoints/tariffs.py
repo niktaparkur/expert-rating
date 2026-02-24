@@ -12,7 +12,9 @@ router = APIRouter(prefix="/tariffs", tags=["Tariffs"])
 
 @router.get("", response_model=List[TariffRead])
 async def get_all_tariffs(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Tariff).where(Tariff).order_by(Tariff.price))
+    result = await db.execute(
+        select(Tariff).where(Tariff.is_active).order_by(Tariff.price)
+    )
     tariffs = result.scalars().all()
 
     response = []
@@ -72,7 +74,8 @@ async def get_all_tariffs(db: AsyncSession = Depends(get_db)):
 
         response.append(
             {
-                "id": t.code,
+                "id": t.id,
+                "code": t.code,
                 "name": t.name,
                 "price_str": price_str,
                 "price_votes": int(t.price),

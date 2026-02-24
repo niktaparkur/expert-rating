@@ -74,7 +74,7 @@ export interface UserData {
 
 export interface CurrentVoteStatus {
   has_voted: boolean;
-  vote_value: number; // 1, -1, 0
+  vote_value: number;
   last_comment?: string;
 }
 

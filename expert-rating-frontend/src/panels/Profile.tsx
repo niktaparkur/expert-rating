@@ -45,7 +45,13 @@ export const Profile = ({
 }: ProfileProps) => {
   const { apiGet, apiDelete, apiPost } = useApi();
   const { currentUser: user, setCurrentUser } = useUserStore();
-  const { setPopout, setSnackbar, setActiveModal, setHistoryTargetId, setHistoryRatingType } = useUiStore();
+  const {
+    setPopout,
+    setSnackbar,
+    setActiveModal,
+    setHistoryTargetId,
+    setHistoryRatingType,
+  } = useUiStore();
   const queryClient = useQueryClient();
 
   const [isFetching, setFetching] = useState(false);
@@ -74,7 +80,9 @@ export const Profile = ({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["userVotes", user?.vk_id] }),
         user?.is_expert
-          ? queryClient.invalidateQueries({ queryKey: ["myEvents", user?.vk_id] })
+          ? queryClient.invalidateQueries({
+              queryKey: ["myEvents", user?.vk_id],
+            })
           : Promise.resolve(),
       ]);
     } catch (e) {
@@ -84,13 +92,19 @@ export const Profile = ({
     }
   }, [apiGet, setCurrentUser, queryClient, user?.vk_id, user?.is_expert]);
 
-  const handleOpenHistory = (expertId: number, ratingType: "expert" | "community") => {
+  const handleOpenHistory = (
+    expertId: number,
+    ratingType: "expert" | "community",
+  ) => {
     setHistoryTargetId(expertId);
     setHistoryRatingType(ratingType);
     setActiveModal("interaction-history-modal");
   };
 
-  const performRemoveVote = async (expertId: number, ratingType: "expert" | "community") => {
+  const performRemoveVote = async (
+    expertId: number,
+    ratingType: "expert" | "community",
+  ) => {
     setPopout(<Spinner size="xl" />);
     try {
       await apiDelete(`/experts/${expertId}/vote?rating_type=${ratingType}`);
@@ -136,7 +150,10 @@ export const Profile = ({
     }
   };
 
-  const handleRemoveVote = (expertId: number, ratingType: "expert" | "community") => {
+  const handleRemoveVote = (
+    expertId: number,
+    ratingType: "expert" | "community",
+  ) => {
     setHistoryTargetId(expertId);
     setHistoryRatingType(ratingType);
     setActiveModal("revoke-vote-modal");
@@ -150,9 +167,7 @@ export const Profile = ({
         ? vote.event?.expert_info
         : vote.expert;
       const expertName = `${target?.first_name || ""} ${target?.last_name || ""}`;
-      return (
-        expertName.toLowerCase().includes(query)
-      );
+      return expertName.toLowerCase().includes(query);
     });
   }, [searchQueryVotes, votes]);
 
@@ -286,7 +301,7 @@ export const Profile = ({
               key={`${vote.expert_id}_${vote.is_expert_vote}`}
               vote={vote}
               onOpenHistory={handleOpenHistory}
-            // onRemoveVote={handleRemoveVote}
+              // onRemoveVote={handleRemoveVote}
             />
           ))}
         </div>

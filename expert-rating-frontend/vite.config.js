@@ -56,10 +56,15 @@ export default defineConfig({
   ],
 
   server: {
-    allowedHosts: "so.potokrechi.ru",
+    allowedHosts: [
+      "vacuously-phenomenal-buck.cloudpub.ru",
+      "api.exprating.ru",
+      "localhost",
+      "127.0.0.1"
+    ],
     hmr: {
       protocol: "wss",
-      host: "so.potokrechi.ru",
+      // host: "so.potokrechi.ru",
       clientPort: 443,
     },
   },

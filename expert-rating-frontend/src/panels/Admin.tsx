@@ -161,9 +161,9 @@ export const Admin = ({ id }: AdminPanelProps) => {
   const [updateRequests, setUpdateRequests] = useState<UpdateRequest[]>([]);
   const [loadingUpdates, setLoadingUpdates] = useState(false);
 
-  // Tariff Change State
   const [tariffs, setTariffs] = useState<any[]>([]);
-  const [selectedUserForTariff, setSelectedUserForTariff] = useState<UserData | null>(null);
+  const [selectedUserForTariff, setSelectedUserForTariff] =
+    useState<UserData | null>(null);
   const [tariffCode, setTariffCode] = useState<string>("");
 
   const showErrorSnackbar = (message: string) =>
@@ -221,9 +221,11 @@ export const Admin = ({ id }: AdminPanelProps) => {
 
   useEffect(() => {
     if (activeModal === "tariff-change-modal" && tariffs.length === 0) {
-      apiGet<any[]>("/tariffs").then((data) => {
-        setTariffs(data || []);
-      }).catch(() => { });
+      apiGet<any[]>("/tariffs")
+        .then((data) => {
+          setTariffs(data || []);
+        })
+        .catch(() => {});
     }
   }, [activeModal, apiGet, tariffs.length]);
 
@@ -231,23 +233,31 @@ export const Admin = ({ id }: AdminPanelProps) => {
     if (!selectedUserForTariff) return;
     setPopout(<ScreenSpinner state="loading" />);
     try {
-      await apiPut(`/experts/admin/${selectedUserForTariff.vk_id}/tariff?tariff_code=${tariffCode}`, {});
-      setUsers((prev) => prev.map(u => {
-        if (u.vk_id === selectedUserForTariff.vk_id) {
-          const tName = tariffs.find(t => t.id === tariffCode)?.name || "Unknown";
-          return { ...u, tariff_plan: tName };
-        }
-        return u;
-      }));
+      await apiPut(
+        `/experts/admin/${selectedUserForTariff.vk_id}/tariff?tariff_code=${tariffCode}`,
+        {},
+      );
+      setUsers((prev) =>
+        prev.map((u) => {
+          if (u.vk_id === selectedUserForTariff.vk_id) {
+            const tName =
+              tariffs.find((t) => t.id === tariffCode)?.name || "Unknown";
+            return { ...u, tariff_plan: tName };
+          }
+          return u;
+        }),
+      );
       setActiveModal(null);
       setSnackbar(
         <Snackbar
           duration={3000}
           onClose={() => setSnackbar(null)}
-          before={<Icon24CheckCircleOn fill="var(--vkui--color_icon_positive)" />}
+          before={
+            <Icon24CheckCircleOn fill="var(--vkui--color_icon_positive)" />
+          }
         >
           Тариф успешно изменен
-        </Snackbar>
+        </Snackbar>,
       );
     } catch (e) {
       showErrorSnackbar((e as Error).message);
@@ -344,14 +354,14 @@ export const Admin = ({ id }: AdminPanelProps) => {
     }
   }, [selectedTab, debouncedSearch, usersFilter]);
 
-  // useEffect(() => {
-  //   if (selectedTab === "promo") {
-  //     setPromoCodes([]);
-  //     setPromoCodesPage(1);
-  //     setHasMorePromoCodes(true);
-  //     fetchPromoCodes(true);
-  //   }
-  // }, [selectedTab]);
+  useEffect(() => {
+    if (selectedTab === "promo") {
+      setPromoCodes([]);
+      setPromoCodesPage(1);
+      setHasMorePromoCodes(true);
+      fetchPromoCodes(true);
+    }
+  }, [selectedTab]);
 
   useEffect(() => {
     if (selectedTab !== "users") return;
@@ -570,8 +580,27 @@ export const Admin = ({ id }: AdminPanelProps) => {
       }
       setActiveModal(null);
       fetchPromoCodes(true);
-    } catch (err) {
-      showErrorSnackbar((err as Error).message);
+    } catch (err: any) {
+      let errorMessage = "Произошла ошибка";
+
+      if (typeof err.message === "string") {
+        try {
+          if (err.message.includes("[object Object]")) {
+            errorMessage =
+              "Ошибка валидации данных. Проверьте заполненные поля.";
+          } else {
+            errorMessage = err.message;
+          }
+        } catch {
+          errorMessage = err.message;
+        }
+      }
+
+      if (Array.isArray(err.detail)) {
+        errorMessage = err.detail.map((e: any) => e.msg).join(", ");
+      }
+
+      showErrorSnackbar(errorMessage);
     } finally {
       setPopout(null);
     }
@@ -874,7 +903,8 @@ export const Admin = ({ id }: AdminPanelProps) => {
           {selectedUserForTariff && (
             <Div>
               <InfoRow header="Пользователь">
-                {selectedUserForTariff.first_name} {selectedUserForTariff.last_name}
+                {selectedUserForTariff.first_name}{" "}
+                {selectedUserForTariff.last_name}
               </InfoRow>
               <InfoRow header="Текущий тариф" style={{ marginTop: 10 }}>
                 {selectedUserForTariff.tariff_plan || "Начальный"}
@@ -887,12 +917,21 @@ export const Admin = ({ id }: AdminPanelProps) => {
               onChange={(e) => setTariffCode(e.target.value)}
               options={[
                 { label: "Сбросить (авто)", value: "reset" },
-                ...tariffs.map(t => ({ label: `${t.name} (${t.price_str})`, value: t.id }))
+                ...tariffs.map((t) => ({
+                  label: `${t.name} (${t.price_str})`,
+                  value: t.id,
+                })),
               ]}
             />
           </FormItem>
           <Div>
-            <Button size="l" stretched mode="primary" onClick={handleTariffChange} disabled={!tariffCode}>
+            <Button
+              size="l"
+              stretched
+              mode="primary"
+              onClick={handleTariffChange}
+              disabled={!tariffCode}
+            >
               Сохранить
             </Button>
           </Div>
@@ -926,13 +965,6 @@ export const Admin = ({ id }: AdminPanelProps) => {
           >
             Обновления
           </TabsItem>
-          {/*<TabsItem*/}
-          {/*  selected={selectedTab === "mailings"}*/}
-          {/*  onClick={() => setSelectedTab("mailings")}*/}
-          {/*  id="tab-mailings"*/}
-          {/*>*/}
-          {/*  Рассылки*/}
-          {/*</TabsItem>*/}
           <TabsItem
             selected={selectedTab === "users"}
             onClick={() => setSelectedTab("users")}
@@ -940,13 +972,13 @@ export const Admin = ({ id }: AdminPanelProps) => {
           >
             Пользователи
           </TabsItem>
-          {/*<TabsItem*/}
-          {/*  selected={selectedTab === "promo"}*/}
-          {/*  onClick={() => setSelectedTab("promo")}*/}
-          {/*  id="tab-promo"*/}
-          {/*>*/}
-          {/*  Промокоды*/}
-          {/*</TabsItem>*/}
+          <TabsItem
+            selected={selectedTab === "promo"}
+            onClick={() => setSelectedTab("promo")}
+            id="tab-promo"
+          >
+            Промокоды
+          </TabsItem>
         </Tabs>
       </HorizontalScroll>
 
@@ -1017,7 +1049,6 @@ export const Admin = ({ id }: AdminPanelProps) => {
                   </Header>
                 }
               >
-                {/* Сравнение РЕГИОНА */}
                 {req.new_data.region &&
                   req.new_data.region !== req.expert_info?.region && (
                     <SimpleCell multiline disabled>
@@ -1097,7 +1128,7 @@ export const Admin = ({ id }: AdminPanelProps) => {
 
                 {req.new_data.performance_link &&
                   req.new_data.performance_link !==
-                  req.expert_info?.performance_link && (
+                    req.expert_info?.performance_link && (
                     <SimpleCell multiline disabled>
                       <InfoRow header="Пример выступления (Было)">
                         <Text
@@ -1249,42 +1280,41 @@ export const Admin = ({ id }: AdminPanelProps) => {
           )}
         </Group>
       </div>
-
-      {/*<div*/}
-      {/*  style={{*/}
-      {/*    display: selectedTab === "promo" ? "block" : "none",*/}
-      {/*    paddingBottom: 60,*/}
-      {/*  }}*/}
-      {/*>*/}
-      {/*  <Group>*/}
-      {/*    <Div>*/}
-      {/*      <Button*/}
-      {/*        stretched*/}
-      {/*        size="l"*/}
-      {/*        mode="secondary"*/}
-      {/*        onClick={() => openPromoCodeModal(null)}*/}
-      {/*      >*/}
-      {/*        Создать промокод*/}
-      {/*      </Button>*/}
-      {/*    </Div>*/}
-      {/*  </Group>*/}
-      {/*  <Group header={<Header>Список промокодов</Header>}>*/}
-      {/*    {promoCodes.map((promo) => (*/}
-      {/*      <PromoCodeCard*/}
-      {/*        key={promo.id}*/}
-      {/*        promoCode={promo}*/}
-      {/*        onMenuClick={openPromoMenu}*/}
-      {/*      />*/}
-      {/*    ))}*/}
-      {/*    <div ref={promoObserverRef} style={{ height: "1px" }} />*/}
-      {/*    {loadingPromoCodes && (*/}
-      {/*      <Spinner size="l" style={{ margin: "20px 0" }} />*/}
-      {/*    )}*/}
-      {/*    {!loadingPromoCodes && promoCodes.length === 0 && (*/}
-      {/*      <Placeholder title="Промокоды не найдены" />*/}
-      {/*    )}*/}
-      {/*  </Group>*/}
-      {/*</div>*/}
+      <div
+        style={{
+          display: selectedTab === "promo" ? "block" : "none",
+          paddingBottom: 60,
+        }}
+      >
+        <Group>
+          <Div>
+            <Button
+              stretched
+              size="l"
+              mode="secondary"
+              onClick={() => openPromoCodeModal(null)}
+            >
+              Создать промокод
+            </Button>
+          </Div>
+        </Group>
+        <Group header={<Header>Список промокодов</Header>}>
+          {promoCodes.map((promo) => (
+            <PromoCodeCard
+              key={promo.id}
+              promoCode={promo}
+              onMenuClick={openPromoMenu}
+            />
+          ))}
+          <div ref={promoObserverRef} style={{ height: "1px" }} />
+          {loadingPromoCodes && (
+            <Spinner size="l" style={{ margin: "20px 0" }} />
+          )}
+          {!loadingPromoCodes && promoCodes.length === 0 && (
+            <Placeholder title="Промокоды не найдены" />
+          )}
+        </Group>
+      </div>
     </Panel>
   );
 };

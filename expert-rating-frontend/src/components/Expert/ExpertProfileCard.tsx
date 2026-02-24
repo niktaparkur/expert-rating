@@ -90,14 +90,6 @@ export const ExpertProfileCard = ({
 
   return (
     <Card mode="shadow" style={{ position: "relative" }}>
-      {/* <IconButton
-        onClick={onReportClick}
-        aria-label="Скачать отчет"
-        style={{ position: "absolute", top: 4, right: 4, zIndex: 2 }}
-      >
-        <Icon28DocumentTextOutline />
-      </IconButton> */}
-
       <Div className="expert-profile-header">
         <Avatar size={96} src={photo_url} />
         <div className="expert-profile-name-container">

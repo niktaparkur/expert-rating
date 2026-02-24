@@ -15,8 +15,7 @@ from src.api.endpoints import (
     tariffs,
     users,
     meta,
-    # promo,
-    # mailings,
+    promo,
     vk_callback,
 )
 from src.core.config import settings
@@ -93,16 +92,10 @@ async def check_for_reminders():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Seeding Tariffs
     async with AsyncSessionLocal_bg() as db:
         try:
             from src.models.tariff import Tariff
             from sqlalchemy import select
-
-            # Create tables if not exist (quick fix for dev env)
-            # await engine_bg.begin() as conn:
-            #     await conn.run_sync(Base.metadata.create_all)
-            # Actually, let's just check if they exist and seed
 
             result = await db.execute(select(Tariff))
             existing = result.scalars().first()
@@ -172,7 +165,7 @@ app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(IntegrityError, integrity_error_handler)
 app.add_exception_handler(IdempotentException, idempotent_exception_handler)
 
-origin_regex = r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|https?://.*\.potokrechi\.ru|https://vk\.com)$"
+origin_regex = r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|https?://.*\.potokrechi\.ru|https?://.*\.cloudpub\.ru|https://vk\.com)$"
 
 app.add_middleware(
     CORSMiddleware,
@@ -195,7 +188,7 @@ app.include_router(tariffs.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(meta.router, prefix="/api/v1")
 app.include_router(vk_callback.router, prefix="/api/v1")
-# app.include_router(promo.router, prefix="/api/v1")
+app.include_router(promo.router, prefix="/api/v1")
 # app.include_router(mailings.router, prefix="/api/v1")
 
 

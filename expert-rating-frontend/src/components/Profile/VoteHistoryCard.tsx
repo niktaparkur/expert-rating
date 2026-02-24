@@ -21,9 +21,11 @@ export const VoteHistoryCard = ({
   const routeNavigator = useRouteNavigator();
 
   const isExpertType = vote.is_expert_vote;
-  const ratingTypeLabel = isExpertType ? "Экспертный рейтинг" : "Народный рейтинг";
+  const ratingTypeLabel = isExpertType
+    ? "Экспертный рейтинг"
+    : "Народный рейтинг";
 
-  const currentVoteValue = vote.rating_snapshot; 
+  const currentVoteValue = vote.rating_snapshot;
 
   let VoteIcon = Icon20InfoCircleOutline;
   let voteText = "Нейтрально";
@@ -39,10 +41,13 @@ export const VoteHistoryCard = ({
     voteColor = "var(--vkui--color_icon_negative)";
   }
 
-  const expert = isExpertType && vote.event ? vote.event.expert_info : vote.expert;
+  const expert =
+    isExpertType && vote.event ? vote.event.expert_info : vote.expert;
   if (!expert) return null;
 
-  const currentType: "expert" | "community" = isExpertType ? "expert" : "community";
+  const currentType: "expert" | "community" = isExpertType
+    ? "expert"
+    : "community";
 
   const handleNavigateToExpert = () => {
     routeNavigator.push(`/expert/${expert.vk_id}`);
@@ -53,11 +58,16 @@ export const VoteHistoryCard = ({
       <RichCell
         disabled
         multiline
-        // Центрирование контента через пропсы VKUI и flex
-        style={{ display: 'flex', alignItems: 'center' }} 
+        style={{ display: "flex", alignItems: "center" }}
         before={
-          <div style={{ display: 'flex', alignItems: 'center', alignSelf: 'center' }}>
-             <Avatar
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              alignSelf: "center",
+            }}
+          >
+            <Avatar
               size={48}
               src={expert.photo_url}
               onClick={handleNavigateToExpert}
@@ -67,17 +77,30 @@ export const VoteHistoryCard = ({
         }
         subtitle={
           <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-            <Text style={{ color: "var(--vkui--color_text_subhead)", fontSize: "12px" }}>
+            <Text
+              style={{
+                color: "var(--vkui--color_text_subhead)",
+                fontSize: "12px",
+              }}
+            >
               {ratingTypeLabel}
             </Text>
             {vote.comment && (
-              <Text style={{ color: "var(--vkui--color_text_primary)", fontSize: "14px", margin: "2px 0" }}>
+              <Text
+                style={{
+                  color: "var(--vkui--color_text_primary)",
+                  fontSize: "14px",
+                  margin: "2px 0",
+                }}
+              >
                 {vote.comment}
               </Text>
             )}
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <VoteIcon width={14} height={14} />
-              <Text style={{ color: voteColor, fontSize: "13px", fontWeight: 500 }}>
+              <Text
+                style={{ color: voteColor, fontSize: "13px", fontWeight: 500 }}
+              >
                 {voteText}
               </Text>
             </div>

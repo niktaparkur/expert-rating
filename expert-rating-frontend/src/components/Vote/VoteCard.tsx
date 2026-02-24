@@ -67,13 +67,10 @@ export const VoteCard: React.FC<VoteCardProps> = ({
 
   const handleButtonClick = (val: number) => {
     if (selection === val && initialVoteValue === val) {
-      // If clicking the already selected initial vote, switch to remove mode
       setIsRemoveMode(!isRemoveMode);
-      // setComment(""); // Comment preserved
     } else {
       setSelection(val);
       setIsRemoveMode(false);
-      // setComment(""); // Comment preserved
     }
   };
 
@@ -97,8 +94,7 @@ export const VoteCard: React.FC<VoteCardProps> = ({
   };
 
   const isSubmitDisabled =
-    (selection === 0 && !isRemoveMode) ||
-    comment.trim().length < 3;
+    (selection === 0 && !isRemoveMode) || comment.trim().length < 3;
 
   return (
     <>
@@ -125,7 +121,10 @@ export const VoteCard: React.FC<VoteCardProps> = ({
                   <Icon16CancelCircleOutline
                     style={{
                       opacity: isRemoveMode && selection === 1 ? 1 : 0.5,
-                      color: isRemoveMode && selection === 1 ? "var(--vkui--color_icon_negative)" : "inherit"
+                      color:
+                        isRemoveMode && selection === 1
+                          ? "var(--vkui--color_icon_negative)"
+                          : "inherit",
                     }}
                   />
                 )
@@ -150,7 +149,10 @@ export const VoteCard: React.FC<VoteCardProps> = ({
                   <Icon16CancelCircleOutline
                     style={{
                       opacity: isRemoveMode && selection === -1 ? 1 : 0.5,
-                      color: isRemoveMode && selection === -1 ? "var(--vkui--color_icon_negative)" : "inherit"
+                      color:
+                        isRemoveMode && selection === -1
+                          ? "var(--vkui--color_icon_negative)"
+                          : "inherit",
                     }}
                   />
                 )
@@ -162,7 +164,13 @@ export const VoteCard: React.FC<VoteCardProps> = ({
           </ButtonGroup>
         </Div>
 
-        <FormItem top={isRemoveMode ? "Причина отзыва голоса (обязательно)" : "Ваш отзыв (обязательно)"}>
+        <FormItem
+          top={
+            isRemoveMode
+              ? "Причина отзыва голоса (обязательно)"
+              : "Ваш отзыв (обязательно)"
+          }
+        >
           <Textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
@@ -183,7 +191,11 @@ export const VoteCard: React.FC<VoteCardProps> = ({
           onClick={handleSubmit}
           disabled={isSubmitDisabled}
         >
-          {isRemoveMode ? "Удалить голос" : initialVoteValue !== 0 ? "Сохранить изменения" : "Отправить"}
+          {isRemoveMode
+            ? "Удалить голос"
+            : initialVoteValue !== 0
+              ? "Сохранить изменения"
+              : "Отправить"}
         </Button>
       </Div>
     </>

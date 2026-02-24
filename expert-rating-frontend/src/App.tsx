@@ -63,6 +63,7 @@ import debounce from "lodash.debounce";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Tooltip } from "@vkontakte/vkui";
 
+import { TariffActionModal } from "./components/Shared/TariffActionModal";
 import { Onboarding } from "./components/Shared/Onboarding";
 import { LegalConsent } from "./components/Shared/LegalConsent";
 import { LEGAL_DOCUMENTS } from "./data/legalDocuments";
@@ -154,7 +155,6 @@ export const App = () => {
 
   const isMobile = platform === Platform.IOS || platform === Platform.ANDROID;
 
-
   const { currentUser, setCurrentUser } = useUserStore();
   const {
     activeModal,
@@ -167,6 +167,7 @@ export const App = () => {
     historyTargetId,
     historyRatingType,
     voteSuccessMessage,
+    selectedTariffForModal,
   } = useUiStore();
 
   const [promoInput, setPromoInput] = useState("");
@@ -318,9 +319,12 @@ export const App = () => {
     setPopout(<Spinner size="xl" />);
     try {
       const ratingType = historyRatingType || "community";
-      await apiDelete(`/experts/${historyTargetId}/vote?rating_type=${ratingType}`, {
-        comment,
-      });
+      await apiDelete(
+        `/experts/${historyTargetId}/vote?rating_type=${ratingType}`,
+        {
+          comment,
+        },
+      );
 
       await queryClient.invalidateQueries({
         queryKey: ["userVotes"],
@@ -494,7 +498,8 @@ export const App = () => {
 
   const promoLength = promoInput.trim().length;
 
-  const isPromoLengthError = promoLength > 0 && (promoLength < 4 || promoLength > 20);
+  const isPromoLengthError =
+    promoLength > 0 && (promoLength < 4 || promoLength > 20);
 
   const isPromoErrorState =
     isPromoLengthError ||
@@ -528,32 +533,33 @@ export const App = () => {
             await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
           }
         } catch (error: any) {
-          // Извлекаем код ошибки из Bridge
           const errorCode = error?.error_data?.error_code;
 
           if (errorCode === 11) {
-            // Ошибка доступа из-за модерации
             setSnackbar(
               <Snackbar
                 onClose={() => setSnackbar(null)}
-                before={<Icon24InfoCircleOutline fill="var(--vkui--color_icon_accent)" />}
+                before={
+                  <Icon24InfoCircleOutline fill="var(--vkui--color_icon_accent)" />
+                }
               >
-                Уведомления станут доступны после прохождения модерации приложения.
-              </Snackbar>
+                Уведомления станут доступны после прохождения модерации
+                приложения.
+              </Snackbar>,
             );
           } else if (errorCode === 4) {
-            // Пользователь просто нажал "Отмена" — не показываем ошибку
             console.log("User cancelled notifications request");
           } else {
-            // Любая другая техническая ошибка
             setSnackbar(
-              <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+              <Snackbar
+                onClose={() => setSnackbar(null)}
+                before={<Icon16Cancel />}
+              >
                 Не удалось включить уведомления. Попробуйте позже.
-              </Snackbar>
+              </Snackbar>,
             );
           }
 
-          // Сбрасываем тумблер в UI в исходное состояние (false)
           await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
         }
       } else {
@@ -603,8 +609,6 @@ export const App = () => {
       }))
       .filter((group) => group.items.length > 0);
   }, [topicSearchQuery, themeCategories]);
-
-
 
   const getPromoStatusMessage = () => {
     if (isValidatingPromo) {
@@ -801,7 +805,10 @@ export const App = () => {
       }
     } catch (error: any) {
       console.error("Promo check failed:", error);
-      if (error.message?.includes("404") || error.message?.includes("найдено")) {
+      if (
+        error.message?.includes("404") ||
+        error.message?.includes("найдено")
+      ) {
         setPromoCheckResult({ status: "not_found" });
       } else {
         setPromoCheckResult({ status: "error" });
@@ -1024,6 +1031,11 @@ export const App = () => {
       {snackbar}
       {popout && <PopoutWrapper>{popout}</PopoutWrapper>}
       <ModalRoot activeModal={activeModal} onClose={() => setActiveModal(null)}>
+        <TariffActionModal
+          id="tariff-action-modal"
+          onClose={() => setActiveModal(null)}
+          tariff={selectedTariffForModal}
+        />
         <ModalCard
           id="promo-vote-modal"
           onClose={() => setActiveModal(null)}
@@ -1034,15 +1046,18 @@ export const App = () => {
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Text>Введите промо-слово или наведите на QR-код</Text>
                 <Tooltip
-
                   description={
                     <div style={{ padding: "8px" }}>
-                      Для сканирования используйте штатную камеру телефона или сканер VK (вне этого окна).
+                      Для сканирования используйте штатную камеру телефона или
+                      сканер VK (вне этого окна).
                     </div>
                   }
                 >
                   <Icon24QuestionOutline
-                    style={{ color: "var(--vkui--color_icon_secondary)", cursor: "pointer" }}
+                    style={{
+                      color: "var(--vkui--color_icon_secondary)",
+                      cursor: "pointer",
+                    }}
                     onClick={() => setQrTooltipShown(!qrTooltipShown)}
                   />
                 </Tooltip>
@@ -1051,9 +1066,7 @@ export const App = () => {
             bottom={getPromoStatusMessage()}
             status={isPromoErrorState ? "error" : "default"}
           >
-            <FormField
-              status={isPromoErrorState ? "error" : "default"}
-            >
+            <FormField status={isPromoErrorState ? "error" : "default"}>
               <Input
                 value={promoInput}
                 onChange={(e) => setPromoInput(e.target.value)}
@@ -1062,7 +1075,13 @@ export const App = () => {
               />
             </FormField>
             {isPromoLengthError && (
-              <Text style={{ fontSize: 12, color: "var(--vkui--color_text_negative)", marginTop: 4 }}>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: "var(--vkui--color_text_negative)",
+                  marginTop: 4,
+                }}
+              >
                 Код должен содержать от 4 до 20 символов
               </Text>
             )}
@@ -1073,7 +1092,9 @@ export const App = () => {
               stretched
               onClick={navigateToVoteByPromo}
               disabled={
-                isPromoLengthError || promoInput.trim().length === 0 || isValidatingPromo
+                isPromoLengthError ||
+                promoInput.trim().length === 0 ||
+                isValidatingPromo
               }
             >
               Проголосовать
@@ -1131,7 +1152,9 @@ export const App = () => {
                           setTempThemeIds([...tempThemeIds, item.id]);
                         }
                       } else {
-                        setTempThemeIds(tempThemeIds.filter((id) => id !== item.id));
+                        setTempThemeIds(
+                          tempThemeIds.filter((id) => id !== item.id),
+                        );
                       }
                     }}
                     disabled={
@@ -1338,7 +1361,7 @@ export const App = () => {
           title={selectModalState?.title || ""}
           options={selectModalState?.options || []}
           selected={selectModalState?.selected || null}
-          onSelect={selectModalState?.onSelect || (() => { })}
+          onSelect={selectModalState?.onSelect || (() => {})}
           searchable={selectModalState?.searchable || false}
         />
 
@@ -1442,13 +1465,7 @@ export const App = () => {
                 mode="primary"
                 onClick={() => {
                   setActiveModal(null);
-                  routeNavigator.push("/profile"); // Or back to wherever? Previous logic went to expert profile but we don't have expert ID here easily without store
-                  // Actually, user might want to stay or go back. The previous logic was `routeNavigator.push(\`/expert/${eventData?.expert?.vk_id}\`)`
-                  // We don't have eventData here. 
-                  // Let's just close modal for now or redirect to home/profile. 
-                  // If we need to redirect to expert, we should store targetExpertId in store.
-                  // Voting.tsx sets targetExpertId? No.
-                  // Let's just close it.
+                  routeNavigator.push("/profile");
                 }}
               >
                 Закрыть

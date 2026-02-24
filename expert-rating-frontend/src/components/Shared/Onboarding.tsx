@@ -59,7 +59,9 @@ export const Onboarding = ({ onFinish }: OnboardingProps) => {
 
       if (errorCode === 11) {
         console.warn("[Onboarding] App is not moderated yet, code 11");
-        alert("Функция уведомлений будет активирована сразу после выхода приложения из режима разработки.");
+        alert(
+          "Функция уведомлений будет активирована сразу после выхода приложения из режима разработки.",
+        );
         setIsPermissionGranted(true);
       } else {
         console.error("[Onboarding] Notification error:", error);

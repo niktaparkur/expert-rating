@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Panel,
   PanelHeader,
@@ -11,17 +11,23 @@ import {
   Card,
   useAdaptivity,
   ViewWidth,
-  CardGrid,
   Tooltip,
   Spinner,
   Placeholder,
+  ModalRoot,
   HorizontalScroll,
 } from "@vkontakte/vkui";
-import { Icon16HelpOutline, Icon24CheckCircleOn, Icon56ErrorTriangleOutline } from "@vkontakte/icons";
+import {
+  Icon16HelpOutline,
+  Icon24CheckCircleOn,
+  Icon56ErrorTriangleOutline,
+} from "@vkontakte/icons";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
 import { useUserStore } from "../store/userStore";
+import { useUiStore } from "../store/uiStore";
 import { useQuery } from "@tanstack/react-query";
 import { useApi } from "../hooks/useApi";
+import { TariffActionModal } from "../components/Shared/TariffActionModal";
 
 interface TariffFeature {
   text: string;
@@ -46,6 +52,7 @@ const TariffCardComponent = ({
   onRegister,
   isSelectable,
   customButtonText,
+  isDesktop,
 }: any) => (
   <Card
     mode="outline"
@@ -53,20 +60,24 @@ const TariffCardComponent = ({
       borderColor: isCurrent
         ? "var(--vkui--color_background_accent)"
         : undefined,
-      minWidth: 280,
-      maxWidth: 320,
-      margin: "0 auto",
+      width: isDesktop ? 300 : "100%",
+      minWidth: isDesktop ? 300 : "auto",
+      flexShrink: 0,
+      display: "flex",
+      flexDirection: "column",
     }}
   >
     <Div>
-      <Title level="2" style={{ textAlign: "center" }}>{tariff.name}</Title>
+      <Title level="2" style={{ textAlign: "center" }}>
+        {tariff.name}
+      </Title>
     </Div>
     <Div>
       <Title level="1" style={{ marginBottom: 4, textAlign: "center" }}>
         {tariff.price_str}
       </Title>
     </Div>
-    <Group mode="plain">
+    <Group mode="plain" style={{ flexGrow: 1 }}>
       {tariff.features.map((feature: TariffFeature, index: number) => (
         <SimpleCell
           key={feature.text}
@@ -93,7 +104,7 @@ const TariffCardComponent = ({
         </SimpleCell>
       ))}
     </Group>
-    <Div>
+    <Div style={{ marginTop: "auto" }}>
       {!user?.is_expert && user?.status !== "pending" && !isCurrent ? (
         <Button size="l" stretched mode="primary" onClick={onRegister}>
           Стать экспертом
@@ -109,10 +120,8 @@ const TariffCardComponent = ({
           mode={isCurrent ? "secondary" : "primary"}
           onClick={() => onSelect(tariff)}
           disabled={!isSelectable && !tariff.vk_donut_link}
-          href={isSelectable && tariff.vk_donut_link ? tariff.vk_donut_link : undefined}
-          target="_blank"
         >
-          {customButtonText || "Выбрать (VK Donut)"}
+          {customButtonText || "Выбрать"}
         </Button>
       )}
     </Div>
@@ -131,55 +140,65 @@ export const Tariffs = ({ id }: TariffsProps) => {
 
   const isDesktop = (viewWidth ?? 0) >= ViewWidth.TABLET;
 
-  const { data: tariffs, isLoading, isError } = useQuery<Tariff[]>({
+  const [selectedTariff, setSelectedTariff] = useState<Tariff | null>(null);
+
+  const {
+    data: tariffs,
+    isLoading,
+    isError,
+  } = useQuery<Tariff[]>({
     queryKey: ["tariffs"],
     queryFn: () => apiGet("/tariffs"),
-    staleTime: 1000 * 60 * 60, // 1 hour
+    staleTime: 1000 * 60 * 60,
   });
 
   const handleRegister = () => routeNavigator.push("/registration");
   const getCurrentTariffName = () => user?.tariff_plan || "Начальный";
 
+  const { activeModal, setActiveModal, setSelectedTariffForModal } =
+    useUiStore();
+
+  const handleSelectTariff = (tariff: Tariff) => {
+    setSelectedTariffForModal(tariff);
+    setActiveModal("tariff-action-modal");
+  };
+
   const renderContent = () => {
     if (isLoading) return <Spinner size="xl" style={{ marginTop: 20 }} />;
-    if (isError) return <Placeholder icon={<Icon56ErrorTriangleOutline />} title="Ошибка загрузки тарифов" />;
+    if (isError)
+      return (
+        <Placeholder
+          icon={<Icon56ErrorTriangleOutline />}
+          title="Ошибка загрузки тарифов"
+        />
+      );
 
     const currentTariffName = getCurrentTariffName();
-
-    // Sort logic handled by backend usually, but ensuring order by price here
-    const sortedTariffs = tariffs?.sort((a, b) => a.price_votes - b.price_votes) || [];
+    const sortedTariffs =
+      tariffs?.sort((a, b) => a.price_votes - b.price_votes) || [];
 
     const tariffCards = sortedTariffs.map((tariff) => {
-      // Logic: Show all tariffs.
-      // If tariff is "Начальный" (price 0) and user is on it, show "Ваш тариф".
-      // If tariff is paid, logic applies.
-
       const isCurrent = tariff.name === currentTariffName;
-      let buttonText = "Выбрать (VK Donut)";
+      let buttonText = "Выбрать";
       let isSelectable = true;
 
       if (isCurrent) {
         buttonText = "Ваш текущий тариф";
         isSelectable = false;
       } else if (tariff.price_votes === 0) {
-        // Free tariff, but not current? Means user is on paid.
         buttonText = "Бесплатный тариф";
-        isSelectable = false; // Can't "switch" to free via button usually, cancel subscription instead
+        isSelectable = false;
       } else {
         if (user?.is_expert) {
-          // Upgrade/Downgrade logic handled by VK Donut link usually
-          buttonText = "Перейти";
+          buttonText = "Выбрать";
         } else {
-          // Not expert yet
           if (tariff.price_votes > 0) {
             buttonText = "Будет доступен после регистрации";
             isSelectable = false;
-            // Wait, can they buy before reg? Usually no.
           }
         }
       }
 
-      // Override for non-experts for paid tariffs -> Disable
       if (!user?.is_expert && tariff.price_votes > 0) {
         isSelectable = false;
         buttonText = "Сначала станьте экспертом";
@@ -189,29 +208,41 @@ export const Tariffs = ({ id }: TariffsProps) => {
         <TariffCardComponent
           key={tariff.id}
           tariff={tariff}
-          isCurrent={isCurrent}
+          isCurrent={tariff.name === currentTariffName}
           user={user}
-          onSelect={() => { }} // Handled by href in button
+          onSelect={handleSelectTariff}
           onRegister={handleRegister}
-          isSelectable={isSelectable}
+          isSelectable={true}
           customButtonText={buttonText}
+          isDesktop={isDesktop}
         />
       );
     });
 
     if (isDesktop) {
       return (
-        <HorizontalScroll showArrows getScrollToLeft={(i: number) => i - 120} getScrollToRight={(i: number) => i + 120}>
-          <div style={{ display: "flex", gap: 16, padding: "0 4px" }}>
+        <HorizontalScroll
+          showArrows
+          getScrollToLeft={(i: number) => i - 320}
+          getScrollToRight={(i: number) => i + 320}
+        >
+          <div
+            style={{
+              display: "flex",
+              gap: 16,
+              padding: "8px 12px",
+              justifyContent:
+                sortedTariffs.length < 3 ? "center" : "flex-start",
+            }}
+          >
             {tariffCards}
           </div>
         </HorizontalScroll>
       );
     }
 
-    // Mobile view: Vertical list with gaps
     return (
-      <Div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <Div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {tariffCards}
       </Div>
     );
@@ -222,8 +253,14 @@ export const Tariffs = ({ id }: TariffsProps) => {
       <PanelHeader>Тарифы</PanelHeader>
       <Group>
         <Div>
-          <Text style={{ marginBottom: 20, textAlign: 'center', color: 'var(--vkui--color_text_secondary)' }}>
-            Оформите подписку VK Donut, чтобы получить доступ к расширенным возможностям и увеличить лимиты.
+          <Text
+            style={{
+              marginBottom: 20,
+              textAlign: "center",
+              color: "var(--vkui--color_text_secondary)",
+            }}
+          >
+            Выберите подходящий тариф...
           </Text>
         </Div>
         {renderContent()}

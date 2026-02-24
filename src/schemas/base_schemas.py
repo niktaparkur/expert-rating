@@ -17,7 +17,8 @@ class TariffFeature(BaseModel):
 
 
 class TariffRead(BaseModel):
-    id: str
+    id: int
+    code: str
     name: str
     price_str: str
     price_votes: int

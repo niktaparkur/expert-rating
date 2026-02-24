@@ -44,12 +44,12 @@ export const PromoCodeCard = ({
           <Icon28MoreVertical />
         </IconButton>
       }
-      badgeAfterTitle={
-        <ContentBadge
-          appearance="accent"
-          mode="outline"
-        >{`${promoCode.discount_percent}%`}</ContentBadge>
-      }
+      // badgeAfterTitle={
+      //   <ContentBadge
+      //     appearance="accent"
+      //     mode="outline"
+      //   >{`${promoCode.discount_percent}%`}</ContentBadge>
+      // }
       badgeBeforeTitle={
         promoCode.is_active ? (
           <Icon16CheckCircle fill="var(--vkui--color_icon_positive)" />

@@ -238,7 +238,6 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
       onSuccess();
       onClose();
 
-      // Reset form state for next usage
       resetForm();
     } catch (error: any) {
       alert(error.message || "Произошла неизвестная ошибка");
@@ -498,7 +497,11 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
             <SimpleCell
               disabled
               subtitle={`Лимит мероприятий в месяц: ${user.event_usage.current_count} из ${user.event_usage.limit} (одобрено или на модерации).`}
-              indicator={user.event_usage.current_count >= user.event_usage.limit ? "Лимит!" : undefined}
+              indicator={
+                user.event_usage.current_count >= user.event_usage.limit
+                  ? "Лимит!"
+                  : undefined
+              }
             >
               Использование лимита
             </SimpleCell>
@@ -515,10 +518,12 @@ export const CreateEvent = ({ id, onClose, onSuccess }: CreateEventProps) => {
               !!durationError ||
               !!dateError ||
               parseInt(formData.duration_minutes) < 1 ||
-              (user?.event_usage && user.event_usage.current_count >= user.event_usage.limit)
+              (user?.event_usage &&
+                user.event_usage.current_count >= user.event_usage.limit)
             }
           >
-            {user?.event_usage && user.event_usage.current_count >= user.event_usage.limit
+            {user?.event_usage &&
+            user.event_usage.current_count >= user.event_usage.limit
               ? "Лимит исчерпан"
               : "Отправить на модерацию"}
           </Button>

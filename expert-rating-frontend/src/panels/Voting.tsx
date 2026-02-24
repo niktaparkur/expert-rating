@@ -26,7 +26,7 @@ import {
   Icon56CheckCircleOutline,
   Icon56ErrorTriangleOutline,
   Icon56RecentOutline,
-  Icon16Cancel
+  Icon16Cancel,
 } from "@vkontakte/icons";
 import { EventStatusData } from "../types";
 
@@ -40,7 +40,13 @@ export const Voting = ({ id }: VotingProps) => {
   const promo = params?.promo;
   const { apiGet, apiPost } = useApi();
   const { currentUser: user } = useUserStore();
-  const { setPopout, setSnackbar, activeModal, setActiveModal, setVoteSuccessMessage } = useUiStore();
+  const {
+    setPopout,
+    setSnackbar,
+    activeModal,
+    setActiveModal,
+    setVoteSuccessMessage,
+  } = useUiStore();
   const queryClient = useQueryClient();
 
   const [thankYouMessage, setThankYouMessage] = useState<string | null>(null);
@@ -81,16 +87,16 @@ export const Voting = ({ id }: VotingProps) => {
 
     try {
       const response = await apiPost<any>("/events/vote", finalData);
-      // setThankYouMessage(response.thank_you_message); // Removed local state
       setVoteSuccessMessage(response.thank_you_message);
-      // Actually we have useUiStore mapped to props/vars above, let's use destructuring
 
       await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
       await queryClient.invalidateQueries({ queryKey: ["eventStatus", promo] });
       setActiveModal("vote-success-modal");
     } catch (err: any) {
       setSnackbar(
-        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>{err.message}</Snackbar>,
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
+          {err.message}
+        </Snackbar>,
       );
     } finally {
       setPopout(null);
@@ -119,12 +125,12 @@ export const Voting = ({ id }: VotingProps) => {
               initialVote={
                 eventData.current_vote?.vote_value
                   ? {
-                    vote_type:
-                      eventData.current_vote.vote_value === 1
-                        ? "trust"
-                        : "distrust",
-                    comment: eventData.current_vote.last_comment,
-                  }
+                      vote_type:
+                        eventData.current_vote.vote_value === 1
+                          ? "trust"
+                          : "distrust",
+                      comment: eventData.current_vote.last_comment,
+                    }
                   : null
               }
               setPopout={setPopout}
@@ -167,8 +173,6 @@ export const Voting = ({ id }: VotingProps) => {
         );
     }
   };
-
-  // Removed local modal definition
 
   return (
     <Panel id={id}>
