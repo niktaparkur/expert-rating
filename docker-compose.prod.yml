@@ -19,7 +19,7 @@ services:
       restart: always
       environment:
         NC_DB: "mysql2://91.236.136.58:3306?u=meguro_expvk&p=jE7pD9uH3w&d=meguro_expratingvk"
-        NC_PUBLIC_URL: "https://api.exprating.ru/db-admin/"
+        NC_PUBLIC_URL: "https://db.api.exprating.ru/"
       ports:
         - "127.0.0.1:8080:8080"
 
