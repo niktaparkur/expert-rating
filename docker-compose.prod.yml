@@ -18,9 +18,10 @@ services:
       container_name: expert_rating_nocodb
       restart: always
       environment:
-        NC_DB: "mysql2://expert_rating_mysql_dev:3306?u=devuser&p=devpass&d=expert_rating_dev"
+        - NC_DB=mysql2://expert_rating_mysql_dev:3306?u=devuser&p=devpass&d=expert_rating_dev
+        - NC_PUBLIC_URL=https://api.exprating.ru/db-admin/
       ports:
-        - "8080:8080"
+        - "127.0.0.1:8080:8080"
 
   redis:
     image: redis:7-alpine
