@@ -21,8 +21,6 @@ services:
         NC_DB: "mysql2://expert_rating_mysql_dev:3306?u=devuser&p=devpass&d=expert_rating_dev"
       ports:
         - "8080:8080"
-      depends_on:
-        - db
 
   redis:
     image: redis:7-alpine
