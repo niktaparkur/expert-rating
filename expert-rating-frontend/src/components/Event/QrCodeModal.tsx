@@ -10,10 +10,18 @@ import {
   ButtonGroup,
   PanelHeaderButton,
   PanelHeaderBack,
+  Caption,
+  Snackbar,
 } from "@vkontakte/vkui";
-import { Icon24Download, Icon24Dismiss } from "@vkontakte/icons";
+import {
+  Icon24Download,
+  Icon24Dismiss,
+  Icon16CopyOutline,
+  Icon28CheckCircleFill,
+} from "@vkontakte/icons";
 import QRCode from "react-qr-code";
 import { EventData } from "../../types";
+import { useUiStore } from "../../store/uiStore";
 
 interface QrCodeModalProps {
   id: string;
@@ -31,10 +39,31 @@ export const QrCodeModal = ({
   onBack,
 }: QrCodeModalProps) => {
   const qrRef = useRef<HTMLDivElement>(null);
+  const { setSnackbar } = useUiStore();
 
   if (!event) return null;
 
   const qrLink = `${APP_URL}#/vote/${encodeURIComponent(event.promo_word)}`;
+
+  const handleCopyLink = () => {
+    navigator.clipboard
+      .writeText(qrLink)
+      .then(() => {
+        setSnackbar(
+          <Snackbar
+            onClose={() => setSnackbar(null)}
+            before={
+              <Icon28CheckCircleFill fill="var(--vkui--color_icon_positive)" />
+            }
+          >
+            Ссылка скопирована!
+          </Snackbar>,
+        );
+      })
+      .catch((err) => {
+        console.error("Ошибка копирования:", err);
+      });
+  };
 
   const handleDownloadSVG = () => {
     const svgElement = document.getElementById("event-qr-code");
@@ -43,8 +72,9 @@ export const QrCodeModal = ({
     const serializer = new XMLSerializer();
     let source = serializer.serializeToString(svgElement);
 
-    // Добавляем namespaces, если их нет
-    if (!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)) {
+    if (
+      !source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)
+    ) {
       source = source.replace(
         /^<svg/,
         '<svg xmlns="http://www.w3.org/2000/svg"',
@@ -80,15 +110,12 @@ export const QrCodeModal = ({
     const ctx = canvas.getContext("2d");
     const img = new Image();
 
-    // Задаем размеры канваса (по размеру QR + отступы, если нужно, но здесь берем 1:1)
-    // QRCode size=200, но SVG масштабируется. Берем фиксированный размер для хорошего качества.
     const size = 1000;
     canvas.width = size;
     canvas.height = size;
 
     img.onload = () => {
       if (ctx) {
-        // Заливаем фон белым, иначе QR будет на прозрачном фоне (не всегда читается сканерами)
         ctx.fillStyle = "#FFFFFF";
         ctx.fillRect(0, 0, size, size);
         ctx.drawImage(img, 0, 0, size, size);
@@ -110,19 +137,7 @@ export const QrCodeModal = ({
     <ModalPage
       id={id}
       onClose={onClose}
-      header={
-        <ModalPageHeader
-          before={<PanelHeaderBack onClick={onBack} />}
-
-          // after={
-          //   <PanelHeaderButton onClick={onClose}>
-          //     <Icon24Dismiss />
-          //   </PanelHeaderButton>
-          // }
-        >
-          QR-код
-        </ModalPageHeader>
-      }
+      header={<ModalPageHeader before={<PanelHeaderBack onClick={onBack} />}>QR-код</ModalPageHeader>}
       settlingHeight={100}
     >
       <Group>
@@ -135,7 +150,19 @@ export const QrCodeModal = ({
             gap: 16,
           }}
         >
-          {/* QR Code Container с закруглениями */}
+          <div>
+            <Text
+              style={{
+                color: "var(--vkui--color_text_secondary)",
+                marginBottom: 4,
+              }}
+            >
+              Мероприятие:
+            </Text>
+            <Title level="3" weight="2" style={{ marginBottom: 12 }}>
+              {event.name}
+            </Title>
+          </div>
           <div
             ref={qrRef}
             style={{
@@ -158,20 +185,43 @@ export const QrCodeModal = ({
             />
           </div>
 
-          {/* Инфо блок под QR */}
-          <div>
-            <Text
+          <div
+            onClick={handleCopyLink}
+            style={{
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              padding: "4px 8px",
+              borderRadius: "8px",
+              transition: "background-color 0.2s",
+            }}
+            onMouseEnter={(e) =>
+            (e.currentTarget.style.backgroundColor =
+              "var(--vkui--color_background_secondary_alpha)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.backgroundColor = "transparent")
+            }
+          >
+            <Icon16CopyOutline
+              fill="var(--vkui--color_icon_secondary)"
+              width={16}
+              height={16}
+            />
+            <Caption
+              level="1"
               style={{
                 color: "var(--vkui--color_text_secondary)",
-                marginBottom: 4,
+                textDecoration: "underline",
               }}
             >
-              Мероприятие:
-            </Text>
-            <Title level="3" weight="2" style={{ marginBottom: 12 }}>
-              {event.name}
-            </Title>
+              {qrLink}
+            </Caption>
+          </div>
 
+          <div>
             <Text
               style={{
                 color: "var(--vkui--color_text_secondary)",
@@ -194,7 +244,6 @@ export const QrCodeModal = ({
             Покажите этот QR-код участникам для быстрого перехода к голосованию.
           </Text>
 
-          {/* Кнопки скачивания */}
           <ButtonGroup
             mode="horizontal"
             gap="m"
