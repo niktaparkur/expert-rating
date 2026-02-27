@@ -9,6 +9,7 @@ import {
   Avatar,
   Div,
   Text,
+  PanelHeaderBack,
 } from "@vkontakte/vkui";
 import { Icon28CalendarOutline } from "@vkontakte/icons";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
@@ -63,7 +64,11 @@ export const AfishaEventModal = ({
     <ModalPage
       id={id}
       onClose={onClose}
-      header={<ModalPageHeader>Детали мероприятия</ModalPageHeader>}
+      header={
+        <ModalPageHeader before={<PanelHeaderBack onClick={onClose} />}>
+          Детали мероприятия
+        </ModalPageHeader>
+      }
       settlingHeight={100}
     >
       <Group>

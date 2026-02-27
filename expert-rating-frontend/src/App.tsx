@@ -37,6 +37,8 @@ import {
   Checkbox,
   Panel,
   Placeholder,
+  Link,
+  Footnote,
 } from "@vkontakte/vkui";
 import {
   useActiveVkuiLocation,
@@ -57,6 +59,8 @@ import {
   Icon24Qr,
   Icon24QuestionOutline,
   Icon24InfoCircleOutline,
+  Icon28FavoriteCircleFillYellow,
+  Icon28Notifications,
 } from "@vkontakte/icons";
 import bridge from "@vkontakte/vk-bridge";
 import debounce from "lodash.debounce";
@@ -411,7 +415,7 @@ export const App = () => {
   };
 
   const confirmDeleteEvent = () => {
-    setActiveModal(null);
+    // setActiveModal(null);
     setPopout(
       <Alert
         actions={[
@@ -1185,7 +1189,7 @@ export const App = () => {
           id="event-actions-modal"
           event={interactionEvent}
           onClose={() => setActiveModal(null)}
-          onShare={handleShareEvent}
+          // onShare={handleShareEvent}
           onDelete={confirmDeleteEvent}
           onStop={confirmStopEvent}
           onShowQr={() => setActiveModal("qr-code-modal")}
@@ -1194,6 +1198,7 @@ export const App = () => {
           id="qr-code-modal"
           event={interactionEvent}
           onClose={() => setActiveModal(null)}
+          onBack={() => setActiveModal("event-actions-modal")}
         />
         <CreateMailingModal
           id="create-mailing-modal"
@@ -1250,6 +1255,7 @@ export const App = () => {
               </SimpleCell>
               <SimpleCell
                 Component="label"
+                before={<Icon28FavoriteCircleFillYellow />}
                 after={
                   <Switch
                     checked={currentUser?.show_community_rating ?? true}
@@ -1266,7 +1272,7 @@ export const App = () => {
               </SimpleCell>
             </Group>
           )}
-
+          {/* 
           {ENABLE_MAILINGS && currentUser?.is_expert && (
             <Group header={<Header>Инструменты эксперта</Header>}>
               <SimpleCell
@@ -1278,11 +1284,12 @@ export const App = () => {
                 Создать рассылку
               </SimpleCell>
             </Group>
-          )}
+          )} */}
 
           <Group header={<Header>Уведомления</Header>}>
             <SimpleCell
               Component="label"
+              before={<Icon28Notifications />}
               after={
                 <Switch
                   name="allow_notifications"
@@ -1321,18 +1328,27 @@ export const App = () => {
             )}
           </Group>
           <Group header={<Header>О приложении</Header>}>
-            <SimpleCell onClick={() => openLegalDocument("user_agreement")}>
-              Пользовательское соглашение
-            </SimpleCell>
-            <SimpleCell onClick={() => openLegalDocument("privacy")}>
-              Политика конфиденциальности
-            </SimpleCell>
-            <SimpleCell onClick={() => openLegalDocument("offer")}>
-              Публичная оферта
-            </SimpleCell>
-            <SimpleCell onClick={() => openLegalDocument("mailing_consent")}>
-              Согласие на рассылку
-            </SimpleCell>
+            <Div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
+                fontSize: "14px",
+              }}
+            >
+              <Link onClick={() => openLegalDocument("user_agreement")}>
+                Пользовательское соглашение
+              </Link>
+              <Link onClick={() => openLegalDocument("privacy")}>
+                Политика конфиденциальности
+              </Link>
+              <Link onClick={() => openLegalDocument("offer")}>
+                Публичная оферта
+              </Link>
+              <Link onClick={() => openLegalDocument("mailing_consent")}>
+                Согласие на рассылку
+              </Link>
+            </Div>
           </Group>
         </ModalPage>
 
@@ -1396,7 +1412,13 @@ export const App = () => {
         <ModalPage
           id="narod-vote-modal"
           onClose={() => setActiveModal(null)}
-          header={<ModalPageHeader>Народное голосование</ModalPageHeader>}
+          header={
+            <ModalPageHeader
+              before={<PanelHeaderBack onClick={() => setActiveModal(null)} />}
+            >
+              Народное голосование
+            </ModalPageHeader>
+          }
           settlingHeight={100}
         >
           <VoteCard

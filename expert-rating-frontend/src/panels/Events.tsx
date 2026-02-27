@@ -13,113 +13,15 @@ import {
   ModalPageHeader,
   SimpleCell,
   InfoRow,
-  Separator,
-  Headline,
 } from "@vkontakte/vkui";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
 import QRCode from "react-qr-code";
 import { useApi } from "../hooks/useApi";
-import {
-  Icon24CheckCircleOutline,
-  Icon24ErrorCircleOutline,
-  Icon24ClockOutline,
-  Icon24CalendarOutline,
-  Icon24TagOutline,
-  Icon24UsersOutline,
-  Icon24Link,
-} from "@vkontakte/icons";
+import { Icon24CalendarOutline, Icon24Link } from "@vkontakte/icons";
 import { EventData, UserData } from "../types";
+import { EventDashboardCard } from "../components/Event/EventDashboardCard";
 
 const APP_URL = `https://vk.com/app${import.meta.env.VITE_VK_APP_ID}`;
-
-interface EventDashboardCardProps {
-  event: EventData;
-  onShowQrClick: (event: EventData) => void;
-}
-
-const EventDashboardCard = ({
-  event,
-  onShowQrClick,
-}: EventDashboardCardProps) => {
-  const getStatusInfo = (status: EventData["status"]) => {
-    if (status === "pending")
-      return {
-        icon: <Icon24ClockOutline fill="var(--vkui--color_icon_accent)" />,
-        text: "На модерации",
-        color: "var(--vkui--color_text_accent)",
-      };
-    if (status === "approved")
-      return {
-        icon: (
-          <Icon24CheckCircleOutline fill="var(--vkui--color_icon_positive)" />
-        ),
-        text: "Одобрено",
-        color: "var(--vkui--color_text_positive)",
-      };
-    if (status === "rejected")
-      return {
-        icon: (
-          <Icon24ErrorCircleOutline fill="var(--vkui--color_icon_negative)" />
-        ),
-        text: "Отклонено",
-        color: "var(--vkui--color_text_negative)",
-      };
-    return { icon: null, text: status, color: "inherit" };
-  };
-  const statusInfo = getStatusInfo(event.status);
-
-  return (
-    <Group mode="card" header={<Header>{event.name}</Header>}>
-      <SimpleCell before={statusInfo.icon} multiline>
-        <Headline
-          weight="3"
-          style={{ color: statusInfo.color }}
-          useAccentWeight
-        >
-          {statusInfo.text}
-        </Headline>
-        <Text style={{ color: "var(--vkui--color_text_secondary)" }}>
-          Статус
-        </Text>
-      </SimpleCell>
-      <Separator />
-      <SimpleCell before={<Icon24CalendarOutline />} multiline>
-        <InfoRow header="Дата">
-          {new Date(event.event_date + "Z").toLocaleString("ru-RU", {
-            dateStyle: "long",
-            timeStyle: "short",
-          })}
-        </InfoRow>
-      </SimpleCell>
-      <SimpleCell before={<Icon24TagOutline />} multiline>
-        <InfoRow header="Промо-слово">{event.promo_word}</InfoRow>
-      </SimpleCell>
-      {event.status === "approved" && (
-        <SimpleCell before={<Icon24UsersOutline />} multiline>
-          <InfoRow header="Проголосовало">
-            {event.votes_count} (👍{event.trust_count} / 👎
-            {event.distrust_count})
-          </InfoRow>
-        </SimpleCell>
-      )}
-      {event.status === "approved" && (
-        <>
-          <Separator />
-          <Div>
-            <Button
-              stretched
-              size="l"
-              mode="secondary"
-              onClick={() => onShowQrClick(event)}
-            >
-              Показать QR-код
-            </Button>
-          </Div>
-        </>
-      )}
-    </Group>
-  );
-};
 
 interface PublicEventCardProps {
   event: EventData;

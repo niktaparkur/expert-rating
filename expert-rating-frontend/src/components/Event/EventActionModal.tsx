@@ -3,71 +3,89 @@ import {
   ModalPage,
   ModalPageHeader,
   Group,
-  Text,
   Div,
   Button,
-  FormStatus,
   SimpleCell,
+  Headline,
+  Text,
+  Separator,
   InfoRow,
-  PanelHeaderBack,
-  Placeholder,
-  RichCell,
+  PanelHeaderButton,
   Header,
+  PanelHeaderBack,
 } from "@vkontakte/vkui";
-import { Icon28CalendarOutline, Icon56ArchiveOutline } from "@vkontakte/icons";
-import { format } from "date-fns";
-import { ru } from "date-fns/locale";
+import {
+  Icon24CheckCircleOutline,
+  Icon24ErrorCircleOutline,
+  Icon24ClockOutline,
+  Icon24CalendarOutline,
+  Icon24TagOutline,
+  Icon24UsersOutline,
+  Icon24Qr,
+  Icon28CancelOutline,
+  Icon24Dismiss,
+} from "@vkontakte/icons";
 import { EventData } from "../../types";
 
 interface EventActionModalProps {
   id: string;
   event: EventData | null;
   onClose: () => void;
-  onShare: () => void;
   onDelete: () => void;
   onStop: () => void;
   onShowQr: () => void;
 }
 
-const getStatusText = (status: "pending" | "approved" | "rejected") => {
-  switch (status) {
-    case "approved":
-      return "Одобрено";
-    case "pending":
-      return "На модерации";
-    case "rejected":
-      return "Отклонено";
-    default:
-      return status;
-  }
-};
-
 export const EventActionModal = ({
   id,
   event,
   onClose,
-  onShare,
   onDelete,
   onStop,
   onShowQr,
 }: EventActionModalProps) => {
   if (!event) return null;
 
+  const getStatusInfo = (status: EventData["status"]) => {
+    if (status === "pending")
+      return {
+        icon: <Icon24ClockOutline fill="var(--vkui--color_icon_accent)" />,
+        text: "На модерации",
+        color: "var(--vkui--color_text_accent)",
+      };
+    if (status === "approved")
+      return {
+        icon: (
+          <Icon24CheckCircleOutline fill="var(--vkui--color_icon_positive)" />
+        ),
+        text: "Одобрено",
+        color: "var(--vkui--color_text_positive)",
+      };
+    if (status === "rejected")
+      return {
+        icon: (
+          <Icon24ErrorCircleOutline fill="var(--vkui--color_icon_negative)" />
+        ),
+        text: "Отклонено",
+        color: "var(--vkui--color_text_negative)",
+      };
+    return { icon: null, text: status, color: "inherit" };
+  };
+
   const isoDateString = event.event_date.endsWith("Z")
     ? event.event_date
     : event.event_date + "Z";
-  const eventDate = new Date(isoDateString);
-  const dateString = format(eventDate, "d MMMM yyyy, HH:mm", { locale: ru });
-
-  const now = new Date();
   const eventStart = new Date(isoDateString);
   const eventEnd = new Date(
     eventStart.getTime() + event.duration_minutes * 60000,
   );
+  const now = new Date();
 
+  const isLive = now >= eventStart && now <= eventEnd;
   const isFinished = now > eventEnd;
-  const isStarted = now >= eventStart;
-  const isLive = isStarted && !isFinished;
+  const isApproved = event.status === "approved";
+
+  const statusInfo = getStatusInfo(event.status);
 
   return (
     <ModalPage
@@ -75,75 +93,123 @@ export const EventActionModal = ({
       onClose={onClose}
       header={
         <ModalPageHeader before={<PanelHeaderBack onClick={onClose} />}>
-          Действия
+          Управление событием
         </ModalPageHeader>
       }
       settlingHeight={100}
     >
       <Group>
-        <RichCell
-          before={<Icon28CalendarOutline />}
-          overTitle={getStatusText(event.status)}
-          disabled
-        >
-          <Text
-            weight="1"
-            useAccentWeight
-            style={{ wordBreak: "break-word", whiteSpace: "normal" }}
-          >
+        <div style={{ padding: "12px 16px 4px" }}>
+          <Headline weight="1" style={{ wordBreak: "break-word" }}>
             {event.name}
-          </Text>
-        </RichCell>
-        <SimpleCell multiline>
-          <InfoRow header="Дата и время">{dateString}</InfoRow>
+          </Headline>
+        </div>
+
+        <SimpleCell before={statusInfo.icon} multiline disabled>
+          <Headline
+            weight="3"
+            style={{ color: statusInfo.color }}
+            useAccentWeight
+          >
+            {statusInfo.text}
+          </Headline>
+          {isFinished && isApproved && (
+            <Text
+              style={{
+                color: "var(--vkui--color_text_secondary)",
+                fontSize: 12,
+              }}
+            >
+              В архиве
+            </Text>
+          )}
+          {isLive && isApproved && (
+            <Text
+              style={{
+                color: "var(--vkui--color_text_positive)",
+                fontSize: 12,
+                fontWeight: "bold",
+              }}
+            >
+              Идет сейчас (Live)
+            </Text>
+          )}
         </SimpleCell>
-        <SimpleCell>
-          <InfoRow header="Голоса">{`👍 ${event.trust_count} / 👎 ${event.distrust_count}`}</InfoRow>
+
+        <Separator />
+
+        <SimpleCell before={<Icon24CalendarOutline />} multiline>
+          <InfoRow header="Дата">
+            {eventStart.toLocaleString("ru-RU", {
+              dateStyle: "long",
+              timeStyle: "short",
+            })}
+          </InfoRow>
         </SimpleCell>
-        {event.has_tariff_warning && (
-          <FormStatus title="Превышен лимит голосов" mode="error">
-            Чтобы все голоса были учтены в рейтинге, пожалуйста, повысьте ваш
-            тариф.
-          </FormStatus>
+
+        <SimpleCell before={<Icon24TagOutline />} multiline>
+          <InfoRow header="Промо-слово">{event.promo_word}</InfoRow>
+        </SimpleCell>
+
+        {isApproved && (
+          <SimpleCell before={<Icon24UsersOutline />} multiline>
+            <InfoRow header="Проголосовало">
+              {event.votes_count} (👍{event.trust_count} / 👎
+              {event.distrust_count})
+            </InfoRow>
+          </SimpleCell>
         )}
       </Group>
 
       {event.description && (
         <Group header={<Header>Описание</Header>}>
           <Div>
-            <Text style={{ wordBreak: "break-word", whiteSpace: "pre-wrap" }}>
+            <Text style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
               {event.description}
             </Text>
           </Div>
         </Group>
       )}
 
-      {!isFinished ? (
-        <Div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          <Button size="l" mode="secondary" stretched onClick={onShare}>
-            Поделиться
-          </Button>
-          <Button size="l" mode="secondary" stretched onClick={onShowQr}>
-            Показать QR-код
-          </Button>
-          {isLive ? (
-            <Button size="l" appearance="negative" stretched onClick={onStop}>
+      <Group>
+        <Div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {isApproved && (
+            <Button
+              size="l"
+              mode="secondary"
+              stretched
+              before={<Icon24Qr />}
+              onClick={onShowQr}
+            >
+              Показать QR-код
+            </Button>
+          )}
+
+          {isLive && isApproved ? (
+            <Button
+              size="l"
+              appearance="negative"
+              mode="outline"
+              stretched
+              before={<Icon28CancelOutline width={24} height={24} />}
+              onClick={onStop}
+            >
               Остановить голосование
             </Button>
           ) : (
-            <Button size="l" appearance="negative" stretched onClick={onDelete}>
-              Удалить
+            <Button
+              size="l"
+              appearance="negative"
+              mode="outline"
+              stretched
+              before={<Icon24Dismiss />}
+              onClick={onDelete}
+            >
+              Удалить мероприятие
             </Button>
           )}
         </Div>
-      ) : (
-        <Placeholder
-          icon={<Icon56ArchiveOutline />}
-          title="Мероприятие в архиве"
-        >
-          Действия с завершенным мероприятием недоступны.
-        </Placeholder>
-      )}
+      </Group>
     </ModalPage>
   );
 };

@@ -118,9 +118,9 @@ export const useApi = (): ApiHook => {
         }
 
         const data = await fetchResponse.json();
-        if (endpoint.includes("/votes")) {
-          console.log(`[DEBUG_FRONT_API] Data from ${endpoint}:`, data);
-        }
+        // if (endpoint.includes("/votes")) {
+        //   console.log(`[DEBUG_FRONT_API] Data from ${endpoint}:`, data);
+        // }
         return data;
       } catch (error: any) {
         if (

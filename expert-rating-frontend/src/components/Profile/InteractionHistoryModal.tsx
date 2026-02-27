@@ -10,6 +10,7 @@ import {
   Placeholder,
   Div,
   Header,
+  PanelHeaderBack,
 } from "@vkontakte/vkui";
 import {
   Icon20CheckCircleFillGreen,
@@ -52,7 +53,11 @@ export const InteractionHistoryModal = ({
     <ModalPage
       id={id}
       onClose={onClose}
-      header={<ModalPageHeader>История фидбеков</ModalPageHeader>}
+      header={
+        <ModalPageHeader before={<PanelHeaderBack onClick={onClose} />}>
+          История отзывов
+        </ModalPageHeader>
+      }
       settlingHeight={100}
     >
       <Group header={<Header>{ratingTypeLabel}</Header>}>
