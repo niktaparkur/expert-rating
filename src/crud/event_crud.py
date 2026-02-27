@@ -79,12 +79,13 @@ async def delete_event_by_id(db: AsyncSession, event_id: int, expert_id: int) ->
     if not event or event.expert_id != expert_id:
         return False
 
-    now = datetime.now(timezone.utc)
-    event_start_time = event.event_date.replace(tzinfo=timezone.utc)
-    if now >= event_start_time:
-        raise ValueError(
-            "Нельзя удалить мероприятие, которое уже началось или завершилось."
-        )
+    if event.status != "rejected":
+        now = datetime.now(timezone.utc)
+        event_start_time = event.event_date.replace(tzinfo=timezone.utc)
+        if now >= event_start_time:
+            raise ValueError(
+                "Нельзя удалить мероприятие, которое уже началось или завершилось."
+            )
 
     await db.delete(event)
     await db.commit()

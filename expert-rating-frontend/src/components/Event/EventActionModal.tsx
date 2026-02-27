@@ -197,16 +197,20 @@ export const EventActionModal = ({
               Остановить голосование
             </Button>
           ) : (
-            <Button
-              size="l"
-              appearance="negative"
-              mode="outline"
-              stretched
-              before={<Icon24Dismiss />}
-              onClick={onDelete}
-            >
-              Удалить мероприятие
-            </Button>
+            (event.status === "rejected" ||
+              event.status === "pending" ||
+              (isApproved && !isFinished)) && (
+              <Button
+                size="l"
+                appearance="negative"
+                mode="outline"
+                stretched
+                before={<Icon24Dismiss />}
+                onClick={onDelete}
+              >
+                Удалить мероприятие
+              </Button>
+            )
           )}
         </Div>
       </Group>
