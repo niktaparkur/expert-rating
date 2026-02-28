@@ -311,6 +311,7 @@ async def get_event_status_by_promo(
             "photo_url": str(user.photo_url),
             "regalia": expert_profile.regalia,
         },
+        "has_message": bool(event.voter_thank_you_message)
     }
 
 

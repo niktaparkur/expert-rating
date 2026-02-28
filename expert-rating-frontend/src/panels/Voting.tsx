@@ -13,7 +13,10 @@ import {
   Header,
   Snackbar,
   Text,
+  FormStatus,
+  Div,
 } from "@vkontakte/vkui";
+import bridge from "@vkontakte/vk-bridge";
 import { useRouteNavigator, useParams } from "@vkontakte/vk-mini-apps-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -38,7 +41,7 @@ export const Voting = ({ id }: VotingProps) => {
   const routeNavigator = useRouteNavigator();
   const params = useParams<"promo">();
   const promo = params?.promo;
-  const { apiGet, apiPost } = useApi();
+  const { apiGet, apiPost, apiPut } = useApi();
   const { currentUser: user } = useUserStore();
   const {
     setPopout,
@@ -117,6 +120,21 @@ export const Voting = ({ id }: VotingProps) => {
       case "active":
         return (
           <>
+           {eventData.has_message && !user?.allow_notifications && (
+              <Group>
+                <Div>
+                  <FormStatus title="Важное предупреждение">
+                    У вас запрещены сообщения от нашего сообщества. Из-за этого вы не сможете получить бонус или ответное сообщение от эксперта после голосования.
+                    <div style={{ marginTop: 12 }}>
+                      <Button mode="primary" onClick={handleAllowMessages}>
+                        Разрешить сообщения
+                      </Button>
+                    </div>
+                  </FormStatus>
+                </Div>
+              </Group>
+            )}
+
             <Group header={<Header>Эксперт мероприятия</Header>}>
               <MiniExpertProfile expert={eventData.expert} />
             </Group>
@@ -171,6 +189,23 @@ export const Voting = ({ id }: VotingProps) => {
             Проверьте правильность введенного промо-слова.
           </Placeholder>
         );
+    }
+  };
+
+  const groupId = Number(import.meta.env.VITE_VK_GROUP_ID);
+
+  const handleAllowMessages = async () => {
+    try {
+      const result = await bridge.send("VKWebAppAllowMessagesFromGroup", {
+        group_id: Math.abs(groupId),
+      });
+      if (result.result) {
+        // Если пользователь разрешил, сохраняем в БД и обновляем кэш
+        await apiPut("/users/me/settings", { allow_notifications: true });
+        await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
+      }
+    } catch (e: any) {
+      console.error("Ошибка при запросе разрешения на сообщения:", e);
     }
   };
 

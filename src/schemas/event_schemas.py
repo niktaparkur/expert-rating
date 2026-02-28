@@ -100,6 +100,7 @@ class EventStatusResponse(BaseModel):
     end_time: str
     current_vote: Optional[CurrentVoteStatus] = None
     expert: dict
+    has_message: bool = False
 
 
 class ExpertEventsResponse(BaseModel):

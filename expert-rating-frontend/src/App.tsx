@@ -215,12 +215,26 @@ export const App = () => {
       .catch((e) => console.error("Failed to load themes", e));
   }, [apiGet]);
 
-  const openEventActionModal = (event: EventData) => {
+  const openEventActionModal = async (event: EventData) => {  
     setInteractionEvent(event);
+    
     if (activeView === VIEW_AFISHA) {
       setActiveModal("afisha-event-details");
     } else {
       setActiveModal("event-actions-modal");
+    }
+
+    if (currentUser?.vk_id) {
+      try {
+        const freshEvents = await apiGet<EventData[]>("/events/my");
+        const updated = freshEvents.find((e) => e.id === event.id);
+        if (updated) {
+          setInteractionEvent(updated);
+        }
+        queryClient.setQueryData(["myEvents", currentUser.vk_id], freshEvents);
+      } catch (e) {
+        console.error("Не удалось обновить статус мероприятия в фоне", e);
+      }
     }
   };
 

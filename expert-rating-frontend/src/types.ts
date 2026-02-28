@@ -85,6 +85,7 @@ export interface EventStatusData {
   end_time: string;
   current_vote?: CurrentVoteStatus;
   expert: Partial<UserData>;
+  has_message?: boolean; 
 }
 
 export interface VoteData {
