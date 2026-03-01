@@ -9,16 +9,15 @@ import {
   ModalPage,
   ModalPageHeader,
   Placeholder,
-  Button,
   Header,
   Snackbar,
-  Text,
   FormStatus,
   Div,
+  Button,
 } from "@vkontakte/vkui";
-import bridge from "@vkontakte/vk-bridge";
 import { useRouteNavigator, useParams } from "@vkontakte/vk-mini-apps-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import bridge from "@vkontakte/vk-bridge";
 
 import { useApi } from "../hooks/useApi";
 import { useUserStore } from "../store/userStore";
@@ -26,7 +25,6 @@ import { useUiStore } from "../store/uiStore";
 import { MiniExpertProfile } from "../components/Shared/MiniExpertProfile";
 import { VoteCard } from "../components/Vote/VoteCard";
 import {
-  Icon56CheckCircleOutline,
   Icon56ErrorTriangleOutline,
   Icon56RecentOutline,
   Icon16Cancel,
@@ -43,16 +41,12 @@ export const Voting = ({ id }: VotingProps) => {
   const promo = params?.promo;
   const { apiGet, apiPost, apiPut } = useApi();
   const { currentUser: user } = useUserStore();
-  const {
-    setPopout,
-    setSnackbar,
-    activeModal,
-    setActiveModal,
-    setVoteSuccessMessage,
-  } = useUiStore();
+  const { setPopout, setSnackbar, setActiveModal, setVoteSuccessMessage } =
+    useUiStore();
   const queryClient = useQueryClient();
 
-  const [thankYouMessage, setThankYouMessage] = useState<string | null>(null);
+  const [isBannerHiding, setIsBannerHiding] = useState(false);
+  const [isBannerHidden, setIsBannerHidden] = useState(false);
 
   const {
     data: eventData,
@@ -67,6 +61,30 @@ export const Voting = ({ id }: VotingProps) => {
     },
     enabled: !!promo,
   });
+
+  const groupId = Number(import.meta.env.VITE_VK_GROUP_ID);
+
+  const handleAllowMessages = async () => {
+    try {
+      const result = await bridge.send("VKWebAppAllowMessagesFromGroup", {
+        group_id: Math.abs(groupId),
+      });
+
+      if (result.result) {
+        setIsBannerHiding(true);
+
+        setTimeout(() => {
+          setIsBannerHidden(true);
+        }, 300);
+
+        // 3. В фоне сохраняем настройки на сервере и обновляем кэш юзера
+        await apiPut("/users/me/settings", { allow_notifications: true });
+        await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
+      }
+    } catch (e: any) {
+      console.error("Ошибка при запросе разрешения на сообщения:", e);
+    }
+  };
 
   const handleEventVoteSubmit = async (voteData: {
     vote_type: "trust" | "distrust" | "remove";
@@ -107,7 +125,7 @@ export const Voting = ({ id }: VotingProps) => {
   };
 
   const renderContent = () => {
-    if (isLoading) return <Spinner size="xl" />;
+    if (isLoading) return <Spinner size="xl" style={{ marginTop: 20 }} />;
     if (isError)
       return (
         <Placeholder icon={<Icon56ErrorTriangleOutline />} title="Ошибка">
@@ -120,24 +138,40 @@ export const Voting = ({ id }: VotingProps) => {
       case "active":
         return (
           <>
-           {eventData.has_message && !user?.allow_notifications && (
-              <Group>
-                <Div>
-                  <FormStatus title="Важное предупреждение">
-                    У вас запрещены сообщения от нашего сообщества. Из-за этого вы не сможете получить бонус или ответное сообщение от эксперта после голосования.
-                    <div style={{ marginTop: 12 }}>
-                      <Button mode="primary" onClick={handleAllowMessages}>
-                        Разрешить сообщения
-                      </Button>
-                    </div>
-                  </FormStatus>
-                </Div>
-              </Group>
-            )}
+            <div
+              style={{
+                transition: "all 0.3s ease-in-out",
+                maxHeight: isBannerHiding ? 0 : 500,
+                opacity: isBannerHiding ? 0 : 1,
+                overflow: "hidden",
+                margin: 0,
+                padding: 0,
+              }}
+            >
+              {eventData.has_message &&
+                !user?.allow_notifications &&
+                !isBannerHidden && (
+                  <Group>
+                    <Div>
+                      <FormStatus title="Важное предупреждение">
+                        У вас запрещены сообщения от нашего сообщества. Из-за
+                        этого вы не сможете получить бонус или ответное
+                        сообщение от эксперта после голосования.
+                        <div style={{ marginTop: 12 }}>
+                          <Button mode="primary" onClick={handleAllowMessages}>
+                            Разрешить сообщения
+                          </Button>
+                        </div>
+                      </FormStatus>
+                    </Div>
+                  </Group>
+                )}
+            </div>
 
             <Group header={<Header>Эксперт мероприятия</Header>}>
               <MiniExpertProfile expert={eventData.expert} />
             </Group>
+
             <VoteCard
               onSubmit={handleEventVoteSubmit}
               initialVote={
@@ -189,23 +223,6 @@ export const Voting = ({ id }: VotingProps) => {
             Проверьте правильность введенного промо-слова.
           </Placeholder>
         );
-    }
-  };
-
-  const groupId = Number(import.meta.env.VITE_VK_GROUP_ID);
-
-  const handleAllowMessages = async () => {
-    try {
-      const result = await bridge.send("VKWebAppAllowMessagesFromGroup", {
-        group_id: Math.abs(groupId),
-      });
-      if (result.result) {
-        // Если пользователь разрешил, сохраняем в БД и обновляем кэш
-        await apiPut("/users/me/settings", { allow_notifications: true });
-        await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
-      }
-    } catch (e: any) {
-      console.error("Ошибка при запросе разрешения на сообщения:", e);
     }
   };
 

@@ -72,9 +72,7 @@ export const QrCodeModal = ({
     const serializer = new XMLSerializer();
     let source = serializer.serializeToString(svgElement);
 
-    if (
-      !source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)
-    ) {
+    if (!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)) {
       source = source.replace(
         /^<svg/,
         '<svg xmlns="http://www.w3.org/2000/svg"',
@@ -137,7 +135,11 @@ export const QrCodeModal = ({
     <ModalPage
       id={id}
       onClose={onClose}
-      header={<ModalPageHeader before={<PanelHeaderBack onClick={onBack} />}>QR-код</ModalPageHeader>}
+      header={
+        <ModalPageHeader before={<PanelHeaderBack onClick={onBack} />}>
+          QR-код
+        </ModalPageHeader>
+      }
       settlingHeight={100}
     >
       <Group>
@@ -198,8 +200,8 @@ export const QrCodeModal = ({
               transition: "background-color 0.2s",
             }}
             onMouseEnter={(e) =>
-            (e.currentTarget.style.backgroundColor =
-              "var(--vkui--color_background_secondary_alpha)")
+              (e.currentTarget.style.backgroundColor =
+                "var(--vkui--color_background_secondary_alpha)")
             }
             onMouseLeave={(e) =>
               (e.currentTarget.style.backgroundColor = "transparent")

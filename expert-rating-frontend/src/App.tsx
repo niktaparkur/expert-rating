@@ -215,9 +215,9 @@ export const App = () => {
       .catch((e) => console.error("Failed to load themes", e));
   }, [apiGet]);
 
-  const openEventActionModal = async (event: EventData) => {  
+  const openEventActionModal = async (event: EventData) => {
     setInteractionEvent(event);
-    
+
     if (activeView === VIEW_AFISHA) {
       setActiveModal("afisha-event-details");
     } else {
