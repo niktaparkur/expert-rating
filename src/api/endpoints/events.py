@@ -23,7 +23,7 @@ from src.schemas import event_schemas
 from src.services.notifier import Notifier
 from src.schemas.expert_schemas import VotedExpertInfo
 from src.models import Event, User, ExpertRating
-from src.services import report_generator, excel_generator
+from src.services import excel_generator
 
 router = APIRouter(prefix="/events", tags=["Events & Voting"])
 
@@ -312,7 +312,7 @@ async def get_event_status_by_promo(
             "photo_url": str(user.photo_url),
             "regalia": expert_profile.regalia,
         },
-        "has_message": bool(event.voter_thank_you_message)
+        "has_message": bool(event.voter_thank_you_message),
     }
 
 
@@ -450,7 +450,7 @@ async def cancel_event_vote(
 async def generate_event_report(
     event_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Dict = Depends(get_current_admin_user), # Только админ
+    current_user: Dict = Depends(get_current_admin_user),  # Только админ
     notifier: Notifier = Depends(get_notifier),
 ):
     """
@@ -458,15 +458,18 @@ async def generate_event_report(
     Отправляет файл в личку ВК.
     """
     report_path = await excel_generator.generate_event_excel_report(db, event_id)
-    
+
     if not report_path:
-        raise HTTPException(status_code=404, detail="Не удалось сгенерировать отчет. Возможно, мероприятие не найдено.")
+        raise HTTPException(
+            status_code=404,
+            detail="Не удалось сгенерировать отчет. Возможно, мероприятие не найдено.",
+        )
 
     try:
         await notifier.send_document(
             user_id=current_user["vk_id"],
             file_path=report_path,
-            message=f"📊 Ваш отчет по мероприятию (ID: {event_id})"
+            message=f"📊 Ваш отчет по мероприятию (ID: {event_id})",
         )
     except Exception as e:
         logger.error(f"Error sending report: {e}")

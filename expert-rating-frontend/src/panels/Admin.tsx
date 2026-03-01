@@ -59,6 +59,8 @@ import { PromoCodeEditModal } from "../components/Admin/PromoCodeEditModal";
 import { PromoCodeDetailsModal } from "../components/Admin/PromoCodeDetailsModal";
 import { UserData } from "../types";
 import { useUserStore } from "../store/userStore";
+import { AdminTariffCard } from "../components/Admin/Tariff/AdminTariffCard";
+import { AdminTariffEditModal } from "../components/Admin/Tariff/AdminTariffEditModal";
 
 interface MailingRequest {
   id: number;
@@ -160,6 +162,32 @@ export const Admin = ({ id }: AdminPanelProps) => {
 
   const [updateRequests, setUpdateRequests] = useState<UpdateRequest[]>([]);
   const [loadingUpdates, setLoadingUpdates] = useState(false);
+
+  const [tariffsList, setTariffsList] = useState<any[]>([]);
+  const [editingTariff, setEditingTariff] = useState<any>(null);
+
+  useEffect(() => {
+    if (selectedTab === "tariffs") {
+      apiGet<any[]>("/tariffs")
+        .then(setTariffsList)
+        .catch((e) => showErrorSnackbar((e as Error).message));
+    }
+  }, [selectedTab, apiGet]);
+
+  // Сохранение тарифа
+  const handleSaveTariff = async (id: number, data: any) => {
+    try {
+      await apiPut(`/tariffs/admin/${id}`, data);
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)}>Тариф обновлен</Snackbar>,
+      );
+      apiGet<any[]>("/tariffs").then(setTariffsList);
+    } catch (e: any) {
+      setSnackbar(
+        <Snackbar onClose={() => setSnackbar(null)}>{e.message}</Snackbar>,
+      );
+    }
+  };
 
   const [tariffs, setTariffs] = useState<any[]>([]);
   const [selectedUserForTariff, setSelectedUserForTariff] =
@@ -673,6 +701,12 @@ export const Admin = ({ id }: AdminPanelProps) => {
 
   const modal = (
     <ModalRoot activeModal={activeModal} onClose={closeModal}>
+      <AdminTariffEditModal
+        id="admin-tariff-edit"
+        onClose={closeModal}
+        tariff={editingTariff}
+        onSave={handleSaveTariff}
+      />
       <ModalPage
         id="expert-details"
         onClose={closeModal}
@@ -979,8 +1013,34 @@ export const Admin = ({ id }: AdminPanelProps) => {
           >
             Промокоды
           </TabsItem>
+          <TabsItem
+            selected={selectedTab === "tariffs"}
+            onClick={() => setSelectedTab("tariffs")}
+          >
+            Тарифы
+          </TabsItem>
         </Tabs>
       </HorizontalScroll>
+
+      <div
+        style={{
+          display: selectedTab === "tariffs" ? "block" : "none",
+          paddingBottom: 60,
+        }}
+      >
+        <Group header={<Header>Управление тарифами</Header>}>
+          {tariffsList.map((t) => (
+            <AdminTariffCard
+              key={t.id}
+              tariff={t}
+              onEdit={(item) => {
+                setEditingTariff(item);
+                setActiveModal("admin-tariff-edit");
+              }}
+            />
+          ))}
+        </Group>
+      </div>
 
       <div
         style={{

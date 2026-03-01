@@ -27,7 +27,7 @@ import {
   Icon24Dismiss,
   Icon24Document,
   Icon28CheckCircleFill,
-  Icon16Cancel
+  Icon16Cancel,
 } from "@vkontakte/icons";
 import { EventData } from "../../types";
 import { useUserStore } from "../../store/userStore";
@@ -54,7 +54,7 @@ export const EventActionModal = ({
   const { currentUser } = useUserStore();
   const { apiPost } = useApi();
   const { setSnackbar, setPopout } = useUiStore();
-  
+
   if (!event) return null;
 
   const handleDownloadReport = async () => {
@@ -64,19 +64,18 @@ export const EventActionModal = ({
       setSnackbar(
         <Snackbar
           onClose={() => setSnackbar(null)}
-          before={<Icon28CheckCircleFill fill="var(--vkui--color_icon_positive)" />}
+          before={
+            <Icon28CheckCircleFill fill="var(--vkui--color_icon_positive)" />
+          }
         >
           Отчет отправлен вам в личные сообщения ВК
-        </Snackbar>
+        </Snackbar>,
       );
     } catch (e: any) {
       setSnackbar(
-        <Snackbar
-          onClose={() => setSnackbar(null)}
-          before={<Icon16Cancel />}
-        >
+        <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
           {e.message || "Ошибка заказа отчета"}
-        </Snackbar>
+        </Snackbar>,
       );
     } finally {
       setPopout(null);
@@ -114,7 +113,7 @@ export const EventActionModal = ({
     : event.event_date + "Z";
   const eventStart = new Date(isoDateString);
   const eventEnd = new Date(
-    eventStart.getTime() + event.duration_minutes * 60000
+    eventStart.getTime() + event.duration_minutes * 60000,
   );
   const now = new Date();
 
@@ -158,12 +157,23 @@ export const EventActionModal = ({
             {statusInfo.text}
           </Headline>
           {isFinished && isApproved && (
-            <Text style={{ color: "var(--vkui--color_text_secondary)", fontSize: 12 }}>
+            <Text
+              style={{
+                color: "var(--vkui--color_text_secondary)",
+                fontSize: 12,
+              }}
+            >
               В архиве
             </Text>
           )}
           {isLive && isApproved && (
-             <Text style={{ color: "var(--vkui--color_text_positive)", fontSize: 12, fontWeight: "bold" }}>
+            <Text
+              style={{
+                color: "var(--vkui--color_text_positive)",
+                fontSize: 12,
+                fontWeight: "bold",
+              }}
+            >
               Идет сейчас (Live)
             </Text>
           )}
@@ -206,7 +216,6 @@ export const EventActionModal = ({
 
       <Group>
         <Div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          
           {isAdmin && isFinished && (
             <Button
               size="l"
@@ -243,9 +252,9 @@ export const EventActionModal = ({
               Остановить голосование
             </Button>
           ) : (
-            (event.status === "rejected" || 
-             event.status === "pending" || 
-             (isApproved && !isFinished)) && (
+            (event.status === "rejected" ||
+              event.status === "pending" ||
+              (isApproved && !isFinished)) && (
               <Button
                 size="l"
                 appearance="negative"

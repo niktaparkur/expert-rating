@@ -114,6 +114,7 @@ import {
 } from "./routes";
 import { EventData, UserData } from "./types";
 import "./styles/global.css";
+import { AdminBroadcastModal } from "./components/Admin/AdminBroadcastModal";
 
 const GROUP_ID = Number(import.meta.env.VITE_VK_GROUP_ID);
 const TARIFF_MAILING_LIMITS: { [key: string]: number } = {
@@ -1049,6 +1050,11 @@ export const App = () => {
       {snackbar}
       {popout && <PopoutWrapper>{popout}</PopoutWrapper>}
       <ModalRoot activeModal={activeModal} onClose={() => setActiveModal(null)}>
+        <AdminBroadcastModal
+          id="admin-broadcast-modal"
+          onClose={() => setActiveModal(null)}
+        />
+
         <TariffActionModal
           id="tariff-action-modal"
           onClose={() => setActiveModal(null)}
@@ -1259,6 +1265,21 @@ export const App = () => {
           }
           settlingHeight={100}
         >
+          {currentUser?.is_admin && (
+            <Group header={<Header>Администрирование</Header>}>
+              <SimpleCell
+                onClick={() => {
+                  setActiveModal(null);
+                  setTimeout(
+                    () => setActiveModal("admin-broadcast-modal"),
+                    200,
+                  );
+                }}
+              >
+                Массовая рассылка (Сделать всем)
+              </SimpleCell>
+            </Group>
+          )}
           {currentUser?.is_expert && (
             <Group header={<Header>Настройки профиля</Header>}>
               <SimpleCell
@@ -1341,6 +1362,7 @@ export const App = () => {
               </SimpleCell>
             )}
           </Group>
+
           <Group header={<Header>О приложении</Header>}>
             <Div
               style={{

@@ -249,34 +249,34 @@ class Notifier:
         await self.send_message(expert_id, message)
 
     async def send_new_vote_notification(
-            self, expert_id: int, vote_data: event_schemas.VoteCreate
-        ):
-            # Корректно определяем тип действия
-            if vote_data.vote_type == "trust":
-                vote_type_text = "👍 (доверяю)"
-                action_text = "Новый голос"
-            elif vote_data.vote_type == "distrust":
-                vote_type_text = "👎 (не доверяю)"
-                action_text = "Новый голос"
-            elif vote_data.vote_type == "remove":
-                vote_type_text = "🗑️ (отзыв голоса)"
-                action_text = "Голос отозван"
-            else:
-                vote_type_text = "Нейтрально"
-                action_text = "Изменение голоса"
+        self, expert_id: int, vote_data: event_schemas.VoteCreate
+    ):
+        # Корректно определяем тип действия
+        if vote_data.vote_type == "trust":
+            vote_type_text = "👍 (доверяю)"
+            action_text = "Новый голос"
+        elif vote_data.vote_type == "distrust":
+            vote_type_text = "👎 (не доверяю)"
+            action_text = "Новый голос"
+        elif vote_data.vote_type == "remove":
+            vote_type_text = "🗑️ (отзыв голоса)"
+            action_text = "Голос отозван"
+        else:
+            vote_type_text = "Нейтрально"
+            action_text = "Изменение голоса"
 
-            # Формируем сообщение
-            message = (
-                f"🗳️ {action_text} на мероприятии!\n\n"
-                f"Решение: {vote_type_text}\n"
-                f"Мероприятие: {vote_data.promo_word}\n"
-            )
-            
-            # Добавляем комментарий, если он есть
-            if vote_data.comment and vote_data.comment.strip():
-                message += f"\nКомментарий: «{vote_data.comment.strip()}»"
+        # Формируем сообщение
+        message = (
+            f"🗳️ {action_text} на мероприятии!\n\n"
+            f"Решение: {vote_type_text}\n"
+            f"Мероприятие: {vote_data.promo_word}\n"
+        )
 
-            await self.send_message(expert_id, message)
+        # Добавляем комментарий, если он есть
+        if vote_data.comment and vote_data.comment.strip():
+            message += f"\nКомментарий: «{vote_data.comment.strip()}»"
+
+        await self.send_message(expert_id, message)
 
     async def send_vote_action_notification(
         self,

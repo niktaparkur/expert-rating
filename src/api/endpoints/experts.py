@@ -67,7 +67,6 @@ async def get_top_experts(
     )
 
     response_users = []
-    # Распаковываем 5 элементов (User, Profile, Stats, Topics, Rank)
     for user, profile, stats_dict, topics, rank in experts_data:
         user_data = expert_schemas.UserPublicRead.model_validate(
             user, from_attributes=True
@@ -79,7 +78,6 @@ async def get_top_experts(
         user_data.regalia = profile.regalia
         user_data.social_link = str(profile.social_link)
 
-        # Тариф теперь вычисляем (заглушка, позже прикрутим Donut)
         user_data.tariff_plan = "Начальный"
 
         user_data.rank = rank
@@ -164,7 +162,6 @@ async def create_vote_for_expert(
                 await db.rollback()
                 raise HTTPException(status_code=409, detail="Вы уже проголосовали.")
             except Exception:
-                # Catch-all for other DB/code errors to avoid hanging locks if not auto-released (though aioredlock handles it)
                 raise
 
             await cache.delete(f"user_profile:{vk_id}")
@@ -189,10 +186,6 @@ async def cancel_vote_for_expert(
     cache: redis.Redis = Depends(get_redis),
 ):
     voter_vk_id = current_user["vk_id"]
-
-    # Можно использовать revoke_data.comment для логирования или сохранения причины,
-    # если логика withdraw_rating_vote это поддерживает.
-    # Пока просто передаем его, если потребуется расширение.
 
     success = await expert_crud.withdraw_rating_vote(
         db=db, expert_vk_id=vk_id, voter_vk_id=voter_vk_id, rating_type=rating_type
@@ -283,7 +276,6 @@ async def get_all_users(
             user_data.status = profile.status
         response_users.append(user_data)
 
-    # Fetch all tariffs once for efficiency
     from src.models.tariff import Tariff
     from sqlalchemy import select
 
@@ -292,7 +284,6 @@ async def get_all_users(
     )
     all_tariffs = tariffs_result.scalars().all()
 
-    # Re-iterate to populate tariff info efficiently
     final_response_users = []
     for user_data, (user, profile) in zip(response_users, users_with_profiles):
         if profile:
@@ -480,18 +471,25 @@ async def moderate_update_request(
 )
 async def update_user_tariff(
     user_vk_id: int,
-    tariff_code: str = Query(..., description="Code of the tariff or 'reset'"),
+    tariff_input: str = Query(
+        ..., description="ID тарифа или 'reset'", alias="tariff_code"
+    ),
     db: AsyncSession = Depends(get_db),
     cache: redis.Redis = Depends(get_redis),
 ):
     from src.models.tariff import Tariff
     from sqlalchemy import select
 
-    if tariff_code == "reset":
+    if tariff_input == "reset":
         tariff_id = None
     else:
-        res = await db.execute(select(Tariff).where(Tariff.code == tariff_code))
-        tariff = res.scalars().first()
+        try:
+            t_id = int(tariff_input)
+            tariff = await db.get(Tariff, t_id)
+        except ValueError:
+            res = await db.execute(select(Tariff).where(Tariff.code == tariff_input))
+            tariff = res.scalars().first()
+
         if not tariff:
             raise HTTPException(status_code=404, detail="Tariff not found")
         tariff_id = tariff.id
@@ -503,4 +501,4 @@ async def update_user_tariff(
         raise HTTPException(status_code=404, detail="User not found")
 
     await cache.delete(f"user_profile:{user_vk_id}")
-    return {"status": "ok", "message": f"Tariff updated to {tariff_code}"}
+    return {"status": "ok", "message": f"Tariff updated (ID: {tariff_id})"}

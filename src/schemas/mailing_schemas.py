@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Literal
 
 
 class MailingCreate(BaseModel):
@@ -17,3 +17,8 @@ class MailingRead(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class AdminBroadcastCreate(BaseModel):
+    message: str = Field(..., min_length=5)
+    target_group: Literal["all", "experts", "users"]

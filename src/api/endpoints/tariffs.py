@@ -6,6 +6,9 @@ from typing import List
 from src.core.dependencies import get_db
 from src.models.tariff import Tariff
 from src.schemas.base_schemas import TariffRead
+from pydantic import BaseModel
+
+from src.core.dependencies import get_current_admin_user
 
 router = APIRouter(prefix="/tariffs", tags=["Tariffs"])
 
@@ -82,7 +85,36 @@ async def get_all_tariffs(db: AsyncSession = Depends(get_db)):
                 "features": features,
                 "feature_headers": feature_headers,
                 "vk_donut_link": t.vk_donut_link,
+                "event_limit": t.event_limit,
+                "event_duration_hours": t.event_duration_hours,
+                "max_votes_per_event": t.max_votes_per_event,
+                "is_active": t.is_active,
             }
         )
 
     return response
+
+
+class TariffUpdate(BaseModel):
+    name: str
+    price: float
+    event_limit: int
+    event_duration_hours: int
+    max_votes_per_event: int
+    vk_donut_link: str | None = None
+    is_active: bool
+
+
+@router.put("/admin/{tariff_id}", dependencies=[Depends(get_current_admin_user)])
+async def update_tariff(
+    tariff_id: int, data: TariffUpdate, db: AsyncSession = Depends(get_db)
+):
+    tariff = await db.get(Tariff, tariff_id)
+    if not tariff:
+        raise HTTPException(status_code=404, detail="Tariff not found")
+
+    for key, value in data.model_dump().items():
+        setattr(tariff, key, value)
+
+    await db.commit()
+    return {"status": "ok"}
