@@ -45,7 +45,7 @@ services:
     image: grafana/promtail:2.9.0
     container_name: expert_rating_promtail
     volumes:
-      - ./logs:/var/log/app_logs
+      - logs_data_prod:/var/log/app_logs
       - ./promtail-config.yaml:/etc/promtail/config.yml
     command: -config.file=/etc/promtail/config.yml
     depends_on:
