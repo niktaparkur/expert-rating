@@ -15,4 +15,4 @@ scrape_configs:
       - localhost
     labels:
       job: backend_logs
-      __path__: /var/log/app_logs/json.logk
+      __path__: /var/log/app_logs/json.log
