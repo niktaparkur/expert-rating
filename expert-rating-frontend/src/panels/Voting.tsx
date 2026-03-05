@@ -1,18 +1,13 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   Panel,
   PanelHeader,
   PanelHeaderBack,
   Group,
   Spinner,
-  ModalRoot,
-  ModalPage,
-  ModalPageHeader,
   Placeholder,
   Header,
   Snackbar,
-  FormStatus,
-  Div,
   Button,
 } from "@vkontakte/vkui";
 import { useRouteNavigator, useParams } from "@vkontakte/vk-mini-apps-router";
@@ -28,6 +23,7 @@ import {
   Icon56ErrorTriangleOutline,
   Icon56RecentOutline,
   Icon16Cancel,
+  Icon56InfoOutline,
 } from "@vkontakte/icons";
 import { EventStatusData } from "../types";
 
@@ -40,13 +36,10 @@ export const Voting = ({ id }: VotingProps) => {
   const params = useParams<"promo">();
   const promo = params?.promo;
   const { apiGet, apiPost, apiPut } = useApi();
-  const { currentUser: user } = useUserStore();
+  const { currentUser: user, setCurrentUser } = useUserStore();
   const { setPopout, setSnackbar, setActiveModal, setVoteSuccessMessage } =
     useUiStore();
   const queryClient = useQueryClient();
-
-  const [isBannerHiding, setIsBannerHiding] = useState(false);
-  const [isBannerHidden, setIsBannerHidden] = useState(false);
 
   const {
     data: eventData,
@@ -71,18 +64,19 @@ export const Voting = ({ id }: VotingProps) => {
       });
 
       if (result.result) {
-        setIsBannerHiding(true);
+        setPopout(<Spinner size="l" />);
 
-        setTimeout(() => {
-          setIsBannerHidden(true);
-        }, 300);
+        const updatedUser = await apiPut<any>("/users/me/settings", {
+          allow_notifications: true
+        });
 
-        // 3. В фоне сохраняем настройки на сервере и обновляем кэш юзера
-        await apiPut("/users/me/settings", { allow_notifications: true });
-        await queryClient.invalidateQueries({ queryKey: ["user", "me"] });
+        setCurrentUser(updatedUser);
+
+        setPopout(null);
       }
     } catch (e: any) {
       console.error("Ошибка при запросе разрешения на сообщения:", e);
+      setPopout(null);
     }
   };
 
@@ -94,7 +88,7 @@ export const Voting = ({ id }: VotingProps) => {
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)}>
           Не удалось определить ваш ID.
-        </Snackbar>,
+        </Snackbar>
       );
       return;
     }
@@ -117,7 +111,7 @@ export const Voting = ({ id }: VotingProps) => {
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
           {err.message}
-        </Snackbar>,
+        </Snackbar>
       );
     } finally {
       setPopout(null);
@@ -138,55 +132,42 @@ export const Voting = ({ id }: VotingProps) => {
       case "active":
         return (
           <>
-            <div
-              style={{
-                transition: "all 0.3s ease-in-out",
-                maxHeight: isBannerHiding ? 0 : 500,
-                opacity: isBannerHiding ? 0 : 1,
-                overflow: "hidden",
-                margin: 0,
-                padding: 0,
-              }}
-            >
-              {eventData.has_message &&
-                !user?.allow_notifications &&
-                !isBannerHidden && (
-                  <Group>
-                    <Div>
-                      <FormStatus title="Важное предупреждение">
-                        У вас запрещены сообщения от нашего сообщества. Из-за
-                        этого вы не сможете получить бонус или ответное
-                        сообщение от эксперта после голосования.
-                        <div style={{ marginTop: 12 }}>
-                          <Button mode="primary" onClick={handleAllowMessages}>
-                            Разрешить сообщения
-                          </Button>
-                        </div>
-                      </FormStatus>
-                    </Div>
-                  </Group>
-                )}
-            </div>
-
             <Group header={<Header>Эксперт мероприятия</Header>}>
               <MiniExpertProfile expert={eventData.expert} />
             </Group>
 
-            <VoteCard
-              onSubmit={handleEventVoteSubmit}
-              initialVote={
-                eventData.current_vote?.vote_value
-                  ? {
+            {!user?.allow_notifications ? (
+              <Group>
+                <Placeholder
+                  icon={<Icon56InfoOutline style={{ color: "var(--vkui--color_icon_accent)" }} />}
+                  title="Разрешите сообщения"
+                  action={
+                    <Button size="l" mode="primary" onClick={handleAllowMessages}>
+                      Разрешить
+                    </Button>
+                  }
+                >
+                  Обязательное условие: для участия в голосовании необходимо разрешить сообществу присылать вам сообщения.
+                  Туда придет подтверждение и возможные бонусы от эксперта.
+                </Placeholder>
+              </Group>
+            ) : (
+              <VoteCard
+                onSubmit={handleEventVoteSubmit}
+                initialVote={
+                  eventData.current_vote?.vote_value
+                    ? {
                       vote_type:
                         eventData.current_vote.vote_value === 1
                           ? "trust"
                           : "distrust",
                       comment: eventData.current_vote.last_comment,
                     }
-                  : null
-              }
-              setPopout={setPopout}
-            />
+                    : null
+                }
+                setPopout={setPopout}
+              />
+            )}
           </>
         );
       case "not_started":
@@ -197,7 +178,7 @@ export const Voting = ({ id }: VotingProps) => {
             month: "long",
             hour: "2-digit",
             minute: "2-digit",
-          },
+          }
         );
         return (
           <Placeholder

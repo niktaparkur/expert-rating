@@ -64,7 +64,6 @@ export default defineConfig({
     ],
     hmr: {
       protocol: "wss",
-      // host: "so.potokrechi.ru",
       clientPort: 443,
     },
   },
@@ -79,6 +78,18 @@ export default defineConfig({
   },
   build: {
     outDir: "build",
+    chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-vkui': ['@vkontakte/vkui', '@vkontakte/icons'],
+          'vendor-vk-bridge': ['@vkontakte/vk-bridge', '@vkontakte/vk-mini-apps-router'],
+          'vendor-utils': ['@tanstack/react-query', 'zustand', 'date-fns', 'axios'],
+          'vendor-qr': ['react-qr-code']
+        }
+      }
+    }
   },
   test: {
     projects: [

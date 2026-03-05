@@ -20,7 +20,13 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
                 }
             )
         else:
-            custom_errors.append(error)
+            custom_errors.append(
+                {
+                    "loc": error.get("loc"),
+                    "msg": error.get("msg"),
+                    "type": error.get("type"),
+                }
+            )
 
     return JSONResponse(
         status_code=422,
