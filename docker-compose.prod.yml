@@ -68,7 +68,7 @@ services:
 
     
 volumes:
-  redis_data_dev:
-  mysql_data_dev:
+  redis_data_prod:
+  logs_data_prod:
   loki_data:
   grafana_data:
