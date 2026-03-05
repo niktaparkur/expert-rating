@@ -282,6 +282,7 @@ async def get_event_status_by_promo(
             and_(
                 ExpertRating.expert_id == event.expert_id,
                 ExpertRating.voter_id == voter_id,
+                ExpertRating.rating_type == "expert"
             )
         )
         rating_res = await db.execute(rating_query)

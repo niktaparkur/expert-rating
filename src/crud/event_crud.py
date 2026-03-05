@@ -207,14 +207,6 @@ async def get_event_by_promo(db: AsyncSession, promo_word: str):
 async def create_vote(
     db: AsyncSession, vote_data: event_schemas.VoteCreate, event: Event
 ):
-    existing_feedback = await db.execute(
-        select(EventFeedback).filter(
-            EventFeedback.voter_id == vote_data.voter_vk_id,
-            EventFeedback.event_id == event.id,
-        )
-    )
-    if existing_feedback.scalars().first():
-        raise ValueError("Вы уже оставили отзыв к этому мероприятию.")
 
     target_value = 0
     if vote_data.vote_type == "trust":
@@ -263,6 +255,7 @@ async def create_vote(
     await db.commit()
     await db.refresh(db_feedback)
     return db_feedback
+
 
 
 async def get_pending_events(db: AsyncSession):
