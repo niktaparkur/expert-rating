@@ -30,29 +30,27 @@ from src.core.middlewares import integrity_error_handler
 from sqlalchemy.exc import IntegrityError
 from fastapi.exceptions import RequestValidationError
 
+from src.core.middlewares import request_id_context, RequestLoggingMiddleware
+
+def inject_request_id(record):
+    record["extra"]["request_id"] = request_id_context.get()
+
+logger.configure(patcher=inject_request_id)
 logger.remove()
+
 logger.add(
     sys.stderr,
     level="INFO",
-    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan> - <level>{message}</level>",
-)
-logger.add(
-    "logs/general.log",
-    level="INFO",
-    rotation="1 day",
-    retention="1 month",
-    compression="zip",
-    encoding="utf-8",
-)
-logger.add(
-    "logs/error.log",
-    level="ERROR",
-    rotation="1 day",
-    retention="1 month",
-    compression="zip",
-    encoding="utf-8",
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{extra[request_id]}</cyan> | <level>{message}</level>",
 )
 
+logger.add(
+    "logs/json.log",
+    level="INFO",
+    rotation="1 day",
+    retention="7 days",
+    serialize=True,
+)
 if settings.SENTRY_DSN:
     sentry_sdk.init(
         dsn=settings.SENTRY_DSN,
@@ -180,6 +178,7 @@ app.add_middleware(
         "Set-Cookie",
     ],
 )
+app.add_middleware(RequestLoggingMiddleware)
 
 app.include_router(experts.router, prefix="/api/v1")
 app.include_router(events.router, prefix="/api/v1")

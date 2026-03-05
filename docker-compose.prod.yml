@@ -30,6 +30,45 @@ services:
     volumes:
       - redis_data_prod:/data
 
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: expert_rating_loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./loki-config.yaml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: expert_rating_promtail
+    volumes:
+      - ./logs:/var/log/app_logs
+      - ./promtail-config.yaml:/etc/promtail/config.yml
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: expert_rating_grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    ports:
+      - "3000:3000"
+    depends_on:
+      - loki
+    volumes:
+      - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+
+    
 volumes:
-  redis_data_prod:
-  logs_data_prod:
+  redis_data_dev:
+  mysql_data_dev:
+  loki_data:
+  grafana_data:
