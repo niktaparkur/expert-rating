@@ -27,12 +27,12 @@ async def send_admin_broadcast(
     db: AsyncSession = Depends(get_db),
     notifier: Notifier = Depends(get_notifier),
 ):
-    query = select(User.vk_id).where(User.allow_notifications == True)
+    query = select(User.vk_id).where(User.allow_notifications)
 
     if data.target_group == "experts":
-        query = query.where(User.is_expert == True)
+        query = query.where(User.is_expert)
     elif data.target_group == "users":
-        query = query.where(User.is_expert == False)
+        query = query.where(not User.is_expert)
 
     result = await db.execute(query)
     user_ids = result.scalars().all()

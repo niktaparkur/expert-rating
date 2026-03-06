@@ -24,6 +24,7 @@ from src.services.notifier import Notifier
 from src.schemas.expert_schemas import VotedExpertInfo
 from src.models import Event, User, ExpertRating
 from src.services import excel_generator
+from loguru import logger
 
 router = APIRouter(prefix="/events", tags=["Events & Voting"])
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
@@ -7,6 +7,7 @@ from src.core.dependencies import get_db
 from src.models.tariff import Tariff
 from src.schemas.base_schemas import TariffRead
 from pydantic import BaseModel
+
 
 from src.core.dependencies import get_current_admin_user
 
