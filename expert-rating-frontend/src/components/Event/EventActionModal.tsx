@@ -228,7 +228,7 @@ export const EventActionModal = ({
             </Button>
           )}
 
-          {isApproved && (
+          {isApproved && !isFinished && (
             <Button
               size="l"
               mode="secondary"

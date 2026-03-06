@@ -67,7 +67,7 @@ export const Voting = ({ id }: VotingProps) => {
         setPopout(<Spinner size="l" />);
 
         const updatedUser = await apiPut<any>("/users/me/settings", {
-          allow_notifications: true
+          allow_notifications: true,
         });
 
         setCurrentUser(updatedUser);
@@ -88,7 +88,7 @@ export const Voting = ({ id }: VotingProps) => {
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)}>
           Не удалось определить ваш ID.
-        </Snackbar>
+        </Snackbar>,
       );
       return;
     }
@@ -111,7 +111,7 @@ export const Voting = ({ id }: VotingProps) => {
       setSnackbar(
         <Snackbar onClose={() => setSnackbar(null)} before={<Icon16Cancel />}>
           {err.message}
-        </Snackbar>
+        </Snackbar>,
       );
     } finally {
       setPopout(null);
@@ -139,16 +139,25 @@ export const Voting = ({ id }: VotingProps) => {
             {!user?.allow_notifications ? (
               <Group>
                 <Placeholder
-                  icon={<Icon56InfoOutline style={{ color: "var(--vkui--color_icon_accent)" }} />}
+                  icon={
+                    <Icon56InfoOutline
+                      style={{ color: "var(--vkui--color_icon_accent)" }}
+                    />
+                  }
                   title="Разрешите сообщения"
                   action={
-                    <Button size="l" mode="primary" onClick={handleAllowMessages}>
+                    <Button
+                      size="l"
+                      mode="primary"
+                      onClick={handleAllowMessages}
+                    >
                       Разрешить
                     </Button>
                   }
                 >
-                  Обязательное условие: для участия в голосовании необходимо разрешить сообществу присылать вам сообщения.
-                  Туда придет подтверждение и возможные бонусы от эксперта.
+                  Обязательное условие: для участия в голосовании необходимо
+                  разрешить сообществу присылать вам сообщения. Туда придет
+                  подтверждение и возможные бонусы от эксперта.
                 </Placeholder>
               </Group>
             ) : (
@@ -157,12 +166,12 @@ export const Voting = ({ id }: VotingProps) => {
                 initialVote={
                   eventData.current_vote?.vote_value
                     ? {
-                      vote_type:
-                        eventData.current_vote.vote_value === 1
-                          ? "trust"
-                          : "distrust",
-                      comment: eventData.current_vote.last_comment,
-                    }
+                        vote_type:
+                          eventData.current_vote.vote_value === 1
+                            ? "trust"
+                            : "distrust",
+                        comment: eventData.current_vote.last_comment,
+                      }
                     : null
                 }
                 setPopout={setPopout}
@@ -178,7 +187,7 @@ export const Voting = ({ id }: VotingProps) => {
             month: "long",
             hour: "2-digit",
             minute: "2-digit",
-          }
+          },
         );
         return (
           <Placeholder

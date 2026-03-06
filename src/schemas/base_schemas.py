@@ -25,3 +25,8 @@ class TariffRead(BaseModel):
     features: list[TariffFeature]
     feature_headers: list[str]
     vk_donut_link: str | None = None
+
+    event_limit: int
+    event_duration_hours: int
+    max_votes_per_event: int
+    is_active: bool

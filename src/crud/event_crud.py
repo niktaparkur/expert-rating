@@ -257,7 +257,6 @@ async def create_vote(
     return db_feedback
 
 
-
 async def get_pending_events(db: AsyncSession):
     result = await db.execute(select(Event).filter(Event.status == "pending"))
     return result.scalars().all()

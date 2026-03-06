@@ -32,8 +32,10 @@ from fastapi.exceptions import RequestValidationError
 
 from src.core.middlewares import request_id_context, RequestLoggingMiddleware
 
+
 def inject_request_id(record):
     record["extra"]["request_id"] = request_id_context.get()
+
 
 logger.configure(patcher=inject_request_id)
 logger.remove()

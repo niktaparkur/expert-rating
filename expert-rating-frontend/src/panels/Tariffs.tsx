@@ -86,7 +86,6 @@ const TariffCardComponent = ({
             <Icon24CheckCircleOn fill="var(--vkui--color_icon_positive)" />
           }
           subtitle={tariff.feature_headers[index]}
-          disabled
           after={
             feature.tooltip && (
               <Tooltip description={feature.tooltip} placement="top-start">

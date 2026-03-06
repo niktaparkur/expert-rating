@@ -10,6 +10,7 @@ import {
   Div,
   Switch,
   FormStatus,
+  SimpleCell,
 } from "@vkontakte/vkui";
 
 interface AdminTariffEditModalProps {
@@ -25,26 +26,35 @@ export const AdminTariffEditModal = ({
   tariff,
   onSave,
 }: AdminTariffEditModalProps) => {
-  const [formData, setFormData] = useState<any>({});
+  const [formData, setFormData] = useState({
+    name: "",
+    price: "",
+    vk_donut_link: "",
+    event_limit: "",
+    event_duration_hours: "",
+    max_votes_per_event: "",
+    is_active: true,
+  });
+
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (tariff) {
       setFormData({
-        name: tariff.name,
-        price: tariff.price_votes,
-        event_limit: tariff.event_limit,
-        event_duration_hours: tariff.event_duration_hours,
-        max_votes_per_event: tariff.max_votes_per_event,
+        name: tariff.name || "",
+        price: String(tariff.price_votes ?? 0),
+        event_limit: String(tariff.event_limit ?? 0),
+        event_duration_hours: String(tariff.event_duration_hours ?? 0),
+        max_votes_per_event: String(tariff.max_votes_per_event ?? 0),
         vk_donut_link: tariff.vk_donut_link || "",
-        is_active: tariff.is_active,
+        is_active: tariff.is_active ?? true,
       });
     }
   }, [tariff]);
 
-  const handleChange = (e: any) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
-    setFormData((prev: any) => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
     }));
@@ -53,14 +63,17 @@ export const AdminTariffEditModal = ({
   const handleSave = async () => {
     setLoading(true);
     const payload = {
-      ...formData,
+      name: formData.name,
       price: Number(formData.price),
       event_limit: Number(formData.event_limit),
       event_duration_hours: Number(formData.event_duration_hours),
       max_votes_per_event: Number(formData.max_votes_per_event),
+      vk_donut_link: formData.vk_donut_link,
+      is_active: formData.is_active,
     };
     await onSave(tariff.id, payload);
     setLoading(false);
+    onClose();
   };
 
   return (
@@ -72,7 +85,6 @@ export const AdminTariffEditModal = ({
           Редактирование тарифа
         </ModalPageHeader>
       }
-      settlingHeight={100}
     >
       <Div>
         <FormStatus mode="error">
@@ -81,62 +93,69 @@ export const AdminTariffEditModal = ({
         </FormStatus>
       </Div>
       <Group>
-        <FormItem top="Название">
-          <Input
-            name="name"
-            value={formData.name || ""}
-            onChange={handleChange}
-          />
+        <FormItem top="Название тарифа">
+          <Input name="name" value={formData.name} onChange={handleChange} />
         </FormItem>
+
         <FormItem top="Цена (руб)">
           <Input
             type="number"
             name="price"
-            value={formData.price || 0}
+            value={formData.price}
             onChange={handleChange}
           />
         </FormItem>
-        <FormItem top="Ссылка на VK Donut">
+
+        <FormItem top="Ссылка на VK Donut (для оплаты)">
           <Input
             name="vk_donut_link"
-            value={formData.vk_donut_link || ""}
+            value={formData.vk_donut_link}
             onChange={handleChange}
+            placeholder="https://vk.com/donut/..."
           />
         </FormItem>
-        <FormItem top="Лимит мероприятий">
+
+        <FormItem top="Лимит мероприятий в месяц">
           <Input
             type="number"
             name="event_limit"
-            value={formData.event_limit || 0}
+            value={formData.event_limit}
             onChange={handleChange}
           />
         </FormItem>
-        <FormItem top="Длительность (часов)">
+
+        <FormItem top="Длительность голосования (часов)">
           <Input
             type="number"
             name="event_duration_hours"
-            value={formData.event_duration_hours || 0}
+            value={formData.event_duration_hours}
             onChange={handleChange}
           />
         </FormItem>
-        <FormItem top="Лимит голосов">
+
+        <FormItem top="Лимит голосов на одно мероприятие">
           <Input
             type="number"
             name="max_votes_per_event"
-            value={formData.max_votes_per_event || 0}
+            value={formData.max_votes_per_event}
             onChange={handleChange}
           />
         </FormItem>
-        <FormItem style={{ display: "flex", gap: "8px" }}>
-          <Switch
-            name="is_active"
-            checked={formData.is_active || false}
-            onChange={handleChange}
-          />{" "}
-          <span style={{ marginLeft: 8 }}>Активен</span>
-        </FormItem>
+
+        <SimpleCell
+          Component="label"
+          after={
+            <Switch
+              name="is_active"
+              checked={formData.is_active}
+              onChange={handleChange}
+            />
+          }
+        >
+          Активен (виден пользователям)
+        </SimpleCell>
       </Group>
-      <Div style={{ paddingBottom: "50px" }}>
+      <Div>
         <Button size="l" stretched onClick={handleSave} loading={loading}>
           Сохранить
         </Button>
