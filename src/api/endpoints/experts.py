@@ -20,6 +20,7 @@ from src.schemas import expert_schemas
 from src.services.notifier import Notifier
 from sqlalchemy.exc import IntegrityError
 from redis.exceptions import LockError
+from src.services import excel_generator
 
 router = APIRouter(prefix="/experts", tags=["Experts"])
 
@@ -502,3 +503,33 @@ async def update_user_tariff(
 
     await cache.delete(f"user_profile:{user_vk_id}")
     return {"status": "ok", "message": f"Tariff updated (ID: {tariff_id})"}
+
+
+
+@router.post(
+    "/admin/{vk_id}/report",
+    status_code=200,
+    dependencies=[Depends(get_current_admin_user)],
+)
+async def generate_expert_report_for_admin(
+    vk_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Dict = Depends(get_current_admin_user),
+    notifier: Notifier = Depends(get_notifier),
+):
+    report_path = await excel_generator.generate_admin_expert_excel_report(db, vk_id)
+    
+    if not report_path:
+        raise HTTPException(status_code=404, detail="Эксперт не найден или нет данных.")
+
+    try:
+        await notifier.send_document(
+            user_id=current_user["vk_id"],
+            file_path=report_path,
+            message=f"📊 Подробный отчет по голосам эксперта (ID: {vk_id})"
+        )
+    except Exception as e:
+        logger.error(f"Error sending expert report to admin: {e}")
+        raise HTTPException(status_code=500, detail="Ошибка при отправке отчета в ВК.")
+
+    return {"status": "ok", "message": "Отчет отправлен вам в личные сообщения ВК."}

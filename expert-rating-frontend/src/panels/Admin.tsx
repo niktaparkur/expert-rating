@@ -48,6 +48,7 @@ import {
   Icon56UsersOutline,
   Icon24CheckCircleOn,
   Icon28CoinsOutline,
+  Icon28DocumentOutline
 } from "@vkontakte/icons";
 import { useRouteNavigator } from "@vkontakte/vk-mini-apps-router";
 import { useApi } from "../hooks/useApi";
@@ -139,6 +140,25 @@ export const Admin = ({ id }: AdminPanelProps) => {
   );
   const [selectedEvent, setSelectedEvent] = useState<EventRequest | null>(null);
   const [loadingModeration, setLoadingModeration] = useState(true);
+
+  const handleDownloadExpertReport = async (userToReport: UserData) => {
+    setPopout(<ScreenSpinner state="loading" />);
+    try {
+      await apiPost(`/experts/admin/${userToReport.vk_id}/report`, {});
+      setSnackbar(
+        <Snackbar
+          onClose={() => setSnackbar(null)}
+          before={<Icon24CheckCircleOn fill="var(--vkui--color_icon_positive)" />}
+        >
+          Отчет отправлен вам в личные сообщения ВК
+        </Snackbar>
+      );
+    } catch (e: any) {
+      showErrorSnackbar(e.message || "Ошибка заказа отчета");
+    } finally {
+      setPopout(null);
+    }
+  };
 
   const [users, setUsers] = useState<UserData[]>([]);
   const [usersPage, setUsersPage] = useState(1);
@@ -554,6 +574,17 @@ export const Admin = ({ id }: AdminPanelProps) => {
           paddingBottom: "60px",
         }}
       >
+        {user.is_expert && (
+          <ActionSheetItem
+            before={<Icon28DocumentOutline />}
+            onClick={() => {
+              handleCloseSheet();
+              handleDownloadExpertReport(user);
+            }}
+          >
+            Скачать отчет (Excel)
+          </ActionSheetItem>
+        )}
         {user.is_expert && (
           <ActionSheetItem
             onClick={() => {
