@@ -14,6 +14,7 @@ from src.core.dependencies import get_current_admin_user
 router = APIRouter(prefix="/tariffs", tags=["Tariffs"])
 
 
+
 @router.get("", response_model=List[TariffRead])
 async def get_all_tariffs(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
