@@ -2,25 +2,25 @@ from typing import Dict, List, Optional
 
 import redis.asyncio as redis
 from fastapi import APIRouter, Depends, HTTPException, Query
+from redis.exceptions import LockError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
 from src.core.dependencies import (
+    check_idempotency_key,
     get_current_admin_user,
     get_current_user,
-    get_validated_vk_id,
     get_db,
     get_notifier,
     get_redis,
-    check_idempotency_key,
+    get_validated_vk_id,
     save_idempotency_result,
 )
 from src.crud import expert_crud
 from src.schemas import expert_schemas
-from src.services.notifier import Notifier
-from sqlalchemy.exc import IntegrityError
-from redis.exceptions import LockError
 from src.services import excel_generator
+from src.services.notifier import Notifier
 
 router = APIRouter(prefix="/experts", tags=["Experts"])
 
@@ -277,8 +277,9 @@ async def get_all_users(
             user_data.status = profile.status
         response_users.append(user_data)
 
-    from src.models.tariff import Tariff
     from sqlalchemy import select
+
+    from src.models.tariff import Tariff
 
     tariffs_result = await db.execute(
         select(Tariff).where(Tariff.is_active).order_by(Tariff.price.desc())
@@ -478,8 +479,9 @@ async def update_user_tariff(
     db: AsyncSession = Depends(get_db),
     cache: redis.Redis = Depends(get_redis),
 ):
-    from src.models.tariff import Tariff
     from sqlalchemy import select
+
+    from src.models.tariff import Tariff
 
     if tariff_input == "reset":
         tariff_id = None
@@ -505,7 +507,6 @@ async def update_user_tariff(
     return {"status": "ok", "message": f"Tariff updated (ID: {tariff_id})"}
 
 
-
 @router.post(
     "/admin/{vk_id}/report",
     status_code=200,
@@ -518,7 +519,7 @@ async def generate_expert_report_for_admin(
     notifier: Notifier = Depends(get_notifier),
 ):
     report_path = await excel_generator.generate_admin_expert_excel_report(db, vk_id)
-    
+
     if not report_path:
         raise HTTPException(status_code=404, detail="Эксперт не найден или нет данных.")
 
@@ -526,7 +527,7 @@ async def generate_expert_report_for_admin(
         await notifier.send_document(
             user_id=current_user["vk_id"],
             file_path=report_path,
-            message=f"📊 Подробный отчет по голосам эксперта (ID: {vk_id})"
+            message=f"📊 Подробный отчет по голосам эксперта (ID: {vk_id})",
         )
     except Exception as e:
         logger.error(f"Error sending expert report to admin: {e}")

@@ -1,30 +1,30 @@
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Body
-from sqlalchemy.ext.asyncio import AsyncSession
 import redis.asyncio as redis
-from sqlalchemy import select, and_
-from sqlalchemy.exc import IntegrityError
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException
+from loguru import logger
 from redis.exceptions import LockError
+from sqlalchemy import and_, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.dependencies import (
+    check_idempotency_key,
     get_current_admin_user,
     get_current_user,
     get_db,
     get_notifier,
-    get_validated_vk_id,
     get_redis,
-    check_idempotency_key,
+    get_validated_vk_id,
     save_idempotency_result,
 )
 from src.crud import event_crud
+from src.models import Event, ExpertRating, User
 from src.schemas import event_schemas
-from src.services.notifier import Notifier
 from src.schemas.expert_schemas import VotedExpertInfo
-from src.models import Event, User, ExpertRating
 from src.services import excel_generator
-from loguru import logger
+from src.services.notifier import Notifier
 
 router = APIRouter(prefix="/events", tags=["Events & Voting"])
 
@@ -188,6 +188,7 @@ async def get_my_events(
 @router.post("/vote")
 async def submit_vote(
     vote_data: event_schemas.VoteCreate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     notifier: Notifier = Depends(get_notifier),
     voter_id: int = Depends(get_validated_vk_id),
@@ -230,11 +231,14 @@ async def submit_vote(
             try:
                 await event_crud.create_vote(db=db, vote_data=vote_data, event=event)
 
-                await notifier.send_new_vote_notification(
-                    expert_id=event.expert_id, vote_data=vote_data
+                background_tasks.add_task(
+                    notifier.send_new_vote_notification,
+                    expert_id=event.expert_id,
+                    vote_data=vote_data,
                 )
                 if event.voter_thank_you_message:
-                    await notifier.send_vote_action_notification(
+                    background_tasks.add_task(
+                        notifier.send_vote_action_notification,
                         user_vk_id=vote_data.voter_vk_id,
                         message_override=event.voter_thank_you_message,
                     )
@@ -272,7 +276,9 @@ async def get_event_status_by_promo(
     status = (
         "active"
         if start_time <= now <= end_time
-        else "not_started" if now < start_time else "finished"
+        else "not_started"
+        if now < start_time
+        else "finished"
     )
 
     voter_id = current_user.get("vk_id")

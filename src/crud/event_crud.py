@@ -1,14 +1,14 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
+from typing import Optional
 
-from sqlalchemy import and_, case, func, text
+from dateutil.parser import isoparse
+from loguru import logger
+from sqlalchemy import and_, case, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
-from typing import Optional
-from loguru import logger
-from dateutil.parser import isoparse
 
-from src.models import Event, ExpertProfile, ExpertRating, EventFeedback, Theme
+from src.models import Event, EventFeedback, ExpertProfile, ExpertRating, Theme
 from src.schemas import event_schemas
 
 
@@ -187,16 +187,11 @@ async def get_my_events(db: AsyncSession, expert_id: int):
 
 
 async def get_event_by_promo(db: AsyncSession, promo_word: str):
-    
+    normalized_promo = promo_word.strip().upper()
+
     query = (
         select(Event)
-        .filter(
-            func.upper(Event.promo_word) == promo_word.upper(),
-            Event.status == "approved",
-
-        
-
-        )
+        .where(Event.promo_word == normalized_promo, Event.status == "approved")
         .options(selectinload(Event.expert).selectinload(ExpertProfile.user))
         .order_by(Event.event_date.desc())
     )
