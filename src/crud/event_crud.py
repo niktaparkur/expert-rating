@@ -187,18 +187,18 @@ async def get_my_events(db: AsyncSession, expert_id: int):
 
 
 async def get_event_by_promo(db: AsyncSession, promo_word: str):
-    now = datetime.now(timezone.utc)
+    
     query = (
         select(Event)
         .filter(
             func.upper(Event.promo_word) == promo_word.upper(),
             Event.status == "approved",
-            Event.event_date <= now,
-            func.timestampadd(text("MINUTE"), Event.duration_minutes, Event.event_date)
-            >= func.now(),
+
+        
+
         )
         .options(selectinload(Event.expert).selectinload(ExpertProfile.user))
-        .order_by(Event.event_date.asc())
+        .order_by(Event.event_date.desc())
     )
     result = await db.execute(query)
     return result.scalars().first()
